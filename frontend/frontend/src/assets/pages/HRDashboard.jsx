@@ -1,106 +1,173 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../css/HRDashboard.css';
+import AssignTaskModal from './AssignTaskModal';
 
 export default function HRDashboard() {
-  const [showPopup, setShowPopup] = useState(false);
-  const [taskData, setTaskData] = useState({
-    title: '',
-    description: '',
-    assignedTo: '',
-    dueDate: '',
-    priority: 'medium',
-  });
+  const [showModal, setShowModal] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [message, setMessage] = useState('');
 
-  const handleChange = (e) => {
-    setTaskData({ ...taskData, [e.target.name]: e.target.value });
-  };
+  useEffect(() => {
+    fetchTasks();
+    fetchEmployees();
+  }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const fetchTasks = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await axios.post(
-        'http://localhost:5000/api/tasks/create',
-        taskData,
+      const res = await axios.get('http://localhost:5000/api/tasks', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTasks(res.data);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/users/employees');
+      setEmployees(res.data);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+    }
+  };
+
+  const handleChange = (e, taskId) => {
+    const { name, value } = e.target;
+    setTasks((prev) =>
+      prev.map((task) =>
+        task._id === taskId ? { ...task, [name]: value } : task,
+      ),
+    );
+  };
+
+  const handleUpdate = async (taskId) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const task = tasks.find((t) => t._id === taskId);
+      await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        {
+          title: task.title,
+          description: task.description,
+          dueDate: task.dueDate,
+          priority: task.priority,
+          assignedTo: task.assignedTo?._id || task.assignedTo,
+        },
         {
           headers: { Authorization: `Bearer ${token}` },
         },
       );
-      setMessage(res.data.message);
-      setShowPopup(false);
+      setMessage('✅ Task updated successfully!');
+      fetchTasks();
     } catch (error) {
-      setMessage(error.response?.data?.message || 'Error creating task');
+      console.error('Error updating task:', error);
+      setMessage('❌ Error updating task');
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    window.location.href = '/';
   };
 
   return (
     <div className="hr-dashboard">
-      <h2>HR Manager Dashboard</h2>
-      <button onClick={() => setShowPopup(true)}>Assign Task</button>
+      <div className="dashboard-header">
+        <h2>HR Manager Dashboard</h2>
+        <button className="btn-logout" onClick={handleLogout}>
+          Logout
+        </button>
+      </div>
 
-      {showPopup && (
-        <div className="popup">
-          <div className="popup-content">
-            <h3>Assign Task</h3>
-            <form onSubmit={handleSubmit}>
-              <label>Title</label>
-              <input
-                type="text"
-                name="title"
-                value={taskData.title}
-                onChange={handleChange}
-                required
-              />
-
-              <label>Description</label>
-              <textarea
-                name="description"
-                value={taskData.description}
-                onChange={handleChange}
-              ></textarea>
-
-              <label>Assign To (User ID)</label>
-              <input
-                type="text"
-                name="assignedTo"
-                value={taskData.assignedTo}
-                onChange={handleChange}
-                required
-              />
-
-              <label>Due Date</label>
-              <input
-                type="date"
-                name="dueDate"
-                value={taskData.dueDate}
-                onChange={handleChange}
-                required
-              />
-
-              <label>Priority</label>
-              <select
-                name="priority"
-                value={taskData.priority}
-                onChange={handleChange}
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
-
-              <button type="submit">Create Task</button>
-              <button type="button" onClick={() => setShowPopup(false)}>
-                Cancel
-              </button>
-            </form>
-          </div>
-        </div>
+      <button onClick={() => setShowModal(true)}>Assign Task</button>
+      {showModal && (
+        <AssignTaskModal
+          onClose={() => {
+            setShowModal(false);
+            fetchTasks();
+          }}
+        />
       )}
 
       {message && <p className="message">{message}</p>}
+
+      <table className="task-table">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Description</th>
+            <th>Priority</th>
+            <th>Due Date</th>
+            <th>Assigned To</th>
+            <th>Assigned By</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map((task) => (
+            <tr key={task._id}>
+              <td>
+                <input
+                  type="text"
+                  name="title"
+                  value={task.title}
+                  onChange={(e) => handleChange(e, task._id)}
+                />
+              </td>
+              <td>
+                <textarea
+                  name="description"
+                  value={task.description}
+                  onChange={(e) => handleChange(e, task._id)}
+                />
+              </td>
+              <td>
+                <select
+                  name="priority"
+                  value={task.priority}
+                  onChange={(e) => handleChange(e, task._id)}
+                >
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HIGH">HIGH</option>
+                  <option value="URGENT">URGENT</option>
+                </select>
+              </td>
+              <td>
+                <input
+                  type="date"
+                  name="dueDate"
+                  value={task.dueDate?.substring(0, 10)}
+                  onChange={(e) => handleChange(e, task._id)}
+                />
+              </td>
+              <td>
+                <select
+                  name="assignedTo"
+                  value={task.assignedTo?._id || task.assignedTo || ''}
+                  onChange={(e) => handleChange(e, task._id)}
+                >
+                  <option value="">-- Select Employee --</option>
+                  {employees.map((emp) => (
+                    <option key={emp._id} value={emp._id}>
+                      {emp.name} ({emp.email})
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <td>{task.assignedBy?.email || 'N/A'}</td>
+              <td>
+                <button onClick={() => handleUpdate(task._id)}>Update</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

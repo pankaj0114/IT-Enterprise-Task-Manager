@@ -1,128 +1,317 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import AssignTaskModal from './AssignTaskModal';
-import '../css/TaskCard.css';
-import { useNavigate } from 'react-router-dom';
+import '../css/EmployeeDashboard.css';
 
-const EmployeeDashboard = () => {
-  const [showModal, setShowModal] = useState(false);
+export default function EmployeeDashboard() {
+  const [activeTab, setActiveTab] = useState('myTasks');
   const [tasks, setTasks] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('');
-  const navigate = useNavigate();
+  const [clients, setClients] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [newTask, setNewTask] = useState({
+    title: '',
+    dueDate: '',
+    assignedTo: '', // optional
+    priority: 'MEDIUM',
+  });
+
+  // ✅ Fetch functions
+  const fetchTasks = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.get('http://localhost:5000/api/tasks/my-tasks', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTasks(res.data);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.get('http://localhost:5000/api/clients', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setClients(res.data);
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.get('http://localhost:5000/api/users/employees', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setEmployees(res.data);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+    }
+  };
 
   useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        const token = localStorage.getItem('accessToken');
-        const res = await axios.get(
-          'http://localhost:5000/api/tasks/my-tasks',
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        setTasks(res.data);
-      } catch (error) {
-        console.error('Error fetching tasks:', error);
-      }
-    };
     fetchTasks();
-  }, []);
+    fetchClients();
+    fetchEmployees();
+  }, [activeTab]);
 
-  // ✅ Local filtering (search + priority)
-  const filteredTasks = tasks.filter((task) => {
-    const matchesQuery =
-      searchQuery === '' ||
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (task.assignedTo?.email || '')
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
+  const handleChange = (e) => {
+    setNewTask({ ...newTask, [e.target.name]: e.target.value });
+  };
 
-    const matchesPriority =
-      priorityFilter === '' || task.priority === priorityFilter;
-
-    return matchesQuery && matchesPriority;
-  });
+  const handleAddTask = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const payload = {
+        ...newTask,
+        assignedTo: newTask.assignedTo || 'me', // ✅ default to "me"
+      };
+      await axios.post('http://localhost:5000/api/tasks/assign', payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNewTask({
+        title: '',
+        dueDate: '',
+        assignedTo: '',
+        priority: 'MEDIUM',
+      });
+      fetchTasks();
+    } catch (error) {
+      console.error('Error adding task:', error);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('userEmail');
-    navigate('/');
+    localStorage.removeItem('refreshToken');
+    window.location.href = '/'; // redirect to login page
+  };
+
+  const handleTaskChange = (e, taskId) => {
+    const { name, value } = e.target;
+    setTasks((prev) =>
+      prev.map((task) =>
+        task._id === taskId ? { ...task, [name]: value } : task,
+      ),
+    );
+  };
+
+  const handleUpdateTask = async (taskId) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const task = tasks.find((t) => t._id === taskId);
+      await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        {
+          title: task.title,
+          dueDate: task.dueDate,
+          priority: task.priority,
+          remarks: task.remarks,
+          client: task.client || null,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      fetchTasks();
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
   };
 
   return (
-    <div className="dashboard-container">
-      <h2 className="dashboard-title">Employee Dashboard</h2>
-
-      {/* ✅ Search Bar */}
-      <div className="search-bar">
-        <input
-          type="text"
-          placeholder="Search by person or task name"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="search-input"
-        />
-        <select
-          value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value)}
-          className="search-select"
-        >
-          <option value="">All Priorities</option>
-          <option value="HIGH">High</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="LOW">Low</option>
-        </select>
+    <div className="employee-dashboard">
+      {/* Sidebar */}
+      <div className="sidebar">
+        <h3>Dashboard</h3>
+        <button className="btn-logout" onClick={handleLogout}>
+          Logout
+        </button>
+        <ul>
+          <li
+            onClick={() => setActiveTab('myTasks')}
+            className={activeTab === 'myTasks' ? 'active' : ''}
+          >
+            My Tasks
+          </li>
+          <li
+            onClick={() => setActiveTab('assignedTasks')}
+            className={activeTab === 'assignedTasks' ? 'active' : ''}
+          >
+            Assigned Tasks
+          </li>
+          <li
+            onClick={() => setActiveTab('clients')}
+            className={activeTab === 'clients' ? 'active' : ''}
+          >
+            Clients
+          </li>
+        </ul>
       </div>
 
-      {/* ✅ Assign Task Button */}
-      <button onClick={() => setShowModal(true)} className="assign-button">
-        Assign Task
-      </button>
-      {showModal && <AssignTaskModal onClose={() => setShowModal(false)} />}
+      {/* Main Content */}
+      <div className="main-panel">
+        {activeTab !== 'clients' && (
+          <div className="add-task-bar">
+            <input
+              type="text"
+              name="title"
+              placeholder="Task title..."
+              value={newTask.title}
+              onChange={handleChange}
+            />
+            <input
+              type="date"
+              name="dueDate"
+              value={newTask.dueDate}
+              onChange={handleChange}
+            />
+            {/* ✅ Assign To Dropdown */}
+            <select
+              name="assignedTo"
+              value={newTask.assignedTo}
+              onChange={handleChange}
+            >
+              <option value="me">Me</option>
+              {employees.map((emp) => (
+                <option key={emp._id} value={emp._id}>
+                  {emp.name} ({emp.email})
+                </option>
+              ))}
+            </select>
+            <button onClick={handleAddTask}>Add Task</button>
+          </div>
+        )}
 
-      {/* ✅ Task Table */}
-      <table className="task-table">
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Description</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Due Date</th>
-            <th>Assigned To</th>
-            <th>Assigned By</th>
-            <th>Tags</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredTasks.map((task) => (
-            <tr key={task._id}>
-              <td>{task.title}</td>
-              <td>{task.description}</td>
-              <td>{task.priority}</td>
-              <td>{task.status}</td>
-              <td>{new Date(task.dueDate).toLocaleDateString()}</td>
-              <td>{task.assignedTo?.email || 'N/A'}</td>
-              <td>{task.assignedBy?.email || 'N/A'}</td>
-              <td>
-                {task.tags.map((tag, idx) => (
-                  <span key={idx} className="tag-box">
-                    {tag}
-                  </span>
+        {/* My Tasks */}
+        {activeTab === 'myTasks' && (
+          <div className="task-list">
+            <h3>My Tasks</h3>
+            {tasks
+              .filter(
+                (t) =>
+                  t.assignedTo?._id === t.assignedBy?._id ||
+                  t.assignedTo === 'me',
+              )
+              .map((task) => (
+                <div key={task._id} className="task-item">
+                  <input type="checkbox" />
+                  <span>{task.title}</span>
+                  <span>{new Date(task.dueDate).toLocaleDateString()}</span>
+                </div>
+              ))}
+          </div>
+        )}
+
+        {/* Assigned Tasks (Editable) */}
+        {activeTab === 'assignedTasks' && (
+          <div className="task-list">
+            <h3>Assigned Tasks</h3>
+            <table className="task-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Due Date</th>
+                  <th>Priority</th>
+                  <th>Remarks</th>
+                  <th>Client</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasks
+                  .filter((t) => t.assignedTo && t.assignedTo !== 'me')
+                  .map((task) => (
+                    <tr key={task._id}>
+                      <td>
+                        <input
+                          type="text"
+                          name="title"
+                          value={task.title}
+                          onChange={(e) => handleTaskChange(e, task._id)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="date"
+                          name="dueDate"
+                          value={task.dueDate?.substring(0, 10)}
+                          onChange={(e) => handleTaskChange(e, task._id)}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          name="priority"
+                          value={task.priority}
+                          onChange={(e) => handleTaskChange(e, task._id)}
+                        >
+                          <option value="LOW">LOW</option>
+                          <option value="MEDIUM">MEDIUM</option>
+                          <option value="HIGH">HIGH</option>
+                          <option value="URGENT">URGENT</option>
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          name="remarks"
+                          value={task.remarks || ''}
+                          onChange={(e) => handleTaskChange(e, task._id)}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          name="client"
+                          value={task.client || ''}
+                          onChange={(e) => handleTaskChange(e, task._id)}
+                        >
+                          <option value="">-- Select Client --</option>
+                          {clients.map((client) => (
+                            <option key={client._id} value={client._id}>
+                              {client.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <button onClick={() => handleUpdateTask(task._id)}>
+                          Update
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Clients */}
+        {activeTab === 'clients' && (
+          <div className="client-list">
+            <h3>Clients</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Company</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clients.map((client) => (
+                  <tr key={client._id}>
+                    <td>{client.name}</td>
+                    <td>{client.email}</td>
+                    <td>{client.company}</td>
+                  </tr>
                 ))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* ✅ Logout Button */}
-      <button onClick={handleLogout} className="logout-button">
-        Logout
-      </button>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
-};
-
-export default EmployeeDashboard;
+}

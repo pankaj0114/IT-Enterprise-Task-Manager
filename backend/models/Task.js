@@ -3,25 +3,23 @@ import mongoose from 'mongoose';
 const taskSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
-    description: { type: String },
-    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // employee email
-    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    assignDate: { type: Date, required: true },
-    dueDate: { type: Date, required: true },
-    estimatedHours: { type: Number },
+    remarks: { type: String }, // ✅ renamed from description
+    dueDate: { type: Date },
     priority: {
       type: String,
-      enum: ['LOW', 'MEDIUM', 'HIGH'],
+      enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'],
       default: 'MEDIUM',
     },
-    tags: [{ type: String }],
+    client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // ✅ employee ID
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // ✅ who created/assigned
     status: {
       type: String,
-      enum: ['Not Started', 'In Progress', 'Completed', 'Pending Review'],
+      enum: ['Not Started', 'In Progress', 'Completed'],
       default: 'Not Started',
     },
+    tags: [String],
   },
-
   { timestamps: true },
 );
 
