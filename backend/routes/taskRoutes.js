@@ -69,6 +69,16 @@ router.get('/my-tasks', authMiddleware, async (req, res) => {
   }
 });
 
+// ✅ Return logged-in user info
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('name email role');
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const updatedTask = await Task.findByIdAndUpdate(req.params.id, req.body, {
@@ -96,6 +106,10 @@ router.post('/assign', authMiddleware, async (req, res) => {
     // ✅ If "me" selected, assign to logged-in user
     if (!assignedTo || assignedTo === 'me') {
       assignedTo = req.user.id;
+    }
+
+    if (!dueDate) {
+      dueDate = new Date();
     }
 
     const task = new Task({

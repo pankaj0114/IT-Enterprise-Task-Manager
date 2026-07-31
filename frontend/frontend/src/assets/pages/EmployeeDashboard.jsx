@@ -7,6 +7,8 @@ export default function EmployeeDashboard() {
   const [tasks, setTasks] = useState([]);
   const [clients, setClients] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [user, setUser] = useState(null);
+
   const [newTask, setNewTask] = useState({
     title: '',
     dueDate: '',
@@ -24,6 +26,17 @@ export default function EmployeeDashboard() {
       setTasks(res.data);
     } catch (error) {
       console.error('Error fetching tasks:', error);
+    }
+  };
+  const fetchUser = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.get('http://localhost:5000/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUser(res.data); // { name, email, ... }
+    } catch (error) {
+      console.error('Error fetching user:', error);
     }
   };
 
@@ -55,6 +68,7 @@ export default function EmployeeDashboard() {
     fetchTasks();
     fetchClients();
     fetchEmployees();
+    fetchUser();
   }, [activeTab]);
 
   const handleChange = (e) => {
@@ -67,6 +81,7 @@ export default function EmployeeDashboard() {
       const payload = {
         ...newTask,
         assignedTo: newTask.assignedTo || 'me', // ✅ default to "me"
+        dueDate: newTask.dueDate || new Date().toISOString().substring(0, 10),
       };
       await axios.post('http://localhost:5000/api/tasks/assign', payload, {
         headers: { Authorization: `Bearer ${token}` },
