@@ -36,13 +36,22 @@ const AssignTaskModal = ({ onClose }) => {
 
   const handleSubmit = async () => {
     try {
-      await axios.post('http://localhost:5000/api/tasks/assign', {
-        ...form,
-        tags: form.tags.split(',').map((tag) => tag.trim()),
-      });
+      const token = localStorage.getItem('accessToken'); // ✅ get token
+      await axios.post(
+        'http://localhost:5000/api/tasks/assign',
+        {
+          ...form,
+          // ✅ ensure tags are array
+          tags: form.tags.split(',').map((tag) => tag.trim()),
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }, // ✅ send token so backend sets assignedBy
+        },
+      );
       alert('✅ Task assigned successfully!');
       onClose();
     } catch (error) {
+      console.error('Error assigning task:', error);
       alert('❌ Error assigning task');
     }
   };
@@ -78,7 +87,7 @@ const AssignTaskModal = ({ onClose }) => {
           >
             <option value="">-- Select Employee --</option>
             {employees.map((emp) => (
-              <option key={emp._id} value={emp.email}>
+              <option key={emp._id} value={emp._id}>
                 {emp.name} ({emp.email})
               </option>
             ))}

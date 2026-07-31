@@ -1,4 +1,4 @@
-import express from 'express';
+/* import express from 'express';
 import Department from '../models/Department.js';
 import { verifyToken, authorizeRoles } from '../middleware/authMiddleware.js';
 
@@ -48,3 +48,4 @@ router.post(
 );
 
 export default router;
+ */

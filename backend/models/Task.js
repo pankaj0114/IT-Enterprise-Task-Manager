@@ -4,7 +4,8 @@ const taskSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     description: { type: String },
-    assignedTo: { type: String, required: true }, // employee email
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // employee email
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     assignDate: { type: Date, required: true },
     dueDate: { type: Date, required: true },
     estimatedHours: { type: Number },

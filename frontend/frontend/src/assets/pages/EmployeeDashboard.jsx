@@ -14,7 +14,13 @@ const EmployeeDashboard = () => {
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/tasks'); // ✅ fetch all tasks
+        const token = localStorage.getItem('accessToken');
+        const res = await axios.get(
+          'http://localhost:5000/api/tasks/my-tasks',
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
         setTasks(res.data);
       } catch (error) {
         console.error('Error fetching tasks:', error);
@@ -23,12 +29,14 @@ const EmployeeDashboard = () => {
     fetchTasks();
   }, []);
 
-  // ✅ Filter tasks locally (always show all, filter when search/priority applied)
+  // ✅ Local filtering (search + priority)
   const filteredTasks = tasks.filter((task) => {
     const matchesQuery =
       searchQuery === '' ||
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.assignedTo.toLowerCase().includes(searchQuery.toLowerCase());
+      (task.assignedTo?.email || '')
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
 
     const matchesPriority =
       priorityFilter === '' || task.priority === priorityFilter;
@@ -73,31 +81,41 @@ const EmployeeDashboard = () => {
       </button>
       {showModal && <AssignTaskModal onClose={() => setShowModal(false)} />}
 
-      {/* ✅ Task List */}
-      <div className="task-list">
-        {filteredTasks.map((task) => (
-          <div
-            key={task._id}
-            className={`task-card priority-${task.priority.toLowerCase()}`}
-          >
-            <h3>{task.title}</h3>
-            <p>{task.description}</p>
-            <p>
-              <strong>Assigned To:</strong> {task.assignedTo}
-            </p>
-            <p>
-              <strong>Priority:</strong> {task.priority}
-            </p>
-            <p>
-              <strong>Status:</strong> {task.status}
-            </p>
-            <p>
-              <strong>Due:</strong>{' '}
-              {new Date(task.dueDate).toLocaleDateString()}
-            </p>
-          </div>
-        ))}
-      </div>
+      {/* ✅ Task Table */}
+      <table className="task-table">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Description</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Due Date</th>
+            <th>Assigned To</th>
+            <th>Assigned By</th>
+            <th>Tags</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredTasks.map((task) => (
+            <tr key={task._id}>
+              <td>{task.title}</td>
+              <td>{task.description}</td>
+              <td>{task.priority}</td>
+              <td>{task.status}</td>
+              <td>{new Date(task.dueDate).toLocaleDateString()}</td>
+              <td>{task.assignedTo?.email || 'N/A'}</td>
+              <td>{task.assignedBy?.email || 'N/A'}</td>
+              <td>
+                {task.tags.map((tag, idx) => (
+                  <span key={idx} className="tag-box">
+                    {tag}
+                  </span>
+                ))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       {/* ✅ Logout Button */}
       <button onClick={handleLogout} className="logout-button">

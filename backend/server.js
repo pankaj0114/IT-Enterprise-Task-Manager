@@ -5,7 +5,7 @@ import dns from 'node:dns';
 import dotenv from 'dotenv';
 
 import authRoutes from './routes/authRoutes.js';
-import departmentRoutes from './routes/departmentRoutes.js';
+//import departmentRoutes from './routes/departmentRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 
@@ -23,7 +23,7 @@ app.use(
 );
 
 // ✅ Mount routes
-app.use('/api/departments', departmentRoutes);
+// app.use('/api/departments', departmentRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
