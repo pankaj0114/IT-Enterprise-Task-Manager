@@ -90,7 +90,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     })
       .populate('assignedTo', 'name email')
       .populate('assignedBy', 'name email')
-      .populate('client', 'name email company');
+      .populate('client', 'name');
 
     res.json(updatedTask);
   } catch (error) {

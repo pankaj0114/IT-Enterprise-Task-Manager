@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../css/EmployeeDashboard.css';
+import '../css/Popup.css';
+import AssignTaskPage from './AssignTaskPage';
+import { MdDashboard, MdAssignment, MdListAlt } from 'react-icons/md';
 
 export default function EmployeeDashboard() {
   const [activeTab, setActiveTab] = useState('myTasks');
@@ -8,6 +11,10 @@ export default function EmployeeDashboard() {
   const [clients, setClients] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [user, setUser] = useState(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupTaskId, setPopupTaskId] = useState(null);
+  const [hours, setHours] = useState('');
+  const [minutes, setMinutes] = useState('');
   const [newTask, setNewTask] = useState({
     title: '',
     dueDate: '',
@@ -109,6 +116,11 @@ export default function EmployeeDashboard() {
     setTasks((prevTasks) =>
       prevTasks.map((t) => (t._id === taskId ? { ...t, [name]: value } : t)),
     );
+    if (name === 'status' && value.toLowerCase() === 'completed') {
+      setPopupTaskId(taskId);
+      setShowPopup(true);
+      return; // wait for popup input before saving
+    }
 
     try {
       const token = localStorage.getItem('accessToken');
@@ -120,7 +132,9 @@ export default function EmployeeDashboard() {
         assignedBy: taskToUpdate.assignedBy,
         priority: taskToUpdate.priority,
         status: name === 'status' ? value : taskToUpdate.status,
+        client: name === 'client' ? value : taskToUpdate.client?._id,
         remarks: name === 'remarks' ? value : taskToUpdate.remarks || '',
+        assignedTo: taskToUpdate.assignedTo?._id || taskToUpdate.assignedTo,
       };
 
       const res = await axios.put(
@@ -137,6 +151,37 @@ export default function EmployeeDashboard() {
       console.error('Error updating task:', error);
     }
   };
+
+  const handleCompleteTask = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const taskToUpdate = tasks.find((t) => t._id === popupTaskId);
+
+      const payload = {
+        ...taskToUpdate,
+        status: 'Completed',
+        totalHours: hours,
+        totalMinutes: minutes,
+      };
+
+      const res = await axios.put(
+        `http://localhost:5000/api/tasks/${popupTaskId}`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      setTasks((prev) =>
+        prev.map((t) => (t._id === popupTaskId ? res.data : t)),
+      );
+
+      setShowPopup(false);
+      setHours('');
+      setMinutes('');
+    } catch (err) {
+      console.error('Error completing task:', err);
+    }
+  };
+
   const handleUpdateTask = async (taskId) => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -166,6 +211,20 @@ export default function EmployeeDashboard() {
       console.error('Error updating task:', error);
     }
   };
+  const markUncomplete = async (taskId) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        { status: 'in-progress' }, // or "to-do"
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      setTasks((prev) => prev.map((t) => (t._id === taskId ? res.data : t)));
+    } catch (err) {
+      console.error('Error marking uncomplete:', err);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
@@ -184,17 +243,22 @@ export default function EmployeeDashboard() {
           Logout
         </button>
         <ul>
+          <li onClick={() => setActiveTab('assignTask')}>
+            <MdAssignment style={{ marginRight: '8px' }} />
+            Assign Task
+          </li>
           <li
             onClick={() => setActiveTab('myTasks')}
             className={activeTab === 'myTasks' ? 'active' : ''}
           >
+            <MdListAlt style={{ marginRight: '8px' }} />
             My Tasks
           </li>
           <li
             onClick={() => setActiveTab('assignedTasks')}
             className={activeTab === 'assignedTasks' ? 'active' : ''}
           >
-            Assigned Tasks
+            Assigned by Me
           </li>
           <li
             onClick={() => setActiveTab('completedTasks')}
@@ -202,6 +266,7 @@ export default function EmployeeDashboard() {
           >
             Completed Tasks
           </li>
+
           <li
             onClick={() => setActiveTab('clients')}
             className={activeTab === 'clients' ? 'active' : ''}
@@ -213,44 +278,13 @@ export default function EmployeeDashboard() {
 
       {/* Main Panel */}
       <div className="main-panel">
-        {activeTab !== 'clients' && (
-          <div className="add-task-bar">
-            <div className="form-group">
-              <label>Task Title</label>
-              <input
-                type="text"
-                name="title"
-                value={newTask.title}
-                onChange={handleChange}
-                placeholder="Enter task title"
-              />
-            </div>
-            <div className="form-group">
-              <label>Due Date</label>
-              <input
-                type="date"
-                name="dueDate"
-                value={newTask.dueDate}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="form-group">
-              <label>Assigned By</label>
-              <select
-                name="assignedTo"
-                value={newTask.assignedTo}
-                onChange={handleChange}
-              >
-                <option value="me">Me</option>
-                {employees.map((emp) => (
-                  <option key={emp._id} value={emp._id}>
-                    {emp.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button onClick={handleAddTask}>Add Task</button>
-          </div>
+        {activeTab === 'assignTask' && (
+          <AssignTaskPage
+            user={user}
+            clients={clients}
+            employees={employees}
+            setActiveTab={setActiveTab}
+          />
         )}
 
         {activeTab === 'myTasks' && (
@@ -262,6 +296,7 @@ export default function EmployeeDashboard() {
                   <th>Title</th>
                   <th>Due Date</th>
                   <th>Status</th>
+                  <th>Assigned By</th>
                   <th>Remarks</th>
                 </tr>
               </thead>
@@ -287,6 +322,7 @@ export default function EmployeeDashboard() {
                           <option value="Completed">Completed</option>
                         </select>
                       </td>
+                      <td>{task.assignedBy?.name}</td>
                       <td>
                         <textarea
                           name="remarks"
@@ -323,7 +359,7 @@ export default function EmployeeDashboard() {
                   <th>Remarks</th>
                   <th>Client</th>
                   <th>Status</th>
-                  <th>Assigned By</th>
+                  <th>Assigned To</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -334,7 +370,17 @@ export default function EmployeeDashboard() {
                     <tr key={task._id}>
                       <td>{task.title}</td>
                       <td>{new Date(task.dueDate).toLocaleDateString()}</td>
-                      <td>{task.priority}</td>
+                      <td>
+                        <select
+                          name="priority"
+                          value={task.priority}
+                          onChange={(e) => handleTaskChange(e, task._id)}
+                        >
+                          <option value="Low">Low</option>
+                          <option value="Medium">Medium</option>
+                          <option value="High">High</option>
+                        </select>
+                      </td>
                       <td>
                         <input
                           type="text"
@@ -346,13 +392,13 @@ export default function EmployeeDashboard() {
                       <td>
                         <select
                           name="client"
-                          value={task.client || ''}
+                          value={task.client?._id || ''}
                           onChange={(e) => handleTaskChange(e, task._id)}
                         >
                           <option value="">-- Select Client --</option>
-                          {clients.map((client) => (
-                            <option key={client._id} value={client._id}>
-                              {client.name}
+                          {clients.map((c) => (
+                            <option key={c._id} value={c._id}>
+                              {c.name}
                             </option>
                           ))}
                         </select>
@@ -365,7 +411,6 @@ export default function EmployeeDashboard() {
                         >
                           <option value="Not Started">Not Started</option>
                           <option value="In Progress">In Progress</option>
-                          <option value="Completed">Completed</option>
                         </select>
                       </td>
                       <td>{task.assignedTo?.name}</td>
@@ -380,7 +425,6 @@ export default function EmployeeDashboard() {
             </table>
           </div>
         )}
-
         {/* Completed Tasks */}
         {activeTab === 'completedTasks' && (
           <div className="task-list">
@@ -388,18 +432,70 @@ export default function EmployeeDashboard() {
             {tasks
               .filter(
                 (t) =>
-                  t.assignedTo?._id === user?._id && t.status === 'Completed',
+                  t.assignedTo?._id === user?._id &&
+                  t.status.toLowerCase() === 'completed',
               )
               .map((task) => (
-                <div key={task._id} className="task-card completed">
+                <div className="task-card completed" key={task._id}>
                   <h4>{task.title}</h4>
-                  <p>Due: {new Date(task.dueDate).toLocaleDateString()}</p>
-                  <p>Remarks: {task.remarks}</p>
+                  <p>
+                    <strong>Client:</strong> {task.client?.name}
+                  </p>
+                  <p>
+                    <strong>Assigned To:</strong> {task.assignedTo?.name}
+                  </p>
+                  <p>
+                    <strong>Due:</strong>{' '}
+                    {new Date(task.dueDate).toLocaleDateString()}
+                  </p>
+                  <p>
+                    <strong>Priority:</strong> {task.priority}
+                  </p>
+                  <p>
+                    <strong>Status:</strong> {task.status}
+                  </p>
+                  <p>
+                    <strong>Remarks:</strong> {task.remarks}
+                  </p>
+
+                  {/* ✅ Show total time */}
+                  <p>
+                    <strong>Time Spent:</strong> {task.totalHours}h{' '}
+                    {task.totalMinutes}m
+                  </p>
+
+                  {/* Uncomplete button */}
+                  <button onClick={() => markUncomplete(task._id)}>
+                    Uncomplete
+                  </button>
                 </div>
               ))}
           </div>
         )}
 
+        {showPopup && (
+          <div className="popup-overlay">
+            <div className="popup">
+              <h3> Upon Completion of your task, Please Log your Time</h3>
+              <input
+                type="number"
+                placeholder="Hours"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+              />
+              <input
+                type="number"
+                placeholder="Minutes"
+                value={minutes}
+                onChange={(e) => setMinutes(e.target.value)}
+              />
+              <div className="popup-actions">
+                <button onClick={() => setShowPopup(false)}>Cancel</button>
+                <button onClick={handleCompleteTask}>Save</button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Clients */}
         {activeTab === 'clients' && (
           <div className="client-list">
