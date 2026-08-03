@@ -3,41 +3,6 @@ import Task from '../models/Task.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
-/*
-// ✅ Create & assign task (requires auth so we know who is assigning)
-router.post('/assign', authMiddleware, async (req, res) => {
-  try {
-    const {
-      title,
-      description,
-      assignedTo,
-      assignDate,
-      dueDate,
-      estimatedHours,
-      priority,
-      tags,
-    } = req.body;
-
-    const task = new Task({
-      title,
-      description,
-      assignedTo, // employee ID
-      assignedBy: req.user.id, // ✅ logged-in user ID from token
-      assignDate,
-      dueDate,
-      estimatedHours,
-      priority,
-      tags,
-    });
-
-    await task.save();
-    res.status(201).json({ message: 'Task assigned successfully', task });
-  } catch (error) {
-    console.error('Error assigning task:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-*/
 
 // ✅ Get all tasks (for admin/debug)
 router.get('/', async (req, res) => {
@@ -69,63 +34,67 @@ router.get('/my-tasks', authMiddleware, async (req, res) => {
   }
 });
 
-// ✅ Return logged-in user info
+/*// ✅ Return logged-in user info
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('name email role');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
     res.json(user);
   } catch (error) {
+    console.error('Error fetching user:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
-
-router.put('/:id', authMiddleware, async (req, res) => {
-  try {
-    const updatedTask = await Task.findByIdAndUpdate(req.params.id, req.body, {
-      returnDocument: 'after', // ✅ replaces new: true
-    })
-      .populate('assignedTo', 'email name')
-      .populate('assignedBy', 'email name')
-      .populate('client', 'name email company'); // ✅ if you added client ref
-
-    if (!updatedTask) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    res.json({ message: 'Task updated successfully', task: updatedTask });
-  } catch (error) {
-    console.error('Error updating task:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
+*/
+// ✅ Assign Task
 router.post('/assign', authMiddleware, async (req, res) => {
   try {
-    let { title, remarks, dueDate, priority, assignedTo, client } = req.body;
+    let { title, dueDate, assignedTo, client, priority } = req.body;
 
-    // ✅ If "me" selected, assign to logged-in user
-    if (!assignedTo || assignedTo === 'me') {
-      assignedTo = req.user.id;
-    }
-
+    // Default due date if not provided
     if (!dueDate) {
       dueDate = new Date();
     }
 
+    // ✅ If "me" is selected, assign to logged-in user
+    if (!assignedTo || assignedTo === 'me') {
+      assignedTo = req.user.id;
+    }
+
     const task = new Task({
       title,
-      remarks,
       dueDate,
-      priority,
+      priority: priority || 'MEDIUM',
       assignedTo,
-      assignedBy: req.user.id,
+      assignedBy: req.user.id, // always the logged-in user
       client: client || null,
+      status: 'Not Started',
+      remarks: '',
     });
 
     await task.save();
-    res.status(201).json({ message: 'Task created successfully', task });
+    res.status(201).json(task);
   } catch (error) {
-    console.error('Error creating task:', error);
+    console.error('Error assigning task:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ✅ Update Task (status, remarks, client, etc.)
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const updatedTask = await Task.findByIdAndUpdate(req.params.id, req.body, {
+      returnDocument: 'after',
+    })
+      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('client', 'name email company');
+
+    res.json(updatedTask);
+  } catch (error) {
+    console.error('Error updating task:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
