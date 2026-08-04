@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import '../css/AssignTaskPage.css';
 
 const AssignTaskPage = ({ user, clients, employees, setActiveTab }) => {
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
   const [task, setTask] = useState({
     title: '',
     remarks: '',
@@ -18,10 +21,13 @@ const AssignTaskPage = ({ user, clients, employees, setActiveTab }) => {
   };
 
   const handleSubmit = async () => {
+    if (!task.title.trim()) {
+      setErrorMessage('Please enter the task title');
+      setShowSuccessPopup(false); // don’t show success
+      return;
+    }
     try {
       const token = localStorage.getItem('accessToken');
-
-      // Default due date = today if not selected
       const dueDate = task.dueDate || new Date().toISOString().substring(0, 10);
 
       const payload = {
@@ -34,23 +40,12 @@ const AssignTaskPage = ({ user, clients, employees, setActiveTab }) => {
         assignedBy: user._id,
       };
 
-      const res = await axios.post(
-        'http://localhost:5000/api/tasks/assign',
-        payload,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      await axios.post('http://localhost:5000/api/tasks/assign', payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setErrorMessage('');
+      setActiveTab('myTasks');
 
-      // Redirect logic
-      if (task.assignedTo === 'me') {
-        setActiveTab('myTasks'); // show logged-in user's tasks
-      } else {
-        setActiveTab('myTasks'); // show tasks of selected employee
-        // You can filter tasks by that employee’s ID in your MyTasks component
-      }
-
-      // Reset form
       setTask({
         title: '',
         remarks: '',
@@ -68,6 +63,7 @@ const AssignTaskPage = ({ user, clients, employees, setActiveTab }) => {
     <div className="assign-task-page">
       <h2>Create New Task</h2>
 
+      {/* Form fields */}
       <div className="form-group">
         <label>Task Title</label>
         <input
@@ -154,6 +150,19 @@ const AssignTaskPage = ({ user, clients, employees, setActiveTab }) => {
         </button>
         <button onClick={handleSubmit}>Assign Task</button>
       </div>
+
+      {errorMessage && (
+        <div className="popup error">
+          <h3>Error</h3>
+          <p>{errorMessage}</p>
+          <button
+            className="popup-error-close"
+            onClick={() => setErrorMessage('')}
+          >
+            Close
+          </button>
+        </div>
+      )}
     </div>
   );
 };

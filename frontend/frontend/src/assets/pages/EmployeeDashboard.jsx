@@ -3,7 +3,13 @@ import axios from 'axios';
 import '../css/EmployeeDashboard.css';
 import '../css/Popup.css';
 import AssignTaskPage from './AssignTaskPage';
-import { MdDashboard, MdAssignment, MdListAlt } from 'react-icons/md';
+import {
+  MdDashboard,
+  MdListAlt,
+  MdEdit,
+  MdOutlineNearMe,
+  MdOutlineChecklist,
+} from 'react-icons/md';
 
 export default function EmployeeDashboard() {
   const [activeTab, setActiveTab] = useState('myTasks');
@@ -14,6 +20,7 @@ export default function EmployeeDashboard() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupTaskId, setPopupTaskId] = useState(null);
   const [hours, setHours] = useState('');
+
   const [minutes, setMinutes] = useState('');
   const [newTask, setNewTask] = useState({
     title: '',
@@ -244,7 +251,7 @@ export default function EmployeeDashboard() {
         </button>
         <ul>
           <li onClick={() => setActiveTab('assignTask')}>
-            <MdAssignment style={{ marginRight: '8px' }} />
+            <MdEdit style={{ marginRight: '8px' }} />
             Assign Task
           </li>
           <li
@@ -258,12 +265,14 @@ export default function EmployeeDashboard() {
             onClick={() => setActiveTab('assignedTasks')}
             className={activeTab === 'assignedTasks' ? 'active' : ''}
           >
+            <MdOutlineNearMe style={{ marginRight: '8px' }} />
             Assigned by Me
           </li>
           <li
             onClick={() => setActiveTab('completedTasks')}
             className={activeTab === 'completedTasks' ? 'active' : ''}
           >
+            <MdOutlineChecklist style={{ marginRight: '8px' }} />
             Completed Tasks
           </li>
 

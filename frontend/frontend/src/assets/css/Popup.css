@@ -1,26 +1,28 @@
 /* Overlay background */
+/* Overlay covers the whole screen */
+/* Overlay covers the whole screen */
 .popup-overlay {
-  position: fixed;
+  position: fixed; /* ✅ fixed to viewport */
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
-  background: rgba(30, 30, 30, 0.6); /* semi-transparent dark */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999; /* above everything */
+  height: 60%;
+ // background: rgba(30, 30, 30, 0.6); /* semi-transparent background */
+  z-index: 999;
 }
 
-/* Popup box */
+/* Popup centered */
 .popup {
+  position: absolute;
+  top: 50%; /* move to middle vertically */
+  left: 50%; /* move to middle horizontally */
+  transform: translate(-50%, -50%); /* adjust back to exact center */
   background: #fff;
   padding: 2rem;
   border-radius: 10px;
   width: 350px;
   max-width: 90%;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-  animation: fadeIn 0.3s ease;
 }
 
 /* Title */

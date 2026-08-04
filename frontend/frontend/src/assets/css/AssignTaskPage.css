@@ -116,3 +116,34 @@
 .sidebar ul li.active {
   background: #0078d7;
 }
+/* Error popup box */
+.popup.error {
+  position: fixed; /* fixed to viewport */
+  top: 50%; /* center vertically */
+  left: 50%; /* center horizontally */
+  transform: translate(-50%, -50%);
+  background: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  width: 30%; /* percentage width */
+  height: auto; /* adjust height automatically */
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 2px solid #dc3545;
+  z-index: 9999; /* ensure it’s above other content */
+}
+
+.popup.error h3 {
+  color: #dc3545;
+  margin-bottom: 0.5rem;
+}
+
+.popup-error-close {
+  margin-top: 1rem;
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
