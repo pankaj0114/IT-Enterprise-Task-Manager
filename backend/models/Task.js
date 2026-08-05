@@ -16,14 +16,13 @@ const taskSchema = new mongoose.Schema(
     },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // ✅ employee ID
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // ✅ who created/assigned
-    remarks: { type: String, default: '' },
+    remarks: { type: String },
     client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
     totalHours: { type: Number, default: 0 }, // ✅ add this
     totalMinutes: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ['Not Started', 'In Progress', 'Completed'],
-      default: 'Not Started',
     },
     tags: [String],
   },

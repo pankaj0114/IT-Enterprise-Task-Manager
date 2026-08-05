@@ -24,6 +24,7 @@ router.get('/my-tasks', authMiddleware, async (req, res) => {
     const tasks = await Task.find({
       $or: [{ assignedTo: userId }, { assignedBy: userId }],
     })
+      .select('title remarks dueDate priority status assignedTo assignedBy')
       .populate('assignedTo', 'email name')
       .populate('assignedBy', 'email name');
 
@@ -51,7 +52,8 @@ router.get('/me', authMiddleware, async (req, res) => {
 // ✅ Assign Task
 router.post('/assign', authMiddleware, async (req, res) => {
   try {
-    let { title, dueDate, assignedTo, client, priority } = req.body;
+    let { title, dueDate, assignedTo, client, priority, remarks, status } =
+      req.body;
 
     // Default due date if not provided
     if (!dueDate) {
@@ -65,13 +67,13 @@ router.post('/assign', authMiddleware, async (req, res) => {
 
     const task = new Task({
       title,
+      remarks,
       dueDate,
       priority: priority || 'MEDIUM',
       assignedTo,
       assignedBy: req.user.id, // always the logged-in user
       client: client || null,
       status: 'Not Started',
-      remarks: '',
     });
 
     await task.save();
@@ -85,9 +87,16 @@ router.post('/assign', authMiddleware, async (req, res) => {
 // ✅ Update Task (status, remarks, client, etc.)
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const updatedTask = await Task.findByIdAndUpdate(req.params.id, req.body, {
-      returnDocument: 'after',
-    })
+    const { remarks } = req.body;
+    const updatedTask = await Task.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { remarks },
+      { new: true },
+      {
+        returnDocument: 'after',
+      },
+    )
       .populate('assignedTo', 'name email')
       .populate('assignedBy', 'name email')
       .populate('client', 'name');
@@ -100,3 +109,22 @@ router.put('/:id', authMiddleware, async (req, res) => {
 });
 
 export default router;
+
+// Update remarks for a task
+router.put('/:id/remarks', authMiddleware, async (req, res) => {
+  try {
+    const { remarks } = req.body;
+    const task = await Task.findByIdAndUpdate(
+      req.params.id,
+      { remarks },
+      { returnDocument: 'after' },
+    );
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+    res.json(task);
+  } catch (err) {
+    console.error('Error updating remarks:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});

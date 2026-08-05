@@ -20,6 +20,7 @@ export default function EmployeeDashboard() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupTaskId, setPopupTaskId] = useState(null);
   const [hours, setHours] = useState('');
+  const [typingTimeouts, setTypingTimeouts] = useState({});
 
   const [minutes, setMinutes] = useState('');
   const [newTask, setNewTask] = useState({
@@ -30,6 +31,24 @@ export default function EmployeeDashboard() {
   });
 
   // ✅ Fetch functions
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const res = await axios.get(
+          'http://localhost:5000/api/tasks/my-tasks',
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        setTasks(res.data);
+      } catch (err) {
+        console.error('Error fetching tasks:', err);
+      }
+    };
+    fetchTasks();
+  }, []);
+
   const fetchTasks = async () => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -52,6 +71,33 @@ export default function EmployeeDashboard() {
     } catch (error) {
       console.error('Error fetching clients:', error);
     }
+  };
+  const handleRemarkChange = (taskId, value) => {
+    // update local state immediately
+    setTasks((prev) =>
+      prev.map((t) => (t._id === taskId ? { ...t, remarks: value } : t)),
+    );
+
+    // clear previous timeout
+    if (typingTimeouts[taskId]) {
+      clearTimeout(typingTimeouts[taskId]);
+    }
+
+    // set new timeout to save after 1s of no typing
+    const timeout = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        await axios.put(
+          `http://localhost:5000/api/tasks/${taskId}/remarks`,
+          { remarks: value },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+      } catch (err) {
+        console.error('Error updating remarks:', err);
+      }
+    }, 1000);
+
+    setTypingTimeouts((prev) => ({ ...prev, [taskId]: timeout }));
   };
 
   const fetchEmployees = async () => {
@@ -336,8 +382,9 @@ export default function EmployeeDashboard() {
                         <textarea
                           name="remarks"
                           value={task.remarks || ''}
-                          onChange={(e) => handleTaskChange(e, task._id)}
-                          onBlur={() => handleUpdateTask(task._id)} // save when leaving field
+                          onChange={(e) =>
+                            handleRemarkChange(task._id, e.target.value)
+                          }
                           className="task-remarks-updated"
                           placeholder="Add your remarks..."
                           rows={2}
@@ -451,7 +498,7 @@ export default function EmployeeDashboard() {
                     <strong>Client:</strong> {task.client?.name}
                   </p>
                   <p>
-                    <strong>Assigned To:</strong> {task.assignedTo?.name}
+                    <strong>Assigned By:</strong> {task.assignedBy?.name}
                   </p>
                   <p>
                     <strong>Due:</strong>{' '}
