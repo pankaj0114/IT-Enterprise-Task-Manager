@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../css/EmployeeDashboard.css';
 import '../css/Popup.css';
+import '../css/MyTaskform.css';
 import AssignTaskPage from './AssignTaskPage';
 import {
   MdDashboard,
@@ -23,11 +24,14 @@ export default function EmployeeDashboard() {
   const [typingTimeouts, setTypingTimeouts] = useState({});
 
   const [minutes, setMinutes] = useState('');
+
   const [newTask, setNewTask] = useState({
     title: '',
     dueDate: '',
     assignedTo: '',
-    priority: 'MEDIUM',
+    priority: 'Medium',
+    remarks: '',
+    client: '',
   });
 
   // ✅ Fetch functions
@@ -68,10 +72,11 @@ export default function EmployeeDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setClients(res.data);
-    } catch (error) {
-      console.error('Error fetching clients:', error);
+    } catch (err) {
+      console.error('Error fetching clients:', err);
     }
   };
+
   const handleRemarkChange = (taskId, value) => {
     // update local state immediately
     setTasks((prev) =>
@@ -154,7 +159,7 @@ export default function EmployeeDashboard() {
         title: '',
         dueDate: '',
         assignedTo: '',
-        priority: 'MEDIUM',
+        priority: 'Medium',
       });
       fetchTasks();
     } catch (error) {
@@ -185,7 +190,7 @@ export default function EmployeeDashboard() {
         assignedBy: taskToUpdate.assignedBy,
         priority: taskToUpdate.priority,
         status: name === 'status' ? value : taskToUpdate.status,
-        client: name === 'client' ? value : taskToUpdate.client?._id,
+        client: name === 'client' ? value : taskToUpdate.client,
         remarks: name === 'remarks' ? value : taskToUpdate.remarks || '',
         assignedTo: taskToUpdate.assignedTo?._id || taskToUpdate.assignedTo,
       };
@@ -205,6 +210,21 @@ export default function EmployeeDashboard() {
     }
   };
 
+  const updateIssueDate = async (taskId, newDate) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        { issueDate: newDate },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      setTasks((prev) => prev.map((t) => (t._id === taskId ? res.data : t)));
+    } catch (err) {
+      console.error('Error updating issue date:', err);
+    }
+  };
+
   const handleCompleteTask = async () => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -213,8 +233,8 @@ export default function EmployeeDashboard() {
       const payload = {
         ...taskToUpdate,
         status: 'Completed',
-        totalHours: hours,
-        totalMinutes: minutes,
+        totalHours: Number(hours),
+        totalMinutes: Number(minutes),
       };
 
       const res = await axios.put(
@@ -344,13 +364,65 @@ export default function EmployeeDashboard() {
 
         {activeTab === 'myTasks' && (
           <div className="task-list">
+            <div className="task-form">
+              <div className="form-group">
+                <label htmlFor="title">Title</label>
+                <input
+                  id="title"
+                  name="title"
+                  type="text"
+                  value={newTask.title}
+                  onChange={handleChange}
+                  placeholder="Enter task title"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="dueDate">Due Date</label>
+                <input
+                  id="dueDate"
+                  name="dueDate"
+                  type="date"
+                  value={newTask.dueDate}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="client">Client</label>
+                <select
+                  id="client"
+                  name="client"
+                  value={newTask.client || ''}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, client: e.target.value })
+                  }
+                >
+                  <option value="">Select a client</option>
+                  {clients.map((c) => (
+                    <option key={c._id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-actions">
+                <button type="button" onClick={handleAddTask}>
+                  Add Task
+                </button>
+              </div>
+            </div>
+
             <h3>My Tasks</h3>
             <table className="task-table">
               <thead>
                 <tr>
                   <th>Title</th>
+                  <th>Issue Date</th>
                   <th>Due Date</th>
                   <th>Status</th>
+                  <th>Client</th>
                   <th>Assigned By</th>
                   <th>Remarks</th>
                 </tr>
@@ -365,6 +437,21 @@ export default function EmployeeDashboard() {
                   .map((task) => (
                     <tr key={task._id}>
                       <td>{task.title}</td>
+                      <td>
+                        <input
+                          type="date"
+                          value={
+                            task.issueDate
+                              ? new Date(task.issueDate)
+                                  .toISOString()
+                                  .split('T')[0]
+                              : ''
+                          }
+                          onChange={(e) =>
+                            updateIssueDate(task._id, e.target.value)
+                          }
+                        />
+                      </td>
                       <td>{new Date(task.dueDate).toLocaleDateString()}</td>
                       <td>
                         <select
@@ -377,6 +464,7 @@ export default function EmployeeDashboard() {
                           <option value="Completed">Completed</option>
                         </select>
                       </td>
+                      <td>{task.client}</td>
                       <td>{task.assignedBy?.name}</td>
                       <td>
                         <textarea
@@ -449,7 +537,7 @@ export default function EmployeeDashboard() {
                         <select
                           name="client"
                           value={task.client?._id || ''}
-                          onChange={(e) => handleTaskChange(e, task._id)}
+                          onChange={(e) => Change(e, task._id)}
                         >
                           <option value="">-- Select Client --</option>
                           {clients.map((c) => (
@@ -534,14 +622,16 @@ export default function EmployeeDashboard() {
             <div className="popup">
               <h3> Upon Completion of your task, Please Log your Time</h3>
               <input
+                id="hours"
                 type="number"
-                placeholder="Hours"
+                placeholder="hours"
                 value={hours}
                 onChange={(e) => setHours(e.target.value)}
               />
               <input
+                id="minutes"
                 type="number"
-                placeholder="Minutes"
+                placeholder="minutes"
                 value={minutes}
                 onChange={(e) => setMinutes(e.target.value)}
               />

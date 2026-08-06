@@ -1,5 +1,7 @@
 import express from 'express';
 import Task from '../models/Task.js';
+import Client from '../models/Client.js';
+
 import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -10,6 +12,7 @@ router.get('/', async (req, res) => {
     const tasks = await Task.find()
       .populate('assignedTo', 'email name')
       .populate('assignedBy', 'email name');
+
     res.json(tasks);
   } catch (error) {
     console.error('Error fetching tasks:', error.message);
@@ -69,7 +72,7 @@ router.post('/assign', authMiddleware, async (req, res) => {
       title,
       remarks,
       dueDate,
-      priority: priority || 'MEDIUM',
+      priority: priority,
       assignedTo,
       assignedBy: req.user.id, // always the logged-in user
       client: client || null,
@@ -87,19 +90,24 @@ router.post('/assign', authMiddleware, async (req, res) => {
 // ✅ Update Task (status, remarks, client, etc.)
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const { remarks } = req.body;
+    const { remarks, status, totalHours, totalMinutes } = req.body;
+    const updateData = { status };
+    if (status === 'in-progress') {
+      updateData.totalHours = 0;
+      updateData.totalMinutes = 0;
+    }
+
     const updatedTask = await Task.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { remarks },
+      { remarks, totalHours, totalMinutes },
       { new: true },
       {
         returnDocument: 'after',
       },
     )
       .populate('assignedTo', 'name email')
-      .populate('assignedBy', 'name email')
-      .populate('client', 'name');
+      .populate('assignedBy', 'name email');
 
     res.json(updatedTask);
   } catch (error) {
@@ -125,6 +133,23 @@ router.put('/:id/remarks', authMiddleware, async (req, res) => {
     res.json(task);
   } catch (err) {
     console.error('Error updating remarks:', err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/completed-tasks', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const tasks = await Task.find({
+      assignedTo: userId,
+      status: 'Completed',
+    })
+      .select('title remarks dueDate priority totalHours totalMinutes')
+      .populate('assignedBy', 'email name');
+
+    res.json(tasks);
+  } catch (error) {
+    console.error('Error fetching completed tasks:', error.message);
     res.status(500).json({ message: 'Server error' });
   }
 });

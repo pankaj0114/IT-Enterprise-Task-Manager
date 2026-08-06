@@ -10,14 +10,13 @@ const taskSchema = new mongoose.Schema(
       enum: ['Low', 'Medium', 'High', 'Urgent'],
     },
     client: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       ref: 'Client',
-      default: null,
     },
+    issueDate: { type: Date, default: Date.now },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // ✅ employee ID
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // ✅ who created/assigned
     remarks: { type: String },
-    client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
     totalHours: { type: Number, default: 0 }, // ✅ add this
     totalMinutes: { type: Number, default: 0 },
     status: {

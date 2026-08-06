@@ -14,6 +14,7 @@ exports.createTask = async (req, res) => {
       assignedBy: req.user.id, // from JWT middleware
       dueDate,
       priority,
+      client,
     });
 
     await newTask.save();
