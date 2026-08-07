@@ -1,6 +1,7 @@
 import express from 'express';
 import Task from '../models/Task.js';
 import Client from '../models/Client.js';
+import mongoose from 'mongoose';
 
 import authMiddleware from '../middleware/authMiddleware.js';
 
@@ -23,18 +24,27 @@ router.get('/', async (req, res) => {
 // ✅ Get tasks for logged-in user (assigned to OR assigned by)
 router.get('/my-tasks', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    //console.log('req.user:', req.user);
+
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+
     const tasks = await Task.find({
       $or: [{ assignedTo: userId }, { assignedBy: userId }],
     })
-      .select('title remarks dueDate priority status assignedTo assignedBy')
+      .select(
+        'title remarks dueDate priority status assignedTo assignedBy issueDate',
+      )
       .populate('assignedTo', 'email name')
-      .populate('assignedBy', 'email name');
-
+      .populate('assignedBy', 'email name')
+      .populate('client', 'name');
     res.json(tasks);
   } catch (error) {
-    console.error('Error fetching my tasks:', error.message);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error fetching my tasks:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -75,7 +85,7 @@ router.post('/assign', authMiddleware, async (req, res) => {
       priority: priority,
       assignedTo,
       assignedBy: req.user.id, // always the logged-in user
-      client: client || null,
+      client: client,
       status: 'Not Started',
     });
 
@@ -119,7 +129,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 export default router;
 
 // Update remarks for a task
-router.put('/:id/remarks', authMiddleware, async (req, res) => {
+router.put('/tasks/:id/remarks', authMiddleware, async (req, res) => {
   try {
     const { remarks } = req.body;
     const task = await Task.findByIdAndUpdate(
@@ -144,12 +154,34 @@ router.get('/completed-tasks', authMiddleware, async (req, res) => {
       assignedTo: userId,
       status: 'Completed',
     })
-      .select('title remarks dueDate priority totalHours totalMinutes')
+      .select('title remarks dueDate priority totalHours totalMinutes client')
       .populate('assignedBy', 'email name');
 
     res.json(tasks);
   } catch (error) {
     console.error('Error fetching completed tasks:', error.message);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.put('/:id/complete', authMiddleware, async (req, res) => {
+  try {
+    const { totalHours, totalMinutes } = req.body;
+
+    const task = await Task.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'Completed',
+        totalHours,
+        totalMinutes,
+      },
+      { new: true },
+    );
+
+    res.json(task);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: 'Error completing task', error: error.message });
   }
 });

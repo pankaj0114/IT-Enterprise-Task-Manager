@@ -38,7 +38,7 @@ export const loginUser = async (req, res) => {
 
     // ✅ Include email + role in payload
     const accessToken = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
+      { id: user._id.toString(), email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '3h' },
     );

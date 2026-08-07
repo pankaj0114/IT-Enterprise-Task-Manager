@@ -7,7 +7,7 @@ import {
   updateUser,
   deleteUser,
 } from '../controllers/userController.js';
-import { verifyToken } from '../middleware/authMiddleware.js';
+import authMiddleware from '../middleware/authMiddleware.js';
 import { authorizeRoles } from '../middleware/roleMiddleware.js';
 import User from '../models/User.js';
 
@@ -30,12 +30,17 @@ router.get('/employees', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-router.get('/', verifyToken, authorizeRoles('Admin', 'SuperAdmin'), getUsers);
+router.get(
+  '/',
+  authMiddleware,
+  authorizeRoles('Admin', 'SuperAdmin'),
+  getUsers,
+);
 
 // Get single user by ID (Admin, Super Admin)
 router.get(
   '/:id',
-  verifyToken,
+  authMiddleware,
   authorizeRoles('Admin', 'SuperAdmin'),
   getUserById,
 );
@@ -43,7 +48,7 @@ router.get(
 // Create new user (Admin, Super Admin)
 router.post(
   '/',
-  verifyToken,
+  authMiddleware,
   authorizeRoles('Admin', 'SuperAdmin'),
   createUser,
 );
@@ -51,12 +56,12 @@ router.post(
 // Update user (Admin, Super Admin)
 router.put(
   '/:id',
-  verifyToken,
+  authMiddleware,
   authorizeRoles('Admin', 'SuperAdmin'),
   updateUser,
 );
 
 // Delete user (Super Admin only)
-router.delete('/:id', verifyToken, authorizeRoles('SuperAdmin'), deleteUser);
+router.delete('/:id', authMiddleware, authorizeRoles('SuperAdmin'), deleteUser);
 
 export default router;

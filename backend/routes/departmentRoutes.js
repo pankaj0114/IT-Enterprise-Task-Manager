@@ -1,13 +1,13 @@
 /* import express from 'express';
 import Department from '../models/Department.js';
-import { verifyToken, authorizeRoles } from '../middleware/authMiddleware.js';
+import { authMiddleware, authorizeRoles } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 // ✅ HR/Admin can view departments
 router.get(
   '/',
-  verifyToken,
+  authMiddleware,
   authorizeRoles(['hr_manager', 'admin']),
   async (req, res) => {
     try {
@@ -23,7 +23,7 @@ router.get(
 // ✅ HR/Admin can create a new department
 router.post(
   '/',
-  verifyToken,
+  authMiddleware,
   authorizeRoles(['hr_manager', 'admin']),
   async (req, res) => {
     try {

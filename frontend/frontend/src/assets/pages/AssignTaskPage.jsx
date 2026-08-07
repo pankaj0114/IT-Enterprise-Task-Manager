@@ -34,7 +34,7 @@ const AssignTaskPage = ({ user, clients, employees, setActiveTab }) => {
         title: task.title,
         remarks: task.remarks,
         dueDate,
-        client: task.client || null,
+        client: task.client,
         priority: task.priority,
         assignedTo: task.assignedTo === 'me' ? user._id : task.assignedTo,
         assignedBy: user._id,

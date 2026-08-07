@@ -3,22 +3,22 @@ import mongoose from 'mongoose';
 const taskSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
-    remarks: { type: String }, // ✅ renamed from description
-    dueDate: { type: Date },
+    remarks: { type: String },
     priority: {
       type: String,
       enum: ['Low', 'Medium', 'High', 'Urgent'],
     },
-    client: {
-      type: String,
-      ref: 'Client',
-    },
-    issueDate: { type: Date, default: Date.now },
-    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // ✅ employee ID
-    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // ✅ who created/assigned
+    client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
+
+    issueDate: { type: Date },
+    dueDate: { type: Date, required: true },
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
     remarks: { type: String },
-    totalHours: { type: Number, default: 0 }, // ✅ add this
+    totalHours: { type: Number, default: 0 },
     totalMinutes: { type: Number, default: 0 },
+
     status: {
       type: String,
       enum: ['Not Started', 'In Progress', 'Completed'],
