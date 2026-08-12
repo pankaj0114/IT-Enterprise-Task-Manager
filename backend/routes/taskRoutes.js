@@ -2,6 +2,7 @@ import express from 'express';
 import Task from '../models/Task.js';
 import Client from '../models/Client.js';
 import mongoose from 'mongoose';
+import Notification from '../models/Notification.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 
 import authMiddleware from '../middleware/authMiddleware.js';
@@ -91,10 +92,31 @@ router.post('/assign', authMiddleware, async (req, res) => {
     });
 
     await task.save();
+    const notification = new Notification({
+      recipient: task.assignedTo,
+      sender: req.user.name, // whoever is assigning
+      task: task._id,
+      message: `You have been assigned a new task: ${task.title}`,
+    });
+    await notification.save();
+
+    res.json({ task, notification });
+
     res.status(201).json(task);
   } catch (error) {
     console.error('Error assigning task:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/notifications', verifyToken, async (req, res) => {
+  try {
+    const notifications = await Notification.find({ recipient: req.user.id })
+      .populate('task')
+      .populate('sender', 'name');
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
