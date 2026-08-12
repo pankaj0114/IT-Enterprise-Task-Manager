@@ -3,6 +3,9 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dns from 'node:dns';
 import dotenv from 'dotenv';
+import { setServers } from 'node:dns/promises';
+
+import connectDB from './config/db.js';
 
 import authRoutes from './routes/authRoutes.js';
 //import departmentRoutes from './routes/departmentRoutes.js';
@@ -11,8 +14,7 @@ import taskRoutes from './routes/taskRoutes.js';
 import clientRoutes from './routes/clientRoutes.js';
 
 dotenv.config();
-dns.setServers(['1.1.1.1', '1.0.0.1']); // Cloudflare DNS
-
+dns.setServers(['1.1.1.1', '8.8.8.8']);
 const app = express();
 app.use(express.json());
 
@@ -31,13 +33,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/clients', clientRoutes);
 
 // Database connection
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB connected'))
-  .catch((err) => {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
-  });
+connectDB();
 
 // Health Check
 app.get('/', (req, res) => {

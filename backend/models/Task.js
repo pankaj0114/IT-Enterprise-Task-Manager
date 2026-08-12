@@ -16,8 +16,8 @@ const taskSchema = new mongoose.Schema(
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
     remarks: { type: String },
-    totalHours: { type: Number, default: 0 },
-    totalMinutes: { type: Number, default: 0 },
+    totalHours: { type: Number },
+    totalMinutes: { type: Number },
 
     status: {
       type: String,

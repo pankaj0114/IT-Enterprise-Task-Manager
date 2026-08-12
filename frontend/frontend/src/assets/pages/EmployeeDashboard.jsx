@@ -6,6 +6,7 @@ import '../css/MyTaskform.css';
 import '../css/AssignTaskPage.css';
 import AssignTaskPage from './AssignTaskPage';
 import DatePicker from 'react-datepicker';
+import { useRef } from 'react';
 
 import {
   MdDashboard,
@@ -24,11 +25,14 @@ export default function EmployeeDashboard() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupTaskId, setPopupTaskId] = useState(null);
   const [hours, setHours] = useState('');
+  //const [totalHours, setTotalHours] = useState('');
+  //const [totalMinutes, setTotalMinutes] = useState('');
   const [typingTimeouts, setTypingTimeouts] = useState({});
   //const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [minutes, setMinutes] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-
+  const [completedTasks, setCompletedTasks] = useState([]);
+  const remarkTimeouts = useRef({});
   const [newTask, setNewTask] = useState({
     title: '',
     dueDate: '',
@@ -59,6 +63,7 @@ export default function EmployeeDashboard() {
         console.error('Error fetching tasks:', err);
       }
     };
+
     fetchTasks();
   }, []);
 
@@ -87,32 +92,77 @@ export default function EmployeeDashboard() {
   };
 
   const handleRemarkChange = (taskId, value) => {
-    // update local state immediately
+    // Update UI immediately
     setTasks((prev) =>
-      prev.map((t) => (t._id === taskId ? { ...t, remarks: value } : t)),
+      prev.map((task) =>
+        task._id === taskId ? { ...task, remarks: value } : task,
+      ),
     );
 
-    // clear previous timeout
-    if (typingTimeouts[taskId]) {
-      clearTimeout(typingTimeouts[taskId]);
+    // Cancel previous timer for this task
+    if (remarkTimeouts.current[taskId]) {
+      clearTimeout(remarkTimeouts.current[taskId]);
     }
 
-    // set new timeout to save after 1s of no typing
-    const timeout = setTimeout(async () => {
+    // Start a new 1-second timer
+    remarkTimeouts.current[taskId] = setTimeout(async () => {
       try {
         const token = localStorage.getItem('accessToken');
+
         await axios.put(
           `http://localhost:5000/api/tasks/${taskId}/remarks`,
-          { remarks: value },
-          { headers: { Authorization: `Bearer ${token}` } },
+          {
+            remarks: value,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
         );
-      } catch (err) {
-        console.error('Error updating remarks:', err);
-      }
-    }, 1000);
 
-    setTypingTimeouts((prev) => ({ ...prev, [taskId]: timeout }));
+        //console.log(`Remark automatically saved for task ${taskId}`);
+      } catch (error) {
+        console.error(
+          'Error automatically saving remark:',
+          error.response?.data || error.message,
+        );
+      }
+
+      // Remove timer reference
+      delete remarkTimeouts.current[taskId];
+    }, 1000);
   };
+
+  const fetchCompletedTasks = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.get(
+        'http://localhost:5000/api/tasks/completed-tasks',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      //console.log('COMPLETED TASKS API RESPONSE:', response.data);
+
+      setCompletedTasks(response.data);
+    } catch (error) {
+      console.error(
+        'Error fetching completed tasks:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'completed') {
+      fetchCompletedTasks();
+    }
+  }, [activeTab]);
 
   const fetchEmployees = async () => {
     try {
@@ -139,7 +189,6 @@ export default function EmployeeDashboard() {
   };
 
   useEffect(() => {
-    fetchTasks();
     fetchClients();
     fetchEmployees();
     fetchUser();
@@ -242,27 +291,70 @@ export default function EmployeeDashboard() {
 
   const handleCompleteTask = async () => {
     try {
-      await axios.put(
+      const totalHours = Number(hours);
+      const totalMinutes = Number(minutes);
+      /*
+      console.log('========== COMPLETE TASK ==========');
+      console.log('Selected Task ID:', selectedTaskId);
+      console.log('Hours:', totalHours);
+      console.log('Minutes:', totalMinutes);
+      */
+
+      if (!Number.isFinite(totalHours) || !Number.isFinite(totalMinutes)) {
+        alert('Please enter valid hours and minutes.');
+        return;
+      }
+
+      if (totalHours < 0) {
+        alert('Hours cannot be negative.');
+        return;
+      }
+
+      if (totalMinutes < 0 || totalMinutes > 59) {
+        alert('Minutes must be between 0 and 59.');
+        return;
+      }
+
+      const payload = {
+        status: 'Completed',
+        totalHours,
+        totalMinutes,
+      };
+
+      //console.log('Sending payload:', payload);
+
+      const token = localStorage.getItem('accessToken');
+
+      const res = await axios.put(
         `http://localhost:5000/api/tasks/${selectedTaskId}/complete`,
-        {
-          status: 'Completed',
-          totalHours: Number(hours),
-          totalMinutes: Number(minutes),
-        },
+        payload,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`, // or however you store it
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
         },
       );
 
-      fetchTasks(); // refresh tasks
+      //console.log('API RESPONSE:', res.data);
+      //console.log('UPDATED TASK:', res.data.task);
+
+      // IMPORTANT
+      const updatedTask = res.data.task;
+
+      setTasks((prev) =>
+        prev.map((task) => (task._id === selectedTaskId ? updatedTask : task)),
+      );
+
       setShowPopup(false);
+      setSelectedTaskId(null);
       setHours('');
       setMinutes('');
-      setSelectedTaskId(null);
     } catch (error) {
-      console.error('Error completing task:', error.message);
+      console.error(
+        'Error completing task:',
+        error.response?.data || error.message,
+      );
     }
   };
 
@@ -295,6 +387,7 @@ export default function EmployeeDashboard() {
       console.error('Error updating task:', error);
     }
   };
+  /*
   const markUncomplete = async (taskId) => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -307,6 +400,40 @@ export default function EmployeeDashboard() {
       setTasks((prev) => prev.map((t) => (t._id === taskId ? res.data : t)));
     } catch (err) {
       console.error('Error marking uncomplete:', err);
+    }
+  };
+  */
+
+  const handleUncompleteTask = async (taskId) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}/uncomplete`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      //console.log('UNCOMPLETED TASK:', response.data);
+
+      const updatedTask = response.data.task;
+
+      // Remove it from completed tasks
+      setCompletedTasks((prev) => prev.filter((task) => task._id !== taskId));
+
+      // Update main tasks state if you use it elsewhere
+      setTasks((prev) =>
+        prev.map((task) => (task._id === taskId ? updatedTask : task)),
+      );
+    } catch (error) {
+      console.error(
+        'Error uncompleting task:',
+        error.response?.data || error.message,
+      );
     }
   };
 
@@ -341,14 +468,17 @@ export default function EmployeeDashboard() {
             <MdOutlineNearMe style={{ marginRight: '8px' }} />
             Assigned Task
           </li>
+
           <li
-            onClick={() => setActiveTab('completedTasks')}
+            onClick={() => {
+              setActiveTab('completedTasks');
+              fetchCompletedTasks();
+            }}
             className={activeTab === 'completedTasks' ? 'active' : ''}
           >
             <MdOutlineChecklist style={{ marginRight: '8px' }} />
             Completed Tasks
           </li>
-
           <li
             onClick={() => setActiveTab('clients')}
             className={activeTab === 'clients' ? 'active' : ''}
@@ -447,11 +577,9 @@ export default function EmployeeDashboard() {
                               ? new Date(task.issueDate)
                                   .toISOString()
                                   .split('T')[0]
-                              : ''
+                              : new Date().toISOString().split('T')[0] // default to today
                           }
-                          onChange={(e) =>
-                            updateIssueDate(task._id, e.target.value)
-                          }
+                          readOnly // 👈 prevents editing
                         />
                       </td>
 
@@ -469,6 +597,8 @@ export default function EmployeeDashboard() {
                             if (e.target.value === 'Completed') {
                               setSelectedTaskId(task._id); // ✅ store id
                               setShowPopup(true); // ✅ open popup
+                              // 👉 after user enters hours/minutes in popup,
+                              // you must call handleCompleteTask()
                             } else {
                               handleTaskChange(e, task._id); // normal status change
                             }
@@ -609,47 +739,50 @@ export default function EmployeeDashboard() {
         {activeTab === 'completedTasks' && (
           <div className="task-list">
             <h3>Completed Tasks</h3>
-            {tasks
-              .filter(
-                (t) =>
-                  t.assignedTo?._id === user?._id &&
-                  t.status.toLowerCase() === 'completed',
-              )
-              .map((task) => (
-                <div className="task-card completed" key={task._id}>
-                  <h4>{task.title}</h4>
-                  <p>
-                    <strong>Client:</strong> {task.client?.name || 'No client'}
-                  </p>
-                  <p>
-                    <strong>Assigned By:</strong> {task.assignedBy?.name}
-                  </p>
-                  <p>
-                    <strong>Due:</strong>{' '}
-                    {new Date(task.dueDate).toLocaleDateString()}
-                  </p>
-                  <p>
-                    <strong>Priority:</strong> {task.priority}
-                  </p>
-                  <p>
-                    <strong>Status:</strong> {task.status}
-                  </p>
-                  <p>
-                    <strong>Remarks:</strong> {task.remarks}
-                  </p>
 
-                  {/* ✅ Show total time */}
-                  <p>
-                    <strong>Time Spent:</strong> {task.totalHours || 0}h{' '}
-                    {task.totalMinutes || 0}m
-                  </p>
+            {completedTasks.length === 0 ? (
+              <p>No completed tasks found.</p>
+            ) : (
+              completedTasks.map((task) => {
+                // console.log('COMPLETED CARD TASK:', task);
+                // console.log('Task values:', task.totalHours, task.totalMinutes);
 
-                  {/* Uncomplete button */}
-                  <button onClick={() => markUncomplete(task._id)}>
-                    Uncomplete
-                  </button>
-                </div>
-              ))}
+                return (
+                  <div className="task-card" key={task._id}>
+                    <h4>{task.title}</h4>
+
+                    <p>
+                      <strong>Remarks:</strong> {task.remarks || 'No remarks'}
+                    </p>
+
+                    <p>
+                      <strong>Priority:</strong> {task.priority || 'Normal'}
+                    </p>
+
+                    <p>
+                      <strong>Due Date:</strong>{' '}
+                      {task.dueDate
+                        ? new Date(task.dueDate).toLocaleDateString()
+                        : 'N/A'}
+                    </p>
+
+                    {/* IMPORTANT */}
+                    <p>
+                      <strong>Time Spent:</strong> {task.totalHours ?? 0} hours{' '}
+                      {task.totalMinutes ?? 0} minutes
+                    </p>
+
+                    <p className="completed-status">
+                      <strong>Status:</strong> Completed
+                    </p>
+
+                    <button onClick={() => handleUncompleteTask(task._id)}>
+                      Uncomplete
+                    </button>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
 
@@ -673,11 +806,22 @@ export default function EmployeeDashboard() {
               />
               <div className="popup-actions">
                 <button onClick={() => setShowPopup(false)}>Cancel</button>
-                <button onClick={handleCompleteTask}>Save</button>
+                <button
+                  onClick={() => {
+                    // 👇 Debug log here
+                    // console.log('Submitting:', hours, minutes);
+
+                    // Then call your complete handler
+                    handleCompleteTask();
+                  }}
+                >
+                  Save
+                </button>
               </div>
             </div>
           </div>
         )}
+
         {/* Clients */}
         {activeTab === 'clients' && (
           <div className="client-list">
