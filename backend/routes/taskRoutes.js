@@ -67,20 +67,39 @@ router.get('/me', authMiddleware, async (req, res) => {
 // ✅ Assign Task
 router.post('/assign', authMiddleware, async (req, res) => {
   try {
-    let { title, dueDate, assignedTo, client, priority, remarks, status } =
-      req.body;
+    let { title, dueDate, assignedTo, client, priority, remarks } = req.body;
+
+    const loggedInUserId = req.user.id.toString();
+
+    console.log('========== ASSIGN TASK ==========');
+    console.log('Logged in user:', loggedInUserId);
+    console.log('Received assignedTo:', assignedTo);
 
     // Default due date
     if (!dueDate) {
       dueDate = new Date();
     }
 
-    // If "me" is selected, assign to logged-in user
-    if (!assignedTo || assignedTo === 'me') {
+    // IMPORTANT:
+    // Determine self-assignment BEFORE changing assignedTo
+    const isSelfAssigned =
+      !assignedTo ||
+      assignedTo === 'me' ||
+      assignedTo.toString() === loggedInUserId;
+
+    console.log('Is self assigned:', isSelfAssigned);
+
+    // If assigning to "me"
+    if (isSelfAssigned) {
       assignedTo = req.user.id;
     }
 
-    // Create task
+    console.log('Final assignedTo:', assignedTo);
+
+    // =================================
+    // CREATE TASK
+    // =================================
+
     const task = new Task({
       title,
       remarks,
@@ -94,27 +113,50 @@ router.post('/assign', authMiddleware, async (req, res) => {
 
     await task.save();
 
-    // Create notification
-    const notification = new Notification({
-      recipient: task.assignedTo,
+    console.log('Task saved:', task._id);
 
-      // IMPORTANT: ObjectId, NOT req.user.name
-      sender: req.user.id,
+    // =================================
+    // CREATE NOTIFICATION ONLY FOR
+    // ANOTHER USER
+    // =================================
 
-      task: task._id,
+    let notification = null;
 
-      message: `You have been assigned a new task: ${task.title}`,
-    });
+    if (!isSelfAssigned) {
+      notification = new Notification({
+        recipient: task.assignedTo,
+        sender: req.user.id,
+        task: task._id,
+        message: `You have been assigned a new task: ${task.title}`,
+      });
 
-    await notification.save();
+      await notification.save();
 
-    console.log('Task created:', task);
-    console.log('Notification created:', notification);
+      console.log('Notification SAVED:', notification._id);
 
-    // Send ONE response
+      // Socket notification
+      const io = req.app.get('io');
+
+      if (io) {
+        io.to(task.assignedTo.toString()).emit('newNotification', notification);
+
+        console.log('Socket notification sent to:', task.assignedTo.toString());
+      }
+    } else {
+      console.log('SELF ASSIGNED → NO NOTIFICATION CREATED');
+    }
+
+    // =================================
+    // RESPONSE
+    // =================================
+
     res.status(201).json({
-      message: 'Task assigned successfully',
+      message: isSelfAssigned
+        ? 'Task created successfully'
+        : 'Task assigned successfully',
+
       task,
+
       notification,
     });
   } catch (error) {

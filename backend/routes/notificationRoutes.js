@@ -28,4 +28,33 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
+router.put('/read-all', authMiddleware, async (req, res) => {
+  try {
+    const result = await Notification.updateMany(
+      {
+        recipient: req.user.id,
+        read: false,
+      },
+      {
+        $set: {
+          read: true,
+        },
+      },
+    );
+
+    console.log('Notifications marked as read:', result.modifiedCount);
+
+    res.status(200).json({
+      message: 'Notifications marked as read',
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
+
+    res.status(500).json({
+      message: 'Server error',
+    });
+  }
+});
+
 export default router;

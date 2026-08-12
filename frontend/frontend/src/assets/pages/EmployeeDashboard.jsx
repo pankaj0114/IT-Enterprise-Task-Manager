@@ -48,6 +48,9 @@ export default function EmployeeDashboard() {
     client: '',
   });
   //const socket = io('http://localhost:5000');
+  const unreadCount = notifications.filter(
+    (notification) => !notification.read,
+  ).length;
 
   useEffect(() => {
     const handleConnect = () => {
@@ -117,6 +120,35 @@ export default function EmployeeDashboard() {
     };
     fetchNotifications();
   }, [user?._id]);
+
+  const markNotificationsAsRead = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      await axios.put(
+        'http://localhost:5000/api/notifications/read-all',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      // Immediately update React state
+      setNotifications((prev) =>
+        prev.map((notification) => ({
+          ...notification,
+          read: true,
+        })),
+      );
+    } catch (error) {
+      console.error(
+        'Error marking notifications as read:',
+        error.response?.data || error.message,
+      );
+    }
+  };
 
   const openPopup = (taskId) => {
     setSelectedTaskId(taskId);
@@ -279,6 +311,16 @@ export default function EmployeeDashboard() {
       if (!newTask.title || newTask.title.trim() === '') {
         alert('Please add a task title'); // show message
         return; // stop execution
+      }
+
+      if (!newTask.dueDate) {
+        alert('Please select a due date');
+        return;
+      }
+
+      if (!newTask.client) {
+        alert('Please select a client');
+        return;
       }
       const token = localStorage.getItem('accessToken');
       const payload = {
@@ -562,14 +604,23 @@ export default function EmployeeDashboard() {
             Clients
           </li>
           <li
-            onClick={() => setActiveTab('notifications')}
+            onClick={() => {
+              setActiveTab('notifications');
+              markNotificationsAsRead();
+            }}
             className={activeTab === 'notifications' ? 'active' : ''}
           >
-            <MdNotificationsNone style={{ marginRight: '8px' }} />
-            Notifications
-            {notifications.length > 0 && (
-              <span className="notification-count">{notifications.length}</span>
-            )}
+            <div className="notification-icon-wrapper">
+              <MdNotificationsNone size={24} />
+
+              {unreadCount > 0 && (
+                <span className="notification-badge">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </div>
+
+            <span>Notifications</span>
           </li>
         </ul>
       </div>
@@ -781,7 +832,9 @@ export default function EmployeeDashboard() {
                             type="text"
                             name="remarks"
                             value={task.remarks || ''}
-                            onChange={(e) => handleTaskChange(e, task._id)}
+                            onChange={(e) =>
+                              handleRemarkChange(task._id, e.target.value)
+                            }
                           />
                         </td>
                         <td>
