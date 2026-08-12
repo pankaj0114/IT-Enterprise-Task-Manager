@@ -7,6 +7,8 @@ import '../css/AssignTaskPage.css';
 import AssignTaskPage from './AssignTaskPage';
 import DatePicker from 'react-datepicker';
 import { useRef } from 'react';
+import socket from '../services/socket.js';
+//import { io } from 'socket.io-client';
 
 import {
   MdDashboard,
@@ -14,10 +16,13 @@ import {
   MdEdit,
   MdOutlineNearMe,
   MdOutlineChecklist,
+  MdNotificationsNone,
 } from 'react-icons/md';
 
 export default function EmployeeDashboard() {
   const [activeTab, setActiveTab] = useState('myTasks');
+  const [notifications, setNotifications] = useState([]);
+  // const [activeTab, setActiveTab] = useState('dashboard');
   const [tasks, setTasks] = useState([]);
   const [clients, setClients] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -28,11 +33,12 @@ export default function EmployeeDashboard() {
   //const [totalHours, setTotalHours] = useState('');
   //const [totalMinutes, setTotalMinutes] = useState('');
   const [typingTimeouts, setTypingTimeouts] = useState({});
-  //const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [minutes, setMinutes] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [completedTasks, setCompletedTasks] = useState([]);
   const remarkTimeouts = useRef({});
+  //const [notifications, setNotifications] = useState([]);
+
   const [newTask, setNewTask] = useState({
     title: '',
     dueDate: '',
@@ -41,6 +47,76 @@ export default function EmployeeDashboard() {
     remarks: '',
     client: '',
   });
+  //const socket = io('http://localhost:5000');
+
+  useEffect(() => {
+    const handleConnect = () => {
+      console.log('Socket connected:', socket.id);
+    };
+
+    const handleDisconnect = () => {
+      console.log('Socket disconnected');
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+    };
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.get(
+        'http://localhost:5000/api/tasks/notifications',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('Notifications from database:', response.data);
+
+      setNotifications(response.data);
+    } catch (error) {
+      console.error(
+        'Error fetching notifications:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    fetchNotifications();
+  }, [user?._id]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    console.log('Joining notification room:', user._id);
+
+    socket.emit('join', user._id);
+
+    const handleNotification = (notification) => {
+      console.log('New notification received:', notification);
+
+      setNotifications((prev) => [notification, ...prev]);
+    };
+
+    socket.on('newNotification', handleNotification);
+
+    return () => {
+      socket.off('newNotification', handleNotification);
+    };
+    fetchNotifications();
+  }, [user?._id]);
 
   const openPopup = (taskId) => {
     setSelectedTaskId(taskId);
@@ -485,6 +561,16 @@ export default function EmployeeDashboard() {
           >
             Clients
           </li>
+          <li
+            onClick={() => setActiveTab('notifications')}
+            className={activeTab === 'notifications' ? 'active' : ''}
+          >
+            <MdNotificationsNone style={{ marginRight: '8px' }} />
+            Notifications
+            {notifications.length > 0 && (
+              <span className="notification-count">{notifications.length}</span>
+            )}
+          </li>
         </ul>
       </div>
 
@@ -844,6 +930,48 @@ export default function EmployeeDashboard() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {activeTab === 'notifications' && (
+          <div className="notifications-page">
+            <div className="notifications-header">
+              <h2>Notifications</h2>
+
+              <span>
+                {notifications.length} notification
+                {notifications.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {notifications.length === 0 ? (
+              <div className="no-notifications">
+                <MdNotificationsNone size={50} />
+
+                <h3>No notifications</h3>
+
+                <p>You don't have any notifications right now.</p>
+              </div>
+            ) : (
+              <div className="notification-list">
+                {notifications.map((notification) => (
+                  <div className="notification-card" key={notification._id}>
+                    <div className="notification-icon">🔔</div>
+
+                    <div className="notification-content">
+                      <h4>New Notification</h4>
+
+                      <p>{notification.message}</p>
+
+                      <small>
+                        {notification.createdAt
+                          ? new Date(notification.createdAt).toLocaleString()
+                          : ''}
+                      </small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

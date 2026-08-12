@@ -70,53 +70,79 @@ router.post('/assign', authMiddleware, async (req, res) => {
     let { title, dueDate, assignedTo, client, priority, remarks, status } =
       req.body;
 
-    // Default due date if not provided
+    // Default due date
     if (!dueDate) {
       dueDate = new Date();
     }
 
-    // ✅ If "me" is selected, assign to logged-in user
+    // If "me" is selected, assign to logged-in user
     if (!assignedTo || assignedTo === 'me') {
       assignedTo = req.user.id;
     }
 
+    // Create task
     const task = new Task({
       title,
       remarks,
       dueDate,
-      priority: priority,
+      priority,
       assignedTo,
-      assignedBy: req.user.id, // always the logged-in user
-      client: client,
+      assignedBy: req.user.id,
+      client,
       status: 'Not Started',
     });
 
     await task.save();
+
+    // Create notification
     const notification = new Notification({
       recipient: task.assignedTo,
-      sender: req.user.name, // whoever is assigning
+
+      // IMPORTANT: ObjectId, NOT req.user.name
+      sender: req.user.id,
+
       task: task._id,
+
       message: `You have been assigned a new task: ${task.title}`,
     });
+
     await notification.save();
 
-    res.json({ task, notification });
+    console.log('Task created:', task);
+    console.log('Notification created:', notification);
 
-    res.status(201).json(task);
+    // Send ONE response
+    res.status(201).json({
+      message: 'Task assigned successfully',
+      task,
+      notification,
+    });
   } catch (error) {
     console.error('Error assigning task:', error);
-    res.status(500).json({ message: 'Server error' });
+
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message,
+    });
   }
 });
 
-router.get('/notifications', verifyToken, async (req, res) => {
+router.get('/notifications', authMiddleware, async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipient: req.user.id })
-      .populate('task')
-      .populate('sender', 'name');
-    res.json(notifications);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    const notifications = await Notification.find({
+      recipient: req.user.id,
+    })
+      .populate('sender', 'name email')
+      .populate('task', 'title')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(notifications);
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+
+    res.status(500).json({
+      message: 'Server error',
+    });
   }
 });
 
