@@ -75,36 +75,150 @@
 
 .form-group {
   display: flex;
+
   flex-direction: column;
-  flex: 1;
+
+  width: 100%;
 }
+
+/* =========================================
+   LABEL
+========================================= */
 
 .form-group label {
-  font-size: 13px;
-  font-weight: bold;
-  margin-bottom: 5px;
-  color: #444;
+  margin-bottom: 8px;
+
+  font-size: 15px;
+
+  font-weight: 500;
+
+  color: #333;
 }
 
-.add-task-bar input,
-.add-task-bar select {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+/* =========================================
+   INPUT + SELECT
+========================================= */
+
+.form-group input,
+.form-group select {
+  width: 100%;
+
+  height: 48px;
+
+  box-sizing: border-box;
+
+  padding: 0 14px;
+
+  background: #fff;
+
+  border: 1px solid #cfd3d8;
+
+  border-radius: 7px;
+
+  font-size: 16px;
+
+  color: #222;
+
+  outline: none;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.add-task-bar button {
-  padding: 8px 12px;
-  background: #3b82f6;
-  color: #fff;
+/* Placeholder */
+
+.form-group input::placeholder {
+  color: #777;
+}
+
+/* Focus */
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #0078d7;
+
+  box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.12);
+}
+
+/* =========================================
+   FORM BUTTONS
+========================================= */
+
+.form-actions {
+  display: flex;
+
+  justify-content: flex-end;
+
+  align-items: center;
+
+  gap: 12px;
+
+  margin-top: 38px;
+}
+
+/* =========================================
+   ALL BUTTONS
+========================================= */
+
+.form-actions button {
+  min-width: 110px;
+
+  height: 46px;
+
+  padding: 0 20px;
+
   border: none;
-  border-radius: 6px;
+
+  border-radius: 7px;
+
+  font-size: 15px;
+
+  font-weight: 500;
+
   cursor: pointer;
-  align-self: flex-end;
+
+  transition:
+    background 0.2s ease,
+    transform 0.1s ease;
 }
 
-.add-task-bar button:hover {
-  background: #2563eb;
+.form-actions {
+  display: flex;
+
+  justify-content: flex-end;
+
+  align-items: center;
+
+  gap: 12px;
+
+  margin-top: 38px;
+}
+
+/* =========================================
+   ALL BUTTONS
+========================================= */
+
+.form-actions button {
+  min-width: 110px;
+
+  height: 46px;
+
+  padding: 0 20px;
+
+  border: none;
+
+  border-radius: 7px;
+
+  font-size: 15px;
+
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.1s ease;
 }
 
 /* Task List */
@@ -282,4 +396,85 @@
   font-weight: 700;
 
   line-height: 1;
+}
+
+.fixed-date,
+.editable-date {
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 14px;
+  width: 145px;
+  box-sizing: border-box;
+}
+
+.fixed-date {
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  color: #555;
+  cursor: not-allowed;
+}
+
+.editable-date {
+  background: #fff;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+
+.editable-date:focus {
+  outline: none;
+  border-color: #0078d7;
+  box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.15);
+}
+
+.title-input-group {
+  width: 100%;
+}
+
+.title-input-wrapper {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.title-input-wrapper input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px 0 0 6px;
+  font-size: 14px;
+  outline: none;
+}
+
+.title-input-wrapper input:focus {
+  border-color: #0078d7;
+}
+
+.quick-add-btn {
+  width: 42px;
+  height: 42px;
+
+  border: none;
+  border-radius: 0 6px 6px 0;
+
+  background: #0078d7;
+  color: white;
+
+  font-size: 25px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  transition: background 0.2s ease;
+}
+
+.quick-add-btn:hover {
+  background: #005fa3;
+}
+
+.quick-add-btn:active {
+  transform: scale(0.97);
 }

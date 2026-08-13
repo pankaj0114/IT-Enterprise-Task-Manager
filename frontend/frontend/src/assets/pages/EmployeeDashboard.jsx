@@ -20,9 +20,11 @@ import {
 } from 'react-icons/md';
 
 export default function EmployeeDashboard() {
-  const [activeTab, setActiveTab] = useState('myTasks');
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('activeTab') || 'myTasks';
+  });
   const [notifications, setNotifications] = useState([]);
-  // const [activeTab, setActiveTab] = useState('dashboard');
+
   const [tasks, setTasks] = useState([]);
   const [clients, setClients] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -36,8 +38,9 @@ export default function EmployeeDashboard() {
   const [minutes, setMinutes] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [completedTasks, setCompletedTasks] = useState([]);
+  const [myTasks, setMyTasks] = useState([]);
+  const [assignedTasks, setAssignedTasks] = useState([]);
   const remarkTimeouts = useRef({});
-  //const [notifications, setNotifications] = useState([]);
 
   const [newTask, setNewTask] = useState({
     title: '',
@@ -48,9 +51,152 @@ export default function EmployeeDashboard() {
     client: '',
   });
   //const socket = io('http://localhost:5000');
+  // ==========================================
+  // UNREAD COUNT
+  // ==========================================
+
   const unreadCount = notifications.filter(
     (notification) => !notification.read,
   ).length;
+
+  // ==========================================
+  // FETCH NOTIFICATIONS
+  // ==========================================
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.get(
+        'http://localhost:5000/api/notifications',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('Notifications from API:', response.data);
+
+      // Remove duplicate notifications
+      const uniqueNotifications = response.data.filter(
+        (notification, index, self) =>
+          index === self.findIndex((item) => item._id === notification._id),
+      );
+
+      setNotifications(uniqueNotifications);
+    } catch (error) {
+      console.error(
+        'Error fetching notifications:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  // ==========================================
+  // LOAD NOTIFICATIONS WHEN USER IS AVAILABLE
+  // ==========================================
+  useEffect(() => {
+    if (!user?._id) return;
+
+    fetchNotifications();
+  }, [user?._id]);
+
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
+
+  // ==========================================
+  // MARK NOTIFICATIONS AS READ
+  // ==========================================
+
+  const markNotificationsAsRead = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      await axios.put(
+        'http://localhost:5000/api/notifications/read-all',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      // Immediately update UI
+      setNotifications((prev) =>
+        prev.map((notification) => ({
+          ...notification,
+          read: true,
+        })),
+      );
+    } catch (error) {
+      console.error(
+        'Error marking notifications as read:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  // ==========================================
+  // MARK READ WHEN NOTIFICATION TAB OPENS
+  // ==========================================
+
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      markNotificationsAsRead();
+    }
+  }, [activeTab]);
+  // ==========================================
+  // SOCKET.IO
+  // ==========================================
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    console.log('Joining notification room:', user._id);
+
+    socket.emit('join', user._id);
+
+    const handleNotification = (notification) => {
+      console.log('New notification received:', notification);
+
+      setNotifications((prev) => {
+        // =====================================
+        // PREVENT DUPLICATES
+        // =====================================
+
+        const alreadyExists = prev.some(
+          (item) => item._id === notification._id,
+        );
+
+        if (alreadyExists) {
+          console.log('Duplicate notification ignored:', notification._id);
+
+          return prev;
+        }
+
+        // =====================================
+        // ADD NEW NOTIFICATION
+        // =====================================
+
+        return [
+          {
+            ...notification,
+            read: false,
+          },
+          ...prev,
+        ];
+      });
+    };
+
+    socket.on('newNotification', handleNotification);
+
+    return () => {
+      socket.off('newNotification', handleNotification);
+    };
+  }, [user?._id]);
 
   useEffect(() => {
     const handleConnect = () => {
@@ -70,90 +216,83 @@ export default function EmployeeDashboard() {
     };
   }, []);
 
-  const fetchNotifications = async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-
-      const response = await axios.get(
-        'http://localhost:5000/api/tasks/notifications',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      console.log('Notifications from database:', response.data);
-
-      setNotifications(response.data);
-    } catch (error) {
-      console.error(
-        'Error fetching notifications:',
-        error.response?.data || error.message,
-      );
-    }
-  };
-
-  useEffect(() => {
-    if (!user?._id) return;
-
-    fetchNotifications();
-  }, [user?._id]);
-
-  useEffect(() => {
-    if (!user?._id) return;
-
-    console.log('Joining notification room:', user._id);
-
-    socket.emit('join', user._id);
-
-    const handleNotification = (notification) => {
-      console.log('New notification received:', notification);
-
-      setNotifications((prev) => [notification, ...prev]);
-    };
-
-    socket.on('newNotification', handleNotification);
-
-    return () => {
-      socket.off('newNotification', handleNotification);
-    };
-    fetchNotifications();
-  }, [user?._id]);
-
-  const markNotificationsAsRead = async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-
-      await axios.put(
-        'http://localhost:5000/api/notifications/read-all',
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      // Immediately update React state
-      setNotifications((prev) =>
-        prev.map((notification) => ({
-          ...notification,
-          read: true,
-        })),
-      );
-    } catch (error) {
-      console.error(
-        'Error marking notifications as read:',
-        error.response?.data || error.message,
-      );
-    }
-  };
-
   const openPopup = (taskId) => {
     setSelectedTaskId(taskId);
     setShowPopup(true);
   };
+
+  const fetchTasks = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await axios.get('http://localhost:5000/api/tasks/my-tasks', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTasks(res.data);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    }
+  };
+
+  const fetchMyTasks = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.get(
+        'http://localhost:5000/api/tasks/my-tasks',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('MY TASKS:', response.data);
+
+      setMyTasks(response.data);
+    } catch (error) {
+      console.error(
+        'Error fetching my tasks:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  const fetchAssignedTasks = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.get(
+        'http://localhost:5000/api/tasks/assigned-tasks',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('ASSIGNED TASKS:', response.data);
+
+      setAssignedTasks(response.data);
+    } catch (error) {
+      console.error(
+        'Error fetching assigned tasks:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'assignedTasks') {
+      fetchAssignedTasks();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    fetchMyTasks();
+    fetchAssignedTasks();
+  }, [user?._id]);
 
   // ✅ Fetch functions
   useEffect(() => {
@@ -175,18 +314,6 @@ export default function EmployeeDashboard() {
     fetchTasks();
   }, []);
 
-  const fetchTasks = async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-      const res = await axios.get('http://localhost:5000/api/tasks/my-tasks', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setTasks(res.data);
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-    }
-  };
-
   const fetchClients = async () => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -199,23 +326,117 @@ export default function EmployeeDashboard() {
     }
   };
 
+  const handlePriorityChange = async (taskId, priority) => {
+    try {
+      console.log('Updating priority');
+      console.log('Task ID:', taskId);
+      console.log('Priority:', priority);
+
+      if (!taskId) {
+        console.error('Task ID is undefined');
+        return;
+      }
+
+      const token = localStorage.getItem('accessToken');
+
+      // Update UI immediately
+      setTasks((prev) =>
+        prev.map((task) =>
+          task._id === taskId
+            ? {
+                ...task,
+                priority,
+              }
+            : task,
+        ),
+      );
+
+      const response = await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        {
+          priority,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('Priority updated:', response.data);
+    } catch (error) {
+      console.error(
+        'Error updating priority:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  const handleDueDateChange = async (taskId, dueDate) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      // Update UI immediately
+      setTasks((prev) =>
+        prev.map((task) => (task._id === taskId ? { ...task, dueDate } : task)),
+      );
+
+      await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        {
+          dueDate,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('Due date updated successfully');
+    } catch (error) {
+      console.error(
+        'Error updating due date:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
   const handleRemarkChange = (taskId, value) => {
+    console.log('========== REMARK CHANGE ==========');
+    console.log('Task ID:', taskId);
+    console.log('Remark:', value);
+
+    if (!taskId) {
+      console.error('ERROR: taskId is undefined!');
+      return;
+    }
+
     // Update UI immediately
     setTasks((prev) =>
       prev.map((task) =>
-        task._id === taskId ? { ...task, remarks: value } : task,
+        task._id === taskId
+          ? {
+              ...task,
+              remarks: value,
+            }
+          : task,
       ),
     );
 
-    // Cancel previous timer for this task
-    if (remarkTimeouts.current[taskId]) {
-      clearTimeout(remarkTimeouts.current[taskId]);
+    // Clear previous timeout
+    if (typingTimeouts[taskId]) {
+      clearTimeout(typingTimeouts[taskId]);
     }
 
-    // Start a new 1-second timer
-    remarkTimeouts.current[taskId] = setTimeout(async () => {
+    // Save after user stops typing for 1 second
+    const timeout = setTimeout(async () => {
       try {
         const token = localStorage.getItem('accessToken');
+
+        console.log('Saving remark for task:', taskId);
 
         await axios.put(
           `http://localhost:5000/api/tasks/${taskId}/remarks`,
@@ -225,21 +446,24 @@ export default function EmployeeDashboard() {
           {
             headers: {
               Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
             },
           },
         );
 
-        //console.log(`Remark automatically saved for task ${taskId}`);
+        console.log('Remark saved successfully');
       } catch (error) {
         console.error(
           'Error automatically saving remark:',
           error.response?.data || error.message,
         );
       }
-
-      // Remove timer reference
-      delete remarkTimeouts.current[taskId];
     }, 1000);
+
+    setTypingTimeouts((prev) => ({
+      ...prev,
+      [taskId]: timeout,
+    }));
   };
 
   const fetchCompletedTasks = async () => {
@@ -306,6 +530,60 @@ export default function EmployeeDashboard() {
     setNewTask({ ...newTask, [e.target.name]: e.target.value });
   };
 
+  const handleQuickAddTask = async () => {
+    try {
+      const title = newTask.title.trim();
+
+      if (!title) {
+        alert('Please enter a task title.');
+        return;
+      }
+
+      const token = localStorage.getItem('accessToken');
+
+      const payload = {
+        title,
+        quickAdd: true,
+        assignedTo: 'me',
+        priority: 'Medium',
+        dueDate: null,
+        client: null,
+      };
+
+      console.log('Quick adding task:', payload);
+
+      const response = await axios.post(
+        'http://localhost:5000/api/tasks/assign',
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('Quick task created:', response.data);
+
+      const createdTask = response.data.task;
+
+      // Add immediately to My Tasks
+      setTasks((prev) => [createdTask, ...prev]);
+
+      // Clear only the form
+      setNewTask({
+        title: '',
+        dueDate: '',
+        client: '',
+      });
+    } catch (error) {
+      console.error(
+        'Error quick adding task:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
   const handleAddTask = async () => {
     try {
       if (!newTask.title || newTask.title.trim() === '') {
@@ -325,13 +603,14 @@ export default function EmployeeDashboard() {
       const token = localStorage.getItem('accessToken');
       const payload = {
         title: newTask.title,
-        dueDate: newTask.dueDate || new Date(newTask.dueDate),
+        dueDate: newTask.dueDate,
         client: newTask.client, // ✅ include client directly
         priority: newTask.priority || 'Medium',
         assignedTo: user._id, // ✅ use actual ObjectId
         assignedBy: user._id, // ✅ use actual ObjectId
         remarks: newTask.remarks || '',
         issueDate: new Date().toISOString().substring(0, 10),
+        quickAdd: true,
       };
       await axios.post('http://localhost:5000/api/tasks/assign', payload, {
         headers: { Authorization: `Bearer ${token}` },
@@ -478,31 +757,34 @@ export default function EmployeeDashboard() {
 
   const handleUpdateTask = async (taskId) => {
     try {
+      console.log('TASK ID:', taskId);
+
+      if (!taskId) {
+        console.error('Task ID is missing');
+        return;
+      }
+
       const token = localStorage.getItem('accessToken');
-      const task = tasks.find((t) => t._id === taskId);
 
-      const res = await axios.put(
+      const payload = {
+        // your values here
+      };
+
+      const response = await axios.put(
         `http://localhost:5000/api/tasks/${taskId}`,
+        payload,
         {
-          title: task.title,
-          dueDate: task.dueDate,
-          priority: task.priority,
-          remarks: task.remarks || '',
-          client: task.client,
-          status: task.status,
-          assignedTo: task.assignedTo?._id || task.assignedTo,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
         },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-
-      // ✅ Update state directly with backend response
-      setTasks((prevTasks) =>
-        prevTasks.map((t) => (t._id === taskId ? res.data : t)),
       );
     } catch (error) {
-      console.error('Error updating task:', error);
+      console.error(
+        'Error updating task:',
+        error.response?.data || error.message,
+      );
     }
   };
   /*
@@ -629,22 +911,37 @@ export default function EmployeeDashboard() {
       <div className="main-panel">
         {activeTab === 'myTasks' && (
           <div className="task-list">
-            {/* Task Form */}
+            {/* ==============================
+          TASK FORM
+      ============================== */}
             <div className="task-form">
-              <div className="form-group">
+              <div className="form-group title-input-group">
                 <label htmlFor="title">Title</label>
-                <input
-                  id="title"
-                  name="title"
-                  type="text"
-                  value={newTask.title}
-                  onChange={handleChange}
-                  placeholder="Enter task title"
-                />
+
+                <div className="title-input-wrapper">
+                  <input
+                    id="title"
+                    name="title"
+                    type="text"
+                    value={newTask.title}
+                    onChange={handleChange}
+                    placeholder="Enter task title"
+                  />
+
+                  <button
+                    type="button"
+                    className="quick-add-btn"
+                    onClick={handleQuickAddTask}
+                    title="Quick add task"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
               <div className="form-group">
                 <label htmlFor="dueDate">Due Date</label>
+
                 <input
                   id="dueDate"
                   name="dueDate"
@@ -656,13 +953,20 @@ export default function EmployeeDashboard() {
 
               <div className="form-group">
                 <label htmlFor="client">Client</label>
+
                 <select
+                  id="client"
+                  name="client"
                   value={newTask.client}
                   onChange={(e) =>
-                    setNewTask({ ...newTask, client: e.target.value })
+                    setNewTask({
+                      ...newTask,
+                      client: e.target.value,
+                    })
                   }
                 >
                   <option value="">Select a client</option>
+
                   {clients.map((c) => (
                     <option key={c._id} value={c._id}>
                       {c.name}
@@ -672,14 +976,22 @@ export default function EmployeeDashboard() {
               </div>
 
               <div className="form-actions">
-                <button type="button" onClick={handleAddTask}>
+                <button
+                  type="button"
+                  className="assign-btn"
+                  onClick={handleAddTask}
+                >
                   Add Task
                 </button>
               </div>
             </div>
 
-            {/* Task Table */}
+            {/* ==============================
+          MY TASKS
+      ============================== */}
+
             <h3>My Tasks</h3>
+
             <table className="task-table">
               <thead>
                 <tr>
@@ -692,73 +1004,117 @@ export default function EmployeeDashboard() {
                   <th>Remarks</th>
                 </tr>
               </thead>
+
               <tbody>
                 {tasks
-                  .filter(
-                    (t) =>
-                      t.assignedTo?._id === user?._id &&
-                      t.status !== 'Completed',
-                  )
+                  .filter((task) => {
+                    // Only tasks assigned TO logged-in user
+                    const isMyTask =
+                      String(task.assignedTo?._id) === String(user?._id);
+
+                    // Don't show completed tasks
+                    const isNotCompleted = task.status !== 'Completed';
+
+                    return isMyTask && isNotCompleted;
+                  })
                   .map((task) => (
                     <tr key={task._id}>
+                      {/* ==============================
+                    TITLE
+                ============================== */}
+
                       <td>{task.title}</td>
 
-                      {/* Editable Issue Date */}
+                      {/* ==============================
+                    ISSUE DATE
+                ============================== */}
+
                       <td>
                         <input
-                          id={`issueDate-${task._id}`}
-                          name="issueDate"
                           type="date"
                           value={
                             task.issueDate
                               ? new Date(task.issueDate)
                                   .toISOString()
                                   .split('T')[0]
-                              : new Date().toISOString().split('T')[0] // default to today
+                              : new Date().toISOString().split('T')[0]
                           }
-                          readOnly // 👈 prevents editing
+                          readOnly
+                          className="fixed-date"
                         />
                       </td>
 
+                      {/* ==============================
+                    DUE DATE
+                ============================== */}
+
                       <td>
-                        {task.dueDate
-                          ? new Date(task.dueDate).toLocaleDateString()
-                          : 'No due date'}
+                        <input
+                          type="date"
+                          value={
+                            task.dueDate
+                              ? new Date(task.dueDate)
+                                  .toISOString()
+                                  .split('T')[0]
+                              : ''
+                          }
+                          onChange={(e) =>
+                            handleDueDateChange(task._id, e.target.value)
+                          }
+                          className="editable-date"
+                        />
                       </td>
 
-                      {/* Editable Status */}
+                      {/* ==============================
+                    STATUS
+                ============================== */}
+
                       <td>
                         <select
                           value={task.status}
                           onChange={(e) => {
-                            if (e.target.value === 'Completed') {
-                              setSelectedTaskId(task._id); // ✅ store id
-                              setShowPopup(true); // ✅ open popup
-                              // 👉 after user enters hours/minutes in popup,
-                              // you must call handleCompleteTask()
+                            const newStatus = e.target.value;
+
+                            if (newStatus === 'Completed') {
+                              // Save selected task
+                              setSelectedTaskId(task._id);
+
+                              // Open completion popup
+                              setShowPopup(true);
                             } else {
-                              handleTaskChange(e, task._id); // normal status change
+                              // Normal status update
+                              handleTaskChange(e, task._id);
                             }
                           }}
                         >
                           <option value="Not Started">Not Started</option>
+
                           <option value="In Progress">In Progress</option>
+
                           <option value="Completed">Completed</option>
                         </select>
                       </td>
 
-                      {/* Editable Client */}
+                      {/* ==============================
+                    CLIENT
+                ============================== */}
 
                       <td>{task.client?.name || 'No client'}</td>
 
-                      {/* Assigned By */}
+                      {/* ==============================
+                    ASSIGNED BY
+                ============================== */}
+
                       <td>
                         {String(task.assignedBy?._id) === String(user?._id)
                           ? 'Me'
-                          : task.assignedBy?.name}
+                          : task.assignedBy?.name || 'Unknown'}
                       </td>
 
-                      {/* Editable Remarks */}
+                      {/* ==============================
+                    REMARKS
+                ============================== */}
+
                       <td>
                         <textarea
                           id={`remarks-${task._id}`}
@@ -788,14 +1144,25 @@ export default function EmployeeDashboard() {
 
         {activeTab === 'assignedTasks' && (
           <div>
+            {/* ==============================
+        ASSIGN TASK FORM
+    ============================== */}
+
             <AssignTaskPage
+              onTaskCreated={fetchAssignedTasks}
               user={user}
               clients={clients}
               employees={employees}
               setActiveTab={setActiveTab}
             />
+
+            {/* ==============================
+        ASSIGNED TASKS TABLE
+    ============================== */}
+
             <div className="task-list">
               <h3>Assigned Tasks</h3>
+
               <table className="task-table">
                 <thead>
                   <tr>
@@ -804,71 +1171,101 @@ export default function EmployeeDashboard() {
                     <th>Priority</th>
                     <th>Remarks</th>
                     <th>Client</th>
-                    <th>Status</th>
                     <th>Assigned To</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
+
                 <tbody>
-                  {tasks
-                    .filter((t) => t.assignedTo?._id !== user?._id)
-                    .map((task) => (
-                      <tr key={task._id}>
-                        <td>{task.title}</td>
-                        <td>{new Date(task.dueDate).toLocaleDateString()}</td>
-                        <td>
-                          <select
-                            name="priority"
-                            value={task.priority}
-                            onChange={(e) => handleTaskChange(e, task._id)}
-                          >
-                            <option value="Low">Low</option>
-                            <option value="Medium">Medium</option>
-                            <option value="High">High</option>
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            name="remarks"
-                            value={task.remarks || ''}
-                            onChange={(e) =>
-                              handleRemarkChange(task._id, e.target.value)
-                            }
-                          />
-                        </td>
-                        <td>
-                          <select
-                            name="client"
-                            value={task.client}
-                            onChange={(e) => Change(e, task._id)}
-                          >
-                            <option value="">-- Select Client --</option>
-                            {clients.map((c) => (
-                              <option key={c._id} value={c._id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <select
-                            name="status"
-                            value={task.status}
-                            onChange={(e) => handleTaskChange(e, task._id)}
-                          >
-                            <option value="Not Started">Not Started</option>
-                            <option value="In Progress">In Progress</option>
-                          </select>
-                        </td>
-                        <td>{task.assignedTo?.name}</td>
-                        <td>
-                          <button onClick={() => handleUpdateTask(task._id)}>
-                            Update
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                  {assignedTasks.map((task) => (
+                    <tr key={task._id}>
+                      {/* ==============================
+                    TITLE
+                ============================== */}
+
+                      <td>{task.title}</td>
+
+                      {/* ==============================
+                    DUE DATE
+                ============================== */}
+
+                      <td>
+                        {task.dueDate
+                          ? new Date(task.dueDate).toLocaleDateString()
+                          : 'No due date'}
+                      </td>
+
+                      {/* ==============================
+                    PRIORITY
+                ============================== */}
+
+                      <td>
+                        <select
+                          value={task.priority || 'Medium'}
+                          onChange={(e) =>
+                            handlePriorityChange(task._id, e.target.value)
+                          }
+                        >
+                          <option value="Low">Low</option>
+
+                          <option value="Medium">Medium</option>
+
+                          <option value="High">High</option>
+                        </select>
+                      </td>
+
+                      {/* ==============================
+                    REMARKS
+                ============================== */}
+
+                      <td>
+                        <input
+                          type="text"
+                          name="remarks"
+                          value={task.remarks || ''}
+                          onChange={(e) =>
+                            handleRemarkChange(task._id, e.target.value)
+                          }
+                        />
+                      </td>
+
+                      {/* ==============================
+                    CLIENT
+                ============================== */}
+
+                      <td>
+                        <select
+                          name="client"
+                          value={task.client?._id || task.client || ''}
+                          onChange={(e) => Change(e, task._id)}
+                        >
+                          <option value="">-- Select Client --</option>
+
+                          {clients.map((c) => (
+                            <option key={c._id} value={c._id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* ==============================
+                    ASSIGNED TO
+                ============================== */}
+
+                      <td>{task.assignedTo?.name || 'Unknown'}</td>
+
+                      {/* ==============================
+                    ACTIONS
+                ============================== */}
+
+                      <td>
+                        <button onClick={() => handleUpdateTask(task._id)}>
+                          Update
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

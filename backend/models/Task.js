@@ -10,8 +10,8 @@ const taskSchema = new mongoose.Schema(
     },
     client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
 
-    issueDate: { type: Date },
-    dueDate: { type: Date, required: true },
+    issueDate: { type: Date, default: Date.now, immutable: true },
+    dueDate: { type: Date, required: false },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 

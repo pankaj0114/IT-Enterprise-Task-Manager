@@ -26,27 +26,52 @@ router.get('/', async (req, res) => {
 // ✅ Get tasks for logged-in user (assigned to OR assigned by)
 router.get('/my-tasks', authMiddleware, async (req, res) => {
   try {
-    if (!req.user || !req.user.id) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    //console.log('req.user:', req.user);
-
-    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const userId = req.user.id;
 
     const tasks = await Task.find({
-      $or: [{ assignedTo: userId }, { assignedBy: userId }],
+      assignedTo: userId,
     })
-      .select(
-        'title remarks dueDate priority status assignedTo assignedBy issueDate',
-      )
-      .populate('assignedTo', 'email name')
-      .populate('assignedBy', 'email name')
-      .populate('client', 'name');
-    res.json(tasks);
+      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('client', 'name')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(tasks);
   } catch (error) {
     console.error('Error fetching my tasks:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+});
+
+router.get('/assigned-tasks', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    console.log('Fetching assigned tasks for:', userId);
+
+    const tasks = await Task.find({
+      assignedBy: userId,
+      assignedTo: { $ne: userId },
+    })
+      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('client', 'name')
+      .sort({ createdAt: -1 });
+
+    console.log('Assigned tasks:', tasks);
+
+    res.status(200).json(tasks);
+  } catch (error) {
+    console.error('Error fetching assigned tasks:', error);
+
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message,
+    });
   }
 });
 
@@ -64,93 +89,173 @@ router.get('/me', authMiddleware, async (req, res) => {
   }
 });
 */
+
 // ✅ Assign Task
 router.post('/assign', authMiddleware, async (req, res) => {
   try {
-    let { title, dueDate, assignedTo, client, priority, remarks } = req.body;
+    const { title, dueDate, assignedTo, priority, client, quickAdd } = req.body;
+
+    console.log('========== ASSIGN TASK ==========');
+    console.log('User:', req.user.id);
+    console.log('Request body:', req.body);
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({
+        message: 'Task title is required',
+      });
+    }
+
+    if (quickAdd === true) {
+      const task = new Task({
+        title: title.trim(),
+
+        // No due date
+        dueDate: null,
+
+        // No client
+        client: null,
+
+        // Current user
+        assignedTo: req.user.id,
+
+        // Current user created it
+        assignedBy: req.user.id,
+
+        priority: priority || 'Medium',
+
+        status: 'Not Started',
+      });
+
+      await task.save();
+
+      console.log('Quick task created:', task._id);
+
+      return res.status(201).json({
+        success: true,
+        message: 'Task created successfully',
+        task,
+        notification: null,
+      });
+    }
+
+    // ==============================
+    // VALIDATION
+    // ==============================
+
+    if (!dueDate) {
+      return res.status(400).json({
+        message: 'Due date is required',
+      });
+    }
+
+    if (!assignedTo) {
+      return res.status(400).json({
+        message: 'Please select an employee',
+      });
+    }
+
+    if (!priority) {
+      return res.status(400).json({
+        message: 'Priority is required',
+      });
+    }
+
+    // If client is required
+    if (!client) {
+      return res.status(400).json({
+        message: 'Please select a client',
+      });
+    }
+
+    // ==============================
+    // LOGGED-IN USER
+    // ==============================
 
     const loggedInUserId = req.user.id.toString();
 
-    console.log('========== ASSIGN TASK ==========');
-    console.log('Logged in user:', loggedInUserId);
-    console.log('Received assignedTo:', assignedTo);
+    // ==============================
+    // CHECK SELF ASSIGNMENT
+    // ==============================
 
-    // Default due date
-    if (!dueDate) {
-      dueDate = new Date();
-    }
-
-    // IMPORTANT:
-    // Determine self-assignment BEFORE changing assignedTo
     const isSelfAssigned =
-      !assignedTo ||
-      assignedTo === 'me' ||
-      assignedTo.toString() === loggedInUserId;
+      assignedTo === 'me' || assignedTo.toString() === loggedInUserId;
 
-    console.log('Is self assigned:', isSelfAssigned);
+    console.log('Self assigned:', isSelfAssigned);
 
-    // If assigning to "me"
-    if (isSelfAssigned) {
-      assignedTo = req.user.id;
-    }
+    // If "Me" is selected
+    const finalAssignedTo = isSelfAssigned ? req.user.id : assignedTo;
 
-    console.log('Final assignedTo:', assignedTo);
+    console.log('Final assignedTo:', finalAssignedTo);
 
-    // =================================
+    // ==============================
     // CREATE TASK
-    // =================================
+    // ==============================
 
     const task = new Task({
-      title,
-      remarks,
-      dueDate,
+      title: title.trim(),
+
+      dueDate: new Date(dueDate),
+
       priority,
-      assignedTo,
+
+      client: client, // ✅ ADD CLIENT
+
+      assignedTo: finalAssignedTo,
+
       assignedBy: req.user.id,
-      client,
+
       status: 'Not Started',
     });
 
     await task.save();
 
-    console.log('Task saved:', task._id);
+    console.log('Task created:', task._id);
 
-    // =================================
-    // CREATE NOTIFICATION ONLY FOR
-    // ANOTHER USER
-    // =================================
+    // ==============================
+    // NOTIFICATION
+    // ONLY WHEN ASSIGNING TO ANOTHER
+    // EMPLOYEE
+    // ==============================
 
     let notification = null;
 
     if (!isSelfAssigned) {
       notification = new Notification({
-        recipient: task.assignedTo,
+        recipient: finalAssignedTo,
+
         sender: req.user.id,
+
         task: task._id,
+
         message: `You have been assigned a new task: ${task.title}`,
       });
 
       await notification.save();
 
-      console.log('Notification SAVED:', notification._id);
+      console.log('Notification created:', notification._id);
 
-      // Socket notification
+      // ==============================
+      // SOCKET.IO
+      // ==============================
+
       const io = req.app.get('io');
 
       if (io) {
-        io.to(task.assignedTo.toString()).emit('newNotification', notification);
+        io.to(finalAssignedTo.toString()).emit('newNotification', notification);
 
-        console.log('Socket notification sent to:', task.assignedTo.toString());
+        console.log('Notification sent to:', finalAssignedTo.toString());
       }
     } else {
-      console.log('SELF ASSIGNED → NO NOTIFICATION CREATED');
+      console.log('Self assignment → notification not created');
     }
 
-    // =================================
+    // ==============================
     // RESPONSE
-    // =================================
+    // ==============================
 
-    res.status(201).json({
+    return res.status(201).json({
+      success: true,
+
       message: isSelfAssigned
         ? 'Task created successfully'
         : 'Task assigned successfully',
@@ -160,10 +265,13 @@ router.post('/assign', authMiddleware, async (req, res) => {
       notification,
     });
   } catch (error) {
-    console.error('Error assigning task:', error);
+    console.error('========== ASSIGN TASK ERROR ==========');
 
-    res.status(500).json({
-      message: 'Server error',
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Error assigning task',
       error: error.message,
     });
   }
@@ -191,33 +299,128 @@ router.get('/notifications', authMiddleware, async (req, res) => {
 // ✅ Update Task (status, remarks, client, etc.)
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const { remarks, status, totalHours, totalMinutes } = req.body;
-    const updateData = { status };
+    const {
+      title,
+      remarks,
+      priority,
+      dueDate,
+      status,
+      totalHours,
+      totalMinutes,
+    } = req.body;
+
+    console.log('========== UPDATE TASK ==========');
+    console.log('Task ID:', req.params.id);
+    console.log('Request body:', req.body);
+
+    // =========================================
+    // BUILD UPDATE OBJECT
+    // =========================================
+
+    const updateData = {};
+
+    // Update title
+    if (title !== undefined) {
+      updateData.title = title;
+    }
+
+    // Update remarks
+    if (remarks !== undefined) {
+      updateData.remarks = remarks;
+    }
+
+    // Update priority
+    if (priority !== undefined) {
+      updateData.priority = priority;
+    }
+
+    // Update due date
+    if (dueDate !== undefined) {
+      updateData.dueDate = dueDate;
+    }
+
+    // =========================================
+    // STATUS
+    // =========================================
+
+    if (status !== undefined) {
+      updateData.status = status;
+    }
+
+    // =========================================
+    // TOTAL TIME
+    // =========================================
+
+    if (totalHours !== undefined) {
+      updateData.totalHours = Number(totalHours);
+    }
+
+    if (totalMinutes !== undefined) {
+      updateData.totalMinutes = Number(totalMinutes);
+    }
+
+    // =========================================
+    // IF TASK IS MOVED BACK TO IN-PROGRESS
+    // RESET TIME
+    // =========================================
+
     if (status === 'in-progress') {
       updateData.totalHours = 0;
       updateData.totalMinutes = 0;
     }
 
+    console.log('Final update data:', updateData);
+
+    // =========================================
+    // UPDATE TASK
+    // =========================================
+
     const updatedTask = await Task.findByIdAndUpdate(
       req.params.id,
-      req.body,
-      { remarks, totalHours, totalMinutes },
-      { new: true },
       {
-        returnDocument: 'after',
+        $set: updateData,
+      },
+      {
+        new: true,
+        runValidators: true,
       },
     )
       .populate('assignedTo', 'name email')
       .populate('assignedBy', 'name email');
 
-    res.json(updatedTask);
+    // =========================================
+    // TASK NOT FOUND
+    // =========================================
+
+    if (!updatedTask) {
+      return res.status(404).json({
+        message: 'Task not found',
+      });
+    }
+
+    console.log('Updated task:', updatedTask);
+
+    // =========================================
+    // RESPONSE
+    // =========================================
+
+    return res.status(200).json({
+      success: true,
+      message: 'Task updated successfully',
+      task: updatedTask,
+    });
   } catch (error) {
-    console.error('Error updating task:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('========== UPDATE TASK ERROR ==========');
+
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
   }
 });
-
-export default router;
 
 // Update remarks for a task
 router.put('/:id/remarks', authMiddleware, async (req, res) => {
@@ -395,3 +598,5 @@ router.put('/:id/uncomplete', verifyToken, async (req, res) => {
     });
   }
 });
+
+export default router;

@@ -19,10 +19,28 @@ import clientRoutes from './routes/clientRoutes.js';
 dotenv.config();
 dns.setServers(['1.1.1.1', '8.8.8.8']);
 const app = express();
+
+// ========================================
+// CORS
+// ========================================
+
+app.use(
+  cors({
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  }),
+);
+
 app.use(express.json());
 app.use('/api/notifications', notificationRoutes);
 
 const server = http.createServer(app);
+
+// ========================================
+// SOCKET.IO
+// ========================================
 
 const io = new Server(server, {
   cors: {
@@ -31,6 +49,14 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+
+// Make Socket.IO available in routes
+app.set('io', io);
+
+// ========================================
+// SOCKET CONNECTION
+// ========================================
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
@@ -40,13 +66,6 @@ io.on('connection', (socket) => {
     console.log(`User ${userId} joined their room`);
   });
 });
-
-app.use(
-  cors({
-    origin: 'http://localhost:5173',
-    credentials: true,
-  }),
-);
 
 // ✅ Mount routes
 // app.use('/api/departments', departmentRoutes);

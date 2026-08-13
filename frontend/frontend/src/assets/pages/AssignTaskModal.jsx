@@ -36,23 +36,47 @@ const AssignTaskModal = ({ onClose }) => {
 
   const handleSubmit = async () => {
     try {
-      const token = localStorage.getItem('accessToken'); // ✅ get token
-      await axios.post(
+      const token = localStorage.getItem('accessToken');
+
+      const payload = {
+        title: task.title,
+        dueDate: task.dueDate,
+        assignedTo: task.assignedTo,
+        priority: task.priority,
+      };
+
+      console.log('Assigning task:', payload);
+
+      const response = await axios.post(
         'http://localhost:5000/api/tasks/assign',
+        payload,
         {
-          ...form,
-          // ✅ ensure tags are array
-          tags: form.tags.split(',').map((tag) => tag.trim()),
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }, // ✅ send token so backend sets assignedBy
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
         },
       );
-      alert('✅ Task assigned successfully!');
-      onClose();
+
+      console.log('TASK CREATED:', response.data);
+
+      // Reset form
+      setTask({
+        title: '',
+        dueDate: '',
+        priority: 'Medium',
+        assignedTo: '',
+      });
+
+      // Go back to the task section
+      setActiveTab('assignedTasks');
     } catch (error) {
-      console.error('Error assigning task:', error);
-      alert('❌ Error assigning task');
+      console.error(
+        'Error assigning task:',
+        error.response?.data || error.message,
+      );
+
+      setErrorMessage(error.response?.data?.message || 'Failed to assign task');
     }
   };
 
