@@ -470,9 +470,9 @@ router.get('/completed-tasks', authMiddleware, async (req, res) => {
       .select(
         'title remarks dueDate priority totalHours totalMinutes client assignedTo assignedBy status',
       )
-      .populate('assignedBy', 'email name')
-      .lean();
-
+      .populate('assignedTo', 'name email')
+      .populate('client', 'name')
+      .sort({ updatedAt: -1 });
     //console.log('Completed tasks:', JSON.stringify(tasks, null, 2));
 
     res.status(200).json(tasks);
@@ -595,6 +595,126 @@ router.put('/:id/uncomplete', verifyToken, async (req, res) => {
 
     res.status(500).json({
       message: err.message,
+    });
+  }
+});
+
+router.put('/:id/completed-time', authMiddleware, async (req, res) => {
+  try {
+    const { totalHours, totalMinutes } = req.body;
+
+    console.log('========== UPDATE COMPLETED TIME ==========');
+    console.log('Task ID:', req.params.id);
+    console.log('Hours:', totalHours);
+    console.log('Minutes:', totalMinutes);
+
+    // Validate hours
+    if (totalHours === undefined || totalHours === null || totalHours === '') {
+      return res.status(400).json({
+        message: 'Total hours are required',
+      });
+    }
+
+    // Validate minutes
+    if (
+      totalMinutes === undefined ||
+      totalMinutes === null ||
+      totalMinutes === ''
+    ) {
+      return res.status(400).json({
+        message: 'Total minutes are required',
+      });
+    }
+
+    const hours = Number(totalHours);
+    const minutes = Number(totalMinutes);
+
+    if (!Number.isInteger(hours) || hours < 0) {
+      return res.status(400).json({
+        message: 'Hours must be a valid non-negative number',
+      });
+    }
+
+    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 59) {
+      return res.status(400).json({
+        message: 'Minutes must be between 0 and 59',
+      });
+    }
+
+    // Find task
+    const task = await Task.findById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Task not found',
+      });
+    }
+
+    // Make sure task is completed
+    if (task.status !== 'Completed') {
+      return res.status(400).json({
+        message: 'Only completed tasks can have their time edited',
+      });
+    }
+
+    // Optional ownership check
+    if (
+      task.assignedTo &&
+      task.assignedTo.toString() !== req.user.id.toString()
+    ) {
+      return res.status(403).json({
+        message: 'You are not allowed to edit this task',
+      });
+    }
+
+    // Update time
+    task.totalHours = hours;
+    task.totalMinutes = minutes;
+
+    await task.save();
+
+    console.log('Updated task:', task);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Completed task time updated successfully',
+      task,
+    });
+  } catch (error) {
+    console.error('Error updating completed task time:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+});
+
+router.get('/assigned-by-me', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const tasks = await Task.find({
+      assignedBy: userId,
+
+      // Don't show self-assigned tasks here
+      $expr: {
+        $ne: ['$assignedTo', '$assignedBy'],
+      },
+    })
+      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('client', 'name')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(tasks);
+  } catch (error) {
+    console.error('Error fetching assigned tasks:', error);
+
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message,
     });
   }
 });

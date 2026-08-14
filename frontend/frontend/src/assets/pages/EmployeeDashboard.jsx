@@ -34,6 +34,11 @@ export default function EmployeeDashboard() {
   const [hours, setHours] = useState('');
   //const [totalHours, setTotalHours] = useState('');
   //const [totalMinutes, setTotalMinutes] = useState('');
+
+  const [editingTimeTaskId, setEditingTimeTaskId] = useState(null);
+
+  const [editHours, setEditHours] = useState('');
+  const [editMinutes, setEditMinutes] = useState('');
   const [typingTimeouts, setTypingTimeouts] = useState({});
   const [minutes, setMinutes] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
@@ -233,6 +238,87 @@ export default function EmployeeDashboard() {
     }
   };
 
+  const handleUpdateCompletedTime = async (taskId) => {
+    try {
+      const totalHours = Number(editHours);
+      const totalMinutes = Number(editMinutes);
+
+      // Validate hours
+      if (!Number.isInteger(totalHours) || totalHours < 0) {
+        alert('Please enter valid hours.');
+        return;
+      }
+
+      // Validate minutes
+      if (
+        !Number.isInteger(totalMinutes) ||
+        totalMinutes < 0 ||
+        totalMinutes > 59
+      ) {
+        alert('Minutes must be between 0 and 59.');
+        return;
+      }
+
+      const token = localStorage.getItem('accessToken');
+
+      console.log('Updating completed task time:', {
+        taskId,
+        totalHours,
+        totalMinutes,
+      });
+
+      const response = await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}/completed-time`,
+        {
+          totalHours,
+          totalMinutes,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('Updated completed task:', response.data);
+
+      const updatedTask = response.data.task || response.data;
+
+      setTasks((prev) =>
+        prev.map((task) => (task._id === selectedTaskId ? updatedTask : task)),
+      );
+
+      // Refresh completed tasks
+      await fetchCompletedTasks();
+
+      // Refresh assigned tasks
+      await fetchAssignedTasks();
+      // Update completed task card immediately
+      setCompletedTasks((prev) =>
+        prev.map((task) =>
+          task._id === taskId
+            ? {
+                ...task,
+                totalHours: updatedTask.totalHours,
+                totalMinutes: updatedTask.totalMinutes,
+              }
+            : task,
+        ),
+      );
+
+      // Exit edit mode
+      setEditingTimeTaskId(null);
+      setEditHours('');
+      setEditMinutes('');
+    } catch (error) {
+      console.error(
+        'Error updating completed task time:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
   const fetchMyTasks = async () => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -262,7 +348,7 @@ export default function EmployeeDashboard() {
       const token = localStorage.getItem('accessToken');
 
       const response = await axios.get(
-        'http://localhost:5000/api/tasks/assigned-tasks',
+        'http://localhost:5000/api/tasks/assigned-by-me',
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -270,7 +356,7 @@ export default function EmployeeDashboard() {
         },
       );
 
-      console.log('ASSIGNED TASKS:', response.data);
+      console.log('ASSIGNED BY ME:', response.data);
 
       setAssignedTasks(response.data);
     } catch (error) {
@@ -293,6 +379,12 @@ export default function EmployeeDashboard() {
     fetchMyTasks();
     fetchAssignedTasks();
   }, [user?._id]);
+
+  useEffect(() => {
+    if (activeTab === 'assignedTasks') {
+      fetchAssignedTasks();
+    }
+  }, [activeTab]);
 
   // ✅ Fetch functions
   useEffect(() => {
@@ -1143,23 +1235,247 @@ export default function EmployeeDashboard() {
         )}
 
         {activeTab === 'assignedTasks' && (
-          <div>
-            {/* ==============================
-        ASSIGN TASK FORM
-    ============================== */}
-
+          <div className="assigned-task-section">
+            {/* Assign Task Form */}
             <AssignTaskPage
-              onTaskCreated={fetchAssignedTasks}
+              onTaskCreated={async () => {
+                await fetchAssignedTasks();
+              }}
               user={user}
               clients={clients}
               employees={employees}
               setActiveTab={setActiveTab}
             />
 
-            {/* ==============================
-        ASSIGNED TASKS TABLE
-    ============================== */}
+            <h3 className="assigned-task-heading">Assigned Tasks</h3>
 
+            {/* ============================= */}
+            {/* STATUS SUMMARY CARDS */}
+            {/* ============================= */}
+
+            <div className="task-status-summary">
+              {/* Pending */}
+              <div className="status-card pending-card">
+                <div className="status-icon">🕐</div>
+
+                <div>
+                  <h4>Pending</h4>
+
+                  <strong>
+                    {
+                      assignedTasks.filter(
+                        (task) => task.status === 'Not Started',
+                      ).length
+                    }
+                  </strong>
+
+                  <span>Tasks</span>
+                </div>
+
+                <button>View all →</button>
+              </div>
+
+              {/* In Progress */}
+              <div className="status-card progress-card">
+                <div className="status-icon">↻</div>
+
+                <div>
+                  <h4>In Progress</h4>
+
+                  <strong>
+                    {
+                      assignedTasks.filter(
+                        (task) => task.status === 'In Progress',
+                      ).length
+                    }
+                  </strong>
+
+                  <span>Tasks</span>
+                </div>
+
+                <button>View all →</button>
+              </div>
+
+              {/* Completed */}
+              <div className="status-card completed-card">
+                <div className="status-icon">✓</div>
+
+                <div>
+                  <h4>Completed</h4>
+
+                  <strong>
+                    {
+                      assignedTasks.filter(
+                        (task) => task.status === 'Completed',
+                      ).length
+                    }
+                  </strong>
+
+                  <span>Tasks</span>
+                </div>
+
+                <button>View all →</button>
+              </div>
+            </div>
+
+            {/* ============================= */}
+            {/* THREE TASK SECTIONS */}
+            {/* ============================= */}
+
+            <div className="assigned-task-columns">
+              {/* ============================= */}
+              {/* PENDING */}
+              {/* ============================= */}
+
+              <div className="assigned-status-section pending-section">
+                <div className="section-header">
+                  <h4>🕐 Pending Tasks</h4>
+
+                  <button>View All</button>
+                </div>
+
+                <div className="task-table-wrapper">
+                  <table className="task-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Assigned To</th>
+                        <th>Due Date</th>
+                        <th>Priority</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {assignedTasks
+                        .filter((task) => task.status === 'Not Started')
+                        .map((task) => (
+                          <tr key={task._id}>
+                            <td>{task.title}</td>
+
+                            <td>{task.assignedTo?.name || 'Unknown'}</td>
+
+                            <td>
+                              {task.dueDate
+                                ? new Date(task.dueDate).toLocaleDateString()
+                                : 'N/A'}
+                            </td>
+
+                            <td>
+                              <span
+                                className={`priority-badge ${task.priority?.toLowerCase()}`}
+                              >
+                                {task.priority}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* ============================= */}
+              {/* IN PROGRESS */}
+              {/* ============================= */}
+
+              <div className="assigned-status-section progress-section">
+                <div className="section-header">
+                  <h4>↻ In Progress Tasks</h4>
+
+                  <button>View All</button>
+                </div>
+
+                <div className="task-table-wrapper">
+                  <table className="task-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Assigned To</th>
+                        <th>Due Date</th>
+                        <th>Priority</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {assignedTasks
+                        .filter((task) => task.status === 'In Progress')
+                        .map((task) => (
+                          <tr key={task._id}>
+                            <td>{task.title}</td>
+
+                            <td>{task.assignedTo?.name || 'Unknown'}</td>
+
+                            <td>
+                              {task.dueDate
+                                ? new Date(task.dueDate).toLocaleDateString()
+                                : 'N/A'}
+                            </td>
+
+                            <td>
+                              <span
+                                className={`priority-badge ${task.priority?.toLowerCase()}`}
+                              >
+                                {task.priority}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* ============================= */}
+              {/* COMPLETED */}
+              {/* ============================= */}
+
+              <div className="assigned-status-section completed-section">
+                <div className="section-header">
+                  <h4>✓ Completed Tasks</h4>
+
+                  <button>View All</button>
+                </div>
+
+                <div className="task-table-wrapper">
+                  <table className="task-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Assigned To</th>
+                        <th>Completed On</th>
+                        <th>Priority</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {assignedTasks
+                        .filter((task) => task.status === 'Completed')
+                        .map((task) => (
+                          <tr key={task._id}>
+                            <td>{task.title}</td>
+
+                            <td>{task.assignedTo?.name || 'Unknown'}</td>
+
+                            <td>
+                              {task.updatedAt
+                                ? new Date(task.updatedAt).toLocaleDateString()
+                                : 'N/A'}
+                            </td>
+
+                            <td>
+                              <span
+                                className={`priority-badge ${task.priority?.toLowerCase()}`}
+                              >
+                                {task.priority}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
             <div className="task-list">
               <h3>Assigned Tasks</h3>
 
@@ -1280,8 +1596,7 @@ export default function EmployeeDashboard() {
               <p>No completed tasks found.</p>
             ) : (
               completedTasks.map((task) => {
-                // console.log('COMPLETED CARD TASK:', task);
-                // console.log('Task values:', task.totalHours, task.totalMinutes);
+                const isEditing = editingTimeTaskId === task._id;
 
                 return (
                   <div className="task-card" key={task._id}>
@@ -1302,19 +1617,90 @@ export default function EmployeeDashboard() {
                         : 'N/A'}
                     </p>
 
-                    {/* IMPORTANT */}
-                    <p>
-                      <strong>Time Spent:</strong> {task.totalHours ?? 0} hours{' '}
-                      {task.totalMinutes ?? 0} minutes
-                    </p>
+                    {/* TIME SECTION */}
+                    {!isEditing ? (
+                      <p>
+                        <strong>Time Spent:</strong> {task.totalHours ?? 0}{' '}
+                        hours {task.totalMinutes ?? 0} minutes
+                      </p>
+                    ) : (
+                      <div className="edit-time-section">
+                        <strong>Edit Time Spent:</strong>
+
+                        <div className="time-inputs">
+                          <div>
+                            <label>Hours</label>
+
+                            <input
+                              type="number"
+                              min="0"
+                              value={editHours}
+                              onChange={(e) => setEditHours(e.target.value)}
+                              placeholder="Hours"
+                            />
+                          </div>
+
+                          <div>
+                            <label>Minutes</label>
+
+                            <input
+                              type="number"
+                              min="0"
+                              max="59"
+                              value={editMinutes}
+                              onChange={(e) => setEditMinutes(e.target.value)}
+                              placeholder="Minutes"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="time-edit-buttons">
+                          <button
+                            className="save-time-btn"
+                            onClick={() => handleUpdateCompletedTime(task._id)}
+                          >
+                            Save
+                          </button>
+
+                          <button
+                            className="cancel-time-btn"
+                            onClick={() => {
+                              setEditingTimeTaskId(null);
+                              setEditHours('');
+                              setEditMinutes('');
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     <p className="completed-status">
                       <strong>Status:</strong> Completed
                     </p>
 
-                    <button onClick={() => handleUncompleteTask(task._id)}>
-                      Uncomplete
-                    </button>
+                    {/* ACTION BUTTONS */}
+                    <div className="task-card-actions">
+                      {!isEditing && (
+                        <button
+                          className="edit-time-btn"
+                          onClick={() => {
+                            setEditingTimeTaskId(task._id);
+
+                            setEditHours(String(task.totalHours ?? 0));
+
+                            setEditMinutes(String(task.totalMinutes ?? 0));
+                          }}
+                        >
+                          Edit Time
+                        </button>
+                      )}
+
+                      <button onClick={() => handleUncompleteTask(task._id)}>
+                        Uncomplete
+                      </button>
+                    </div>
                   </div>
                 );
               })

@@ -478,3 +478,301 @@
 .quick-add-btn:active {
   transform: scale(0.97);
 }
+
+.edit-time-section {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #f8f9fa;
+}
+
+.time-inputs {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.time-inputs > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.time-inputs label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.time-inputs input {
+  width: 90px;
+  padding: 7px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.time-edit-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.save-time-btn,
+.cancel-time-btn,
+.edit-time-btn {
+  border: none;
+  border-radius: 5px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.save-time-btn {
+  background: #198754;
+  color: white;
+}
+
+.cancel-time-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.edit-time-btn {
+  background: #0078d7;
+  color: white;
+}
+
+.save-time-btn:hover {
+  background: #146c43;
+}
+
+.cancel-time-btn:hover {
+  background: #5c636a;
+}
+
+.edit-time-btn:hover {
+  background: #005fa3;
+}
+
+.task-card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.assigned-task-section {
+  padding: 20px;
+}
+
+.assigned-task-heading {
+  margin-top: 25px;
+  margin-bottom: 15px;
+  font-size: 20px;
+}
+
+/* ================================= */
+/* STATUS SUMMARY */
+/* ================================= */
+
+.task-status-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin: 20px 0;
+}
+
+.status-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 18px;
+  border-radius: 8px;
+  min-height: 90px;
+}
+
+.status-card h4 {
+  margin: 0 0 5px;
+}
+
+.status-card strong {
+  display: block;
+  font-size: 24px;
+}
+
+.status-card span {
+  font-size: 13px;
+}
+
+.status-card button {
+  margin-left: auto;
+  padding: 7px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* Pending */
+
+.pending-card {
+  background: #fff4dc;
+  border: 1px solid #ffe0a3;
+}
+
+.pending-card .status-icon {
+  background: #ffe6b3;
+  color: #f59e0b;
+}
+
+/* In Progress */
+
+.progress-card {
+  background: #eaf3ff;
+  border: 1px solid #cfe3ff;
+}
+
+.progress-card .status-icon {
+  background: #d8eaff;
+  color: #0078d7;
+}
+
+/* Completed */
+
+.completed-card {
+  background: #edf9ed;
+  border: 1px solid #cceccc;
+}
+
+.completed-card .status-icon {
+  background: #d8f3d8;
+  color: #36a43a;
+}
+
+.status-icon {
+  width: 45px;
+  height: 45px;
+  border-radius: 10px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 22px;
+}
+
+/* ================================= */
+/* THREE SECTIONS */
+/* ================================= */
+
+.assigned-task-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.assigned-status-section {
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 14px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.section-header h4 {
+  margin: 0;
+}
+
+.section-header button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* Pending */
+
+.pending-section {
+  border-top: 3px solid #f59e0b;
+}
+
+.pending-section .section-header h4 {
+  color: #d97706;
+}
+
+/* Progress */
+
+.progress-section {
+  border-top: 3px solid #0078d7;
+}
+
+.progress-section .section-header h4 {
+  color: #0078d7;
+}
+
+/* Completed */
+
+.completed-section {
+  border-top: 3px solid #36a43a;
+}
+
+.completed-section .section-header h4 {
+  color: #29932e;
+}
+
+/* ================================= */
+/* TABLE */
+/* ================================= */
+
+.task-table-wrapper {
+  overflow: hidden;
+}
+
+.assigned-status-section .task-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.assigned-status-section .task-table th,
+.assigned-status-section .task-table td {
+  padding: 11px;
+  text-align: left;
+  font-size: 13px;
+  border-bottom: 1px solid #eee;
+}
+
+.assigned-status-section .task-table th {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+/* ================================= */
+/* PRIORITY */
+/* ================================= */
+
+.priority-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.priority-badge.high {
+  background: #ffe3e3;
+  color: #dc2626;
+}
+
+.priority-badge.medium {
+  background: #fff0d5;
+  color: #d97706;
+}
+
+.priority-badge.low {
+  background: #e4f6e5;
+  color: #29932e;
+}
