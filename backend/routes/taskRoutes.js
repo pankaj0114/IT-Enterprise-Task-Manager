@@ -29,7 +29,7 @@ router.get('/my-tasks', authMiddleware, async (req, res) => {
     const userId = req.user.id;
 
     const tasks = await Task.find({
-      assignedTo: userId,
+      $or: [{ assignedTo: userId }, { assignedBy: userId }],
     })
       .populate('assignedTo', 'name email')
       .populate('assignedBy', 'name email')
@@ -295,128 +295,55 @@ router.get('/notifications', authMiddleware, async (req, res) => {
     });
   }
 });
-
-// ✅ Update Task (status, remarks, client, etc.)
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    const {
+    const { status } = req.body;
+
+    // const updateData = {};
+    const { title, remarks, dueDate, priority } = req.body;
+
+    const updateData = {
       title,
       remarks,
-      priority,
       dueDate,
-      status,
-      totalHours,
-      totalMinutes,
-    } = req.body;
+      priority,
+    };
 
-    console.log('========== UPDATE TASK ==========');
-    console.log('Task ID:', req.params.id);
-    console.log('Request body:', req.body);
+    const updatedTask = await Task.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    })
+      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('client', 'name');
 
-    // =========================================
-    // BUILD UPDATE OBJECT
-    // =========================================
-
-    const updateData = {};
-
-    // Update title
-    if (title !== undefined) {
-      updateData.title = title;
+    if (!updatedTask) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
     }
-
-    // Update remarks
-    if (remarks !== undefined) {
-      updateData.remarks = remarks;
-    }
-
-    // Update priority
-    if (priority !== undefined) {
-      updateData.priority = priority;
-    }
-
-    // Update due date
-    if (dueDate !== undefined) {
-      updateData.dueDate = dueDate;
-    }
-
-    // =========================================
-    // STATUS
-    // =========================================
 
     if (status !== undefined) {
       updateData.status = status;
     }
 
-    // =========================================
-    // TOTAL TIME
-    // =========================================
-
-    if (totalHours !== undefined) {
-      updateData.totalHours = Number(totalHours);
-    }
-
-    if (totalMinutes !== undefined) {
-      updateData.totalMinutes = Number(totalMinutes);
-    }
-
-    // =========================================
-    // IF TASK IS MOVED BACK TO IN-PROGRESS
-    // RESET TIME
-    // =========================================
-
-    if (status === 'in-progress') {
+    // Reset completion time when moving back to In Progress
+    if (status === 'In Progress') {
       updateData.totalHours = 0;
       updateData.totalMinutes = 0;
     }
 
-    console.log('Final update data:', updateData);
-
-    // =========================================
-    // UPDATE TASK
-    // =========================================
-
-    const updatedTask = await Task.findByIdAndUpdate(
-      req.params.id,
-      {
-        $set: updateData,
-      },
-      {
-        new: true,
-        runValidators: true,
-      },
-    )
-      .populate('assignedTo', 'name email')
-      .populate('assignedBy', 'name email');
-
-    // =========================================
-    // TASK NOT FOUND
-    // =========================================
-
-    if (!updatedTask) {
-      return res.status(404).json({
-        message: 'Task not found',
-      });
-    }
-
-    console.log('Updated task:', updatedTask);
-
-    // =========================================
-    // RESPONSE
-    // =========================================
-
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      message: 'Task updated successfully',
       task: updatedTask,
     });
   } catch (error) {
-    console.error('========== UPDATE TASK ERROR ==========');
+    console.error('Error updating task:', error);
 
-    console.error(error);
-
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: 'Error updating task',
       error: error.message,
     });
   }
@@ -711,6 +638,31 @@ router.get('/assigned-by-me', authMiddleware, async (req, res) => {
     res.status(200).json(tasks);
   } catch (error) {
     console.error('Error fetching assigned tasks:', error);
+
+    res.status(500).json({
+      message: 'Server error',
+      error: error.message,
+    });
+  }
+});
+
+router.get('/pending-assigned', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const tasks = await Task.find({
+      assignedBy: userId,
+      assignedTo: { $ne: userId },
+      status: { $in: ['Not Started', 'Pending'] },
+    })
+      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('client', 'name')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(tasks);
+  } catch (error) {
+    console.error('Error fetching pending assigned tasks:', error);
 
     res.status(500).json({
       message: 'Server error',

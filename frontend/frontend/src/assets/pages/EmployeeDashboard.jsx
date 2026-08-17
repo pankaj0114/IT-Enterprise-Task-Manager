@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import '../css/EmployeeDashboard.css';
 import '../css/Popup.css';
@@ -8,6 +9,7 @@ import AssignTaskPage from './AssignTaskPage';
 import DatePicker from 'react-datepicker';
 import { useRef } from 'react';
 import socket from '../services/socket.js';
+
 //import { io } from 'socket.io-client';
 
 import {
@@ -55,6 +57,8 @@ export default function EmployeeDashboard() {
     remarks: '',
     client: '',
   });
+
+  const navigate = useNavigate();
   //const socket = io('http://localhost:5000');
   // ==========================================
   // UNREAD COUNT
@@ -237,7 +241,29 @@ export default function EmployeeDashboard() {
       console.error('Error fetching tasks:', error);
     }
   };
+  const fetchAssignedTasks = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
 
+      const response = await axios.get(
+        'http://localhost:5000/api/tasks/assigned-by-me',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('ASSIGNED BY ME:', response.data);
+
+      setAssignedTasks(response.data);
+    } catch (error) {
+      console.error(
+        'Error fetching assigned tasks:',
+        error.response?.data || error.message,
+      );
+    }
+  };
   const handleUpdateCompletedTime = async (taskId) => {
     try {
       const totalHours = Number(editHours);
@@ -343,30 +369,6 @@ export default function EmployeeDashboard() {
     }
   };
 
-  const fetchAssignedTasks = async () => {
-    try {
-      const token = localStorage.getItem('accessToken');
-
-      const response = await axios.get(
-        'http://localhost:5000/api/tasks/assigned-by-me',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      console.log('ASSIGNED BY ME:', response.data);
-
-      setAssignedTasks(response.data);
-    } catch (error) {
-      console.error(
-        'Error fetching assigned tasks:',
-        error.response?.data || error.message,
-      );
-    }
-  };
-
   useEffect(() => {
     if (activeTab === 'assignedTasks') {
       fetchAssignedTasks();
@@ -388,21 +390,6 @@ export default function EmployeeDashboard() {
 
   // ✅ Fetch functions
   useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        const token = localStorage.getItem('accessToken');
-        const res = await axios.get(
-          'http://localhost:5000/api/tasks/my-tasks',
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        setTasks(res.data);
-      } catch (err) {
-        console.error('Error fetching tasks:', err);
-      }
-    };
-
     fetchTasks();
   }, []);
 
@@ -622,6 +609,34 @@ export default function EmployeeDashboard() {
     setNewTask({ ...newTask, [e.target.name]: e.target.value });
   };
 
+  // ===============================
+  // ASSIGNED TASKS
+  // ===============================
+
+  // Tasks that I assigned to OTHER employees
+  const filteredAssignedTasks = tasks.filter((task) => {
+    const assignedByMe = String(task.assignedBy?._id) === String(user?._id);
+
+    const assignedToOther = String(task.assignedTo?._id) !== String(user?._id);
+
+    return assignedByMe && assignedToOther;
+  });
+
+  // Pending / Not Started
+  const pendingAssignedTasks = assignedTasks.filter(
+    (task) => task.status === 'Not Started' || task.status === 'Pending',
+  );
+
+  // In Progress
+  const inprogressAssignedTasks = assignedTasks.filter(
+    (task) => task.status === 'In Progress' || task.status === 'in-progress',
+  );
+
+  // Completed
+  const completedAssignedTasks = assignedTasks.filter(
+    (task) => task.status === 'Completed',
+  );
+
   const handleQuickAddTask = async () => {
     try {
       const title = newTask.title.trim();
@@ -721,45 +736,48 @@ export default function EmployeeDashboard() {
   };
 
   const handleTaskChange = async (e, taskId) => {
-    const { name, value } = e.target;
+    const newStatus = e.target.value;
 
-    // Update local state immediately
-    setTasks((prevTasks) =>
-      prevTasks.map((t) => (t._id === taskId ? { ...t, [name]: value } : t)),
-    );
-    if (name === 'status' && value.toLowerCase() === 'completed') {
-      setPopupTaskId(taskId);
-      setShowPopup(true);
-      return; // wait for popup input before saving
+    if (!taskId) {
+      console.error('Task ID is missing');
+      return;
     }
 
     try {
       const token = localStorage.getItem('accessToken');
-      const taskToUpdate = tasks.find((t) => t._id === taskId);
 
-      const payload = {
-        title: taskToUpdate.title,
-        dueDate: taskToUpdate.dueDate,
-        assignedBy: taskToUpdate.assignedBy,
-        priority: taskToUpdate.priority,
-        status: name === 'status' ? value : taskToUpdate.status,
-        client: newTask.client,
-        remarks: name === 'remarks' ? value : taskToUpdate.remarks || '',
-        assignedTo: taskToUpdate.assignedTo?._id || taskToUpdate.assignedTo,
-      };
+      console.log('========== STATUS UPDATE ==========');
+      console.log('Task ID:', taskId);
+      console.log('New Status:', newStatus);
 
-      const res = await axios.put(
+      const response = await axios.put(
         `http://localhost:5000/api/tasks/${taskId}`,
-        payload,
-        { headers: { Authorization: `Bearer ${token}` } },
+        {
+          status: newStatus,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
       );
 
-      // Replace with backend response
-      setTasks((prevTasks) =>
-        prevTasks.map((t) => (t._id === taskId ? res.data : t)),
+      console.log('Status update response:', response.data);
+
+      const updatedTask = response.data.task || response.data;
+
+      // Update the task immediately in frontend
+      setTasks((prev) =>
+        prev.map((task) =>
+          String(task._id) === String(taskId) ? updatedTask : task,
+        ),
       );
     } catch (error) {
-      console.error('Error updating task:', error);
+      console.error(
+        'Error updating task:',
+        error.response?.data || error.message,
+      );
     }
   };
 
@@ -1163,26 +1181,20 @@ export default function EmployeeDashboard() {
 
                       <td>
                         <select
-                          value={task.status}
+                          value={task.status || 'Not Started'}
                           onChange={(e) => {
                             const newStatus = e.target.value;
 
                             if (newStatus === 'Completed') {
-                              // Save selected task
                               setSelectedTaskId(task._id);
-
-                              // Open completion popup
                               setShowPopup(true);
                             } else {
-                              // Normal status update
                               handleTaskChange(e, task._id);
                             }
                           }}
                         >
                           <option value="Not Started">Not Started</option>
-
                           <option value="In Progress">In Progress</option>
-
                           <option value="Completed">Completed</option>
                         </select>
                       </td>
@@ -1238,9 +1250,7 @@ export default function EmployeeDashboard() {
           <div className="assigned-task-section">
             {/* Assign Task Form */}
             <AssignTaskPage
-              onTaskCreated={async () => {
-                await fetchAssignedTasks();
-              }}
+              onTaskCreated={fetchTasks}
               user={user}
               clients={clients}
               employees={employees}
@@ -1260,19 +1270,14 @@ export default function EmployeeDashboard() {
 
                 <div>
                   <h4>Pending</h4>
-
-                  <strong>
-                    {
-                      assignedTasks.filter(
-                        (task) => task.status === 'Not Started',
-                      ).length
-                    }
-                  </strong>
+                  <strong>{assignedTasks.length}</strong>
 
                   <span>Tasks</span>
                 </div>
 
-                <button>View all →</button>
+                <button onClick={() => navigate('/assigned-tasks/pending')}>
+                  View All
+                </button>
               </div>
 
               {/* In Progress */}
@@ -1282,13 +1287,7 @@ export default function EmployeeDashboard() {
                 <div>
                   <h4>In Progress</h4>
 
-                  <strong>
-                    {
-                      assignedTasks.filter(
-                        (task) => task.status === 'In Progress',
-                      ).length
-                    }
-                  </strong>
+                  <strong>{inprogressAssignedTasks.length}</strong>
 
                   <span>Tasks</span>
                 </div>
@@ -1303,13 +1302,7 @@ export default function EmployeeDashboard() {
                 <div>
                   <h4>Completed</h4>
 
-                  <strong>
-                    {
-                      assignedTasks.filter(
-                        (task) => task.status === 'Completed',
-                      ).length
-                    }
-                  </strong>
+                  <strong>{completedAssignedTasks.length}</strong>
 
                   <span>Tasks</span>
                 </div>
@@ -1330,8 +1323,6 @@ export default function EmployeeDashboard() {
               <div className="assigned-status-section pending-section">
                 <div className="section-header">
                   <h4>🕐 Pending Tasks</h4>
-
-                  <button>View All</button>
                 </div>
 
                 <div className="task-table-wrapper">
@@ -1587,6 +1578,7 @@ export default function EmployeeDashboard() {
             </div>
           </div>
         )}
+
         {/* Completed Tasks */}
         {activeTab === 'completedTasks' && (
           <div className="task-list">
