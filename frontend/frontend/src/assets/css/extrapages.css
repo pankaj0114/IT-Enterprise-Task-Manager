@@ -1,236 +1,511 @@
-/* =========================================================
-   PENDING ASSIGNED TASKS PAGE
-========================================================= */
+/* =====================================================
+   PENDING TASK PAGE
+===================================================== */
 
 .assigned-status-page {
-  min-height: 100vh;
   width: 100%;
-  padding: 30px;
+  min-height: 100vh;
+
   box-sizing: border-box;
-  background: #f5f7fb;
+
+  padding: 30px 35px;
+
+  background: #f6f8fb;
+
   font-family: 'Segoe UI', Arial, sans-serif;
 }
 
-/* =========================================================
+/* =====================================================
    PAGE HEADER
-========================================================= */
+===================================================== */
 
-.page-header {
-  background: #ffffff;
+.status-page-header {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  margin-bottom: 30px;
+
   padding: 24px 28px;
-  margin-bottom: 25px;
-  border-radius: 10px;
+
+  background: #ffffff;
+
   border: 1px solid #e5e7eb;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.06);
+
+  border-radius: 16px;
+
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
 }
 
-.page-header h2 {
-  margin: 15px 0 6px;
-  color: #1f2937;
-  font-size: 28px;
-  font-weight: 600;
-}
-
-.page-header p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-/* =========================================================
+/* =====================================================
    BACK BUTTON
-========================================================= */
+===================================================== */
 
-.page-header button {
-  border: none;
-  background: #374151;
-  color: #ffffff;
+.status-back-button {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  margin-bottom: 20px;
+
   padding: 9px 16px;
-  border-radius: 6px;
-  cursor: pointer;
+
+  border: 1px solid #dbe1e8;
+
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #374151;
+
   font-size: 14px;
-  font-weight: 500;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
   transition: all 0.2s ease;
 }
 
-.page-header button:hover {
-  background: #1f2937;
+.status-back-button:hover {
+  background: #f3f4f6;
+
+  border-color: #cbd5e1;
+
   transform: translateX(-2px);
 }
 
-/* =========================================================
-   TASK CARDS CONTAINER
-========================================================= */
+.back-arrow {
+  font-size: 19px;
 
-.assigned-task-cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(280px, 1fr));
-  gap: 22px;
-  width: 100%;
+  line-height: 1;
 }
 
-/* =========================================================
-   COMMON TASK CARD
-========================================================= */
+/* =====================================================
+   HEADER CONTENT
+===================================================== */
+
+.status-header-content {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+}
+
+.status-title-row {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+}
+
+.status-title-row h2 {
+  margin: 0;
+
+  color: #111827;
+
+  font-size: 28px;
+
+  font-weight: 700;
+
+  line-height: 1.2;
+}
+
+.status-header-content p {
+  margin: 8px 0 0;
+
+  color: #6b7280;
+
+  font-size: 14px;
+}
+
+/* =====================================================
+   TASK COUNT
+===================================================== */
+
+.task-count-badge {
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  min-width: 30px;
+
+  height: 30px;
+
+  padding: 0 9px;
+
+  border-radius: 20px;
+
+  background: #fff7ed;
+
+  color: #ea580c;
+
+  font-size: 13px;
+
+  font-weight: 700;
+}
+
+/* =====================================================
+   TASK CARD GRID
+   3 CARDS HORIZONTALLY
+===================================================== */
+
+.assigned-task-cards {
+  width: 100%;
+
+  display: grid;
+
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  gap: 24px;
+
+  align-items: stretch;
+
+  box-sizing: border-box;
+}
+
+/* =====================================================
+   INDIVIDUAL TASK CARD
+===================================================== */
 
 .assigned-task-card {
   position: relative;
-  background: #ffffff;
+
+  display: flex;
+
+  flex-direction: column;
+
+  width: 100%;
+
+  min-width: 0;
+
+  box-sizing: border-box;
+
   padding: 22px;
-  border-radius: 10px;
+
+  background: #ffffff;
+
   border: 1px solid #e5e7eb;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.07);
+
+  border-radius: 15px;
+
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+
   transition:
     transform 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
 }
+
+/* Hover */
 
 .assigned-task-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 7px 20px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px);
+
+  border-color: #fcd34d;
+
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1);
 }
 
-/* =========================================================
+/* =====================================================
    PENDING CARD
-========================================================= */
+===================================================== */
 
 .pending-card {
-  border-top: 5px solid #f59e0b;
+  border-left: 5px solid #f59e0b;
 }
 
-/* =========================================================
+/* =====================================================
+   CARD TOP
+===================================================== */
+
+.pending-card-top {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  margin-bottom: 18px;
+}
+
+/* =====================================================
    STATUS BADGE
-========================================================= */
-
-.status-badge {
-  display: inline-block;
-  padding: 5px 11px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 12px;
-}
-
-/* Pending badge */
+===================================================== */
 
 .status-badge.pending {
+  display: inline-flex;
+
+  align-items: center;
+
+  padding: 6px 12px;
+
+  border-radius: 20px;
+
   background: #fff7ed;
-  color: #d97706;
-  border: 1px solid #fbbf24;
+
+  color: #ea580c;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.2px;
 }
 
-/* =========================================================
-   TASK TITLE
-========================================================= */
+/* Small status dot */
 
-.assigned-task-card h3 {
-  margin: 5px 0 18px;
-  color: #1f2937;
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1.4;
+.status-badge.pending::before {
+  content: '';
+
+  width: 7px;
+
+  height: 7px;
+
+  margin-right: 7px;
+
+  border-radius: 50%;
+
+  background: #f59e0b;
+}
+
+/* =====================================================
+   TASK INFORMATION
+===================================================== */
+
+.pending-task-info {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 11px;
+
+  flex: 1;
+}
+
+.pending-task-info p {
+  margin: 0;
+
+  color: #4b5563;
+
+  font-size: 14px;
+
+  line-height: 1.5;
+
   word-break: break-word;
 }
 
-/* =========================================================
-   TASK DETAILS
-========================================================= */
+.pending-task-info strong {
+  color: #111827;
 
-.assigned-task-card p {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 15px;
-
-  margin: 0;
-  padding: 11px 0;
-
-  border-bottom: 1px solid #f0f0f0;
-
-  color: #4b5563;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.assigned-task-card p:last-child {
-  border-bottom: none;
-}
-
-.assigned-task-card p strong {
-  color: #374151;
   font-weight: 600;
-  min-width: 100px;
 }
 
-.assigned-task-card p:not(:has(strong)) {
+/* =====================================================
+   REMARKS
+===================================================== */
+
+.pending-remarks {
+  margin-top: 20px;
+
+  padding-top: 17px;
+
+  border-top: 1px solid #eef0f3;
+}
+
+.pending-remarks label {
   display: block;
+
+  margin-bottom: 8px;
+
+  color: #374151;
+
+  font-size: 13px;
 }
 
-/* =========================================================
-   PRIORITY
-========================================================= */
+.pending-remarks textarea {
+  width: 100%;
 
-.assigned-task-card p:nth-of-type(3) {
-  color: #d97706;
-  font-weight: 500;
+  min-height: 85px;
+
+  box-sizing: border-box;
+
+  padding: 10px 12px;
+
+  border: 1px solid #d1d5db;
+
+  border-radius: 9px;
+
+  background: #fafafa;
+
+  color: #1f2937;
+
+  font-family: inherit;
+
+  font-size: 14px;
+
+  line-height: 1.5;
+
+  outline: none;
+
+  resize: vertical;
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-/* =========================================================
-   LOADING / EMPTY MESSAGE
-========================================================= */
+.pending-remarks textarea:hover {
+  border-color: #c4cbd4;
 
-.assigned-status-page > p {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 30px;
+}
+
+.pending-remarks textarea:focus {
+  background: #ffffff;
+
+  border-color: #f59e0b;
+
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+}
+
+/* =====================================================
+   EMPTY STATE
+===================================================== */
+
+.no-tasks-message {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  padding: 55px 20px;
+
   text-align: center;
+
+  background: #ffffff;
+
+  border: 1px dashed #d1d5db;
+
+  border-radius: 14px;
+
   color: #6b7280;
+
   font-size: 15px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
 }
 
-/* =========================================================
-   TABLET
-========================================================= */
-
-@media (max-width: 1100px) {
-  .assigned-task-cards {
-    grid-template-columns: repeat(2, minmax(280px, 1fr));
-  }
+.status-badge.in-progress {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
 }
 
-/* =========================================================
-   MOBILE
-========================================================= */
+.in-progress-card {
+  border-top: 4px solid #60a5fa;
+}
 
-@media (max-width: 700px) {
-  .assigned-status-page {
-    padding: 15px;
-  }
+.in-progress-card .pending-remarks textarea:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
+  outline: none;
+}
 
-  .page-header {
-    padding: 20px;
-  }
+/* =========================================
+   COMPLETED TASK CARD
+========================================= */
 
-  .page-header h2 {
-    font-size: 23px;
-  }
+.completed-card {
+  border-top: 4px solid #4ade80;
+  background: #ffffff;
+}
 
-  .assigned-task-cards {
-    grid-template-columns: 1fr;
-  }
+/* =========================================
+   COMPLETED BADGE
+========================================= */
 
-  .assigned-task-card {
-    padding: 18px;
-  }
+.status-badge.completed {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
 
-  .assigned-task-card p {
-    flex-direction: column;
-    gap: 4px;
-  }
+/* =========================================
+   COMPLETED CARD HOVER
+========================================= */
 
-  .assigned-task-card p strong {
-    min-width: auto;
-  }
+.completed-card:hover {
+  transform: translateY(-3px);
+  border-top-color: #22c55e;
+  box-shadow: 0 10px 25px rgba(34, 197, 94, 0.12);
+}
+
+/* =========================================
+   COMPLETION TIME
+========================================= */
+
+.completed-time-section {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f0fdf4;
+  border: 1px solid #dcfce7;
+}
+
+.completed-time-header {
+  margin-bottom: 12px;
+  color: #166534;
+  font-size: 14px;
+}
+
+.completed-time-details {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.time-box {
+  min-width: 70px;
+  padding: 10px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+}
+
+.time-value {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: #15803d;
+}
+
+.time-label {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.time-separator {
+  font-size: 22px;
+  font-weight: 700;
+  color: #86efac;
+}
+
+.total-time-text {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.total-time-text strong {
+  color: #15803d;
 }

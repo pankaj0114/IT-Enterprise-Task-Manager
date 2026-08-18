@@ -295,59 +295,6 @@ router.get('/notifications', authMiddleware, async (req, res) => {
     });
   }
 });
-router.put('/:id', authMiddleware, async (req, res) => {
-  try {
-    const { status } = req.body;
-
-    // const updateData = {};
-    const { title, remarks, dueDate, priority } = req.body;
-
-    const updateData = {
-      title,
-      remarks,
-      dueDate,
-      priority,
-    };
-
-    const updatedTask = await Task.findByIdAndUpdate(id, updateData, {
-      new: true,
-      runValidators: true,
-    })
-      .populate('assignedTo', 'name email')
-      .populate('assignedBy', 'name email')
-      .populate('client', 'name');
-
-    if (!updatedTask) {
-      return res.status(404).json({
-        success: false,
-        message: 'Task not found',
-      });
-    }
-
-    if (status !== undefined) {
-      updateData.status = status;
-    }
-
-    // Reset completion time when moving back to In Progress
-    if (status === 'In Progress') {
-      updateData.totalHours = 0;
-      updateData.totalMinutes = 0;
-    }
-
-    res.status(200).json({
-      success: true,
-      task: updatedTask,
-    });
-  } catch (error) {
-    console.error('Error updating task:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Error updating task',
-      error: error.message,
-    });
-  }
-});
 
 // Update remarks for a task
 router.put('/:id/remarks', authMiddleware, async (req, res) => {
@@ -472,7 +419,56 @@ router.put('/:id/complete', verifyToken, async (req, res) => {
       });
     }
 
+    task.status = 'Completed';
+    task.totalHours = hours;
+    task.totalMinutes = minutes;
+
+    await task.save();
+
+    console.log('TASK COMPLETED:', task._id);
+    console.log('Total time:', hours, 'hours', minutes, 'minutes');
+
     //console.log('Saved task:', task);
+
+    // ==========================================
+    // NOTIFY ONLY IF TASK WAS ASSIGNED
+    // BY ANOTHER EMPLOYEE
+    // ==========================================
+
+    const loggedInUserId = String(req.user.id);
+    const assignedById = String(task.assignedBy);
+
+    let notification = null;
+
+    if (assignedById !== loggedInUserId) {
+      notification = new Notification({
+        recipient: task.assignedBy,
+        sender: req.user.id,
+        task: task._id,
+
+        message:
+          `Task "${task.title}" has been completed. ` +
+          `Time taken: ${hours} hours ${minutes} minutes.`,
+      });
+
+      await notification.save();
+
+      console.log('COMPLETION NOTIFICATION CREATED:', notification._id);
+
+      // ==========================================
+      // SOCKET.IO NOTIFICATION
+      // ==========================================
+
+      const io = req.app.get('io');
+
+      if (io) {
+        io.to(assignedById).emit('newNotification', notification);
+
+        console.log('Completion notification sent to:', assignedById);
+      }
+    } else {
+      console.log('SELF ASSIGNED TASK → NO COMPLETION NOTIFICATION');
+    }
 
     res.status(200).json({
       message: 'Task completed successfully',
@@ -509,6 +505,37 @@ router.put('/:id/uncomplete', verifyToken, async (req, res) => {
       return res.status(404).json({
         message: 'Task not found',
       });
+    }
+    task.status = 'In Progress';
+
+    // Optional:
+    // Keep the recorded time or clear it.
+    // I recommend keeping it unless your workflow requires resetting it.
+
+    await task.save();
+
+    const loggedInUserId = String(req.user.id);
+    const assignedById = String(task.assignedBy);
+
+    let notification = null;
+
+    if (assignedById !== loggedInUserId) {
+      notification = new Notification({
+        recipient: task.assignedBy,
+        sender: req.user.id,
+        task: task._id,
+        message:
+          `Task "${task.title}" has been reopened ` +
+          `and is no longer marked as completed.`,
+      });
+
+      await notification.save();
+
+      const io = req.app.get('io');
+
+      if (io) {
+        io.to(assignedById).emit('newNotification', notification);
+      }
     }
 
     //console.log('Uncompleted task:', task);
@@ -599,6 +626,27 @@ router.put('/:id/completed-time', authMiddleware, async (req, res) => {
     task.totalMinutes = minutes;
 
     await task.save();
+    const loggedInUserId = String(req.user.id);
+    const assignedById = String(task.assignedBy);
+
+    let notification = null;
+    if (assignedById !== loggedInUserId) {
+      notification = new Notification({
+        recipient: task.assignedBy,
+        sender: req.user.id,
+        task: task._id,
+        message:
+          `The completion time for task "${task.title}" ` +
+          `was updated to ${hours} hours ${minutes} minutes.`,
+      });
+
+      await notification.save();
+      const io = req.app.get('io');
+
+      if (io) {
+        io.to(assignedById).emit('newNotification', notification);
+      }
+    }
 
     console.log('Updated task:', task);
 
@@ -666,6 +714,143 @@ router.get('/pending-assigned', authMiddleware, async (req, res) => {
 
     res.status(500).json({
       message: 'Server error',
+      error: error.message,
+    });
+  }
+});
+
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+
+    console.log('Updating task ID:', taskId);
+    console.log('Received data:', req.body);
+
+    if (!taskId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Task ID is required',
+      });
+    }
+
+    const { title, remarks, priority, dueDate, status } = req.body;
+
+    const updateData = {};
+
+    // Only update fields that were actually sent
+    if (title !== undefined) {
+      updateData.title = title;
+    }
+
+    if (remarks !== undefined) {
+      updateData.remarks = remarks;
+    }
+
+    if (priority !== undefined) {
+      updateData.priority = priority;
+    }
+
+    if (dueDate !== undefined) {
+      updateData.dueDate = dueDate;
+    }
+
+    if (status !== undefined) {
+      updateData.status = status;
+    }
+
+    const updatedTask = await Task.findByIdAndUpdate(
+      taskId,
+      { $set: updateData },
+      {
+        new: true,
+        runValidators: true,
+      },
+    )
+      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('client', 'name');
+
+    if (!updatedTask) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
+    }
+
+    console.log('Task updated successfully:', updatedTask._id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Task updated successfully',
+      task: updatedTask,
+    });
+  } catch (error) {
+    console.error('Error updating task:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Error updating task',
+      error: error.message,
+    });
+  }
+});
+
+router.get('/in-progress-assigned', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const tasks = await Task.find({
+      assignedBy: userId,
+      status: 'In Progress',
+    })
+      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('client', 'name');
+
+    // Remove self-assigned tasks
+    const filteredTasks = tasks.filter(
+      (task) => String(task.assignedTo?._id) !== String(userId),
+    );
+
+    return res.json(filteredTasks);
+  } catch (error) {
+    console.error('Error fetching in-progress assigned tasks:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching in-progress assigned tasks',
+      error: error.message,
+    });
+  }
+});
+
+router.get('/completed-assigned', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const tasks = await Task.find({
+      assignedBy: userId,
+      status: 'Completed',
+    })
+      .populate('assignedTo', 'name email')
+      .populate('assignedBy', 'name email')
+      .populate('client', 'name')
+      .select(
+        'title remarks dueDate priority status assignedTo assignedBy totalHours totalMinutes createdAt updatedAt',
+      );
+
+    // Don't show tasks assigned to yourself
+    const filteredTasks = tasks.filter(
+      (task) => String(task.assignedTo?._id) !== String(userId),
+    );
+
+    res.json(filteredTasks);
+  } catch (error) {
+    console.error('Error fetching completed assigned tasks:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching completed assigned tasks',
       error: error.message,
     });
   }

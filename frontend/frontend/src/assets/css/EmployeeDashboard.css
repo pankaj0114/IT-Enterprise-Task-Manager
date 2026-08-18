@@ -776,3 +776,105 @@
   background: #e4f6e5;
   color: #29932e;
 }
+
+.table-more-text {
+  display: flex;
+  justify-content: flex-end;
+
+  padding: 8px 12px 2px;
+
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 500;
+
+  opacity: 0.7;
+}
+
+/* =========================================
+   TASK STATUS DROPDOWN
+========================================= */
+
+.status-select {
+  min-width: 125px;
+
+  padding: 7px 30px 7px 10px;
+
+  border: 1px solid transparent;
+  border-radius: 7px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  outline: none;
+
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* =========================================
+   NOT STARTED - SOFT ORANGE
+========================================= */
+
+.status-select.status-not-started {
+  background: #fff4e5;
+  color: #c76b00;
+  border-color: #ffd9a3;
+}
+
+.status-select.status-not-started:hover {
+  background: #ffecd1;
+}
+
+.status-select.status-not-started:focus {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+/* =========================================
+   IN PROGRESS - SOFT BLUE
+========================================= */
+
+.status-select.status-in-progress {
+  background: #eaf4ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+.status-select.status-in-progress:hover {
+  background: #dceeff;
+}
+
+.status-select.status-in-progress:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* =========================================
+   COMPLETED - SOFT GREEN
+========================================= */
+
+.status-select.status-completed {
+  background: #eaf8ef;
+  color: #15803d;
+  border-color: #bbebc9;
+}
+
+.status-select.status-completed:hover {
+  background: #dcf4e4;
+}
+
+.status-select.status-completed:focus {
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+}
+
+/* =========================================
+   DROPDOWN OPTIONS
+========================================= */
+
+.status-select option {
+  background: #ffffff;
+  color: #374151;
+  font-weight: 500;
+}

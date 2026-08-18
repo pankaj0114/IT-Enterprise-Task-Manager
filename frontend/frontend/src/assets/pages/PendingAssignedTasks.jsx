@@ -20,8 +20,7 @@ const PendingAssignedTasks = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [editedTasks, setEditedTasks] = useState({});
-  const [updatingTaskId, setUpdatingTaskId] = useState(null);
+  const [remarkTimers, setRemarkTimers] = useState({});
 
   const fetchTasks = async () => {
     try {
@@ -54,27 +53,111 @@ const PendingAssignedTasks = () => {
   useEffect(() => {
     fetchTasks();
   }, []);
-  const handleFieldChange = (taskId, field, value) => {
-    // Store changes separately
-    setEditedTasks((prev) => ({
-      ...prev,
-      [taskId]: {
-        ...prev[taskId],
-        [field]: value,
-      },
-    }));
 
-    // Update the card immediately in frontend
+  const handleRemarkChange = (taskId, value) => {
+    if (!taskId) {
+      console.error('Task ID missing while editing remark');
+      return;
+    }
+
+    // Immediately update UI
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
-        task._id === taskId
+        String(task._id) === String(taskId)
           ? {
               ...task,
-              [field]: value,
+              remarks: value,
             }
           : task,
       ),
     );
+
+    // Clear previous timer for this task
+    if (remarkTimers[taskId]) {
+      clearTimeout(remarkTimers[taskId]);
+    }
+
+    // Save after user stops typing
+    const timer = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+
+        console.log('Automatically saving remark:', {
+          taskId,
+          remarks: value,
+        });
+
+        const response = await axios.put(
+          `http://localhost:5000/api/tasks/${taskId}`,
+          {
+            remarks: value,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+
+        console.log('Remark saved:', response.data);
+      } catch (error) {
+        console.error(
+          'Error automatically saving remark:',
+          error.response?.data || error.message,
+        );
+      }
+    }, 700);
+
+    setRemarkTimers((prev) => ({
+      ...prev,
+      [taskId]: timer,
+    }));
+  };
+
+  const saveRemark = async (taskId, remarks) => {
+    try {
+      if (!taskId) {
+        console.error('Task ID is missing:', taskId);
+        return;
+      }
+
+      const token = localStorage.getItem('accessToken');
+
+      console.log('Saving remark:', {
+        taskId,
+        remarks,
+      });
+
+      const response = await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        {
+          remarks,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('Remark saved successfully:', response.data);
+
+      // Keep frontend synchronized with database
+      if (response.data.task) {
+        setTasks((prevTasks) =>
+          prevTasks.map((task) =>
+            String(task._id) === String(taskId) ? response.data.task : task,
+          ),
+        );
+      }
+    } catch (error) {
+      console.error(
+        'Error automatically saving remark:',
+        error.response?.data || error.message,
+      );
+    }
   };
   const handleUpdateTask = async (taskId, changes) => {
     try {
@@ -132,89 +215,81 @@ const PendingAssignedTasks = () => {
 
   return (
     <div className="assigned-status-page">
-      <div className="page-header">
-        <button onClick={() => navigate('/employee-dashboard')}>← Back</button>
+      {/* ================= HEADER ================= */}
+      <div className="status-page-header">
+        <button
+          type="button"
+          className="status-back-button"
+          onClick={() => navigate('/employee-dashboard')}
+        >
+          <span className="back-arrow">←</span>
+          Back to Dashboard
+        </button>
 
-        <h2>Pending Tasks</h2>
+        <div className="status-header-content">
+          <div>
+            <div className="status-title-row">
+              <h2>Pending Tasks</h2>
 
-        <p>Tasks assigned by you that have not been started.</p>
+              <span className="task-count-badge">{pendingTasks.length}</span>
+            </div>
+
+            <p>Tasks assigned by you that are waiting to be started.</p>
+          </div>
+        </div>
       </div>
 
+      {/* ================= TASK CARDS ================= */}
       {pendingTasks.length === 0 ? (
-        <p>No pending tasks found.</p>
+        <div className="no-tasks-message">No pending tasks found.</div>
       ) : (
         <div className="assigned-task-cards">
           {pendingTasks.map((task) => (
             <div className="assigned-task-card pending-card" key={task._id}>
-              <span className="status-badge pending">Pending</span>
-
-              <div className="pending-task-field">
-                <label>Task Title</label>
-                <input
-                  type="text"
-                  value={task.title || ''}
-                  onChange={(e) =>
-                    handleFieldChange(task._id, 'title', e.target.value)
-                  }
-                />
+              {/* Status */}
+              <div className="pending-card-top">
+                <span className="status-badge pending">Pending</span>
               </div>
 
-              <div className="pending-task-field">
-                <label>Remarks</label>
+              {/* Task Information */}
+              <div className="pending-task-info">
+                <p>
+                  <strong>Title:</strong> {task.title || 'No title'}
+                </p>
+
+                <p>
+                  <strong>Due Date:</strong>{' '}
+                  {task.dueDate
+                    ? new Date(task.dueDate).toLocaleDateString()
+                    : 'No due date'}
+                </p>
+
+                <p>
+                  <strong>Priority:</strong> {task.priority || 'Medium'}
+                </p>
+
+                <p>
+                  <strong>Assigned To:</strong> {task.assignedTo?.name || 'N/A'}
+                </p>
+
+                <p>
+                  <strong>Assigned By:</strong> {task.assignedBy?.name || 'Me'}
+                </p>
+              </div>
+
+              {/* Editable Remarks */}
+              <div className="pending-remarks">
+                <label>
+                  <strong>Remarks:</strong>
+                </label>
+
                 <textarea
                   value={task.remarks || ''}
-                  onChange={(e) =>
-                    handleFieldChange(task._id, 'remarks', e.target.value)
-                  }
+                  onChange={(e) => handleRemarkChange(task._id, e.target.value)}
+                  placeholder="Add remarks..."
+                  rows={3}
                 />
               </div>
-
-              <div className="pending-task-field">
-                <label>Due Date</label>
-                <input
-                  type="date"
-                  value={
-                    task.dueDate
-                      ? new Date(task.dueDate).toISOString().split('T')[0]
-                      : ''
-                  }
-                  onChange={(e) =>
-                    handleFieldChange(task._id, 'dueDate', e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="pending-task-field">
-                <label>Priority</label>
-                <select
-                  value={task.priority || 'Medium'}
-                  onChange={(e) =>
-                    handleFieldChange(task._id, 'priority', e.target.value)
-                  }
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                </select>
-              </div>
-
-              <p>
-                <strong>Assigned To:</strong> {task.assignedTo?.name || 'N/A'}
-              </p>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleUpdateTask(task._id, {
-                    title: task.title,
-                    remarks: task.remarks,
-                    dueDate: task.dueDate,
-                    priority: task.priority,
-                  })
-                }
-              >
-                Update
-              </button>
             </div>
           ))}
         </div>

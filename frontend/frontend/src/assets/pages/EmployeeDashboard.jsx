@@ -1181,6 +1181,15 @@ export default function EmployeeDashboard() {
 
                       <td>
                         <select
+                          className={`status-select ${
+                            task.status === 'Not Started'
+                              ? 'status-not-started'
+                              : task.status === 'In Progress'
+                                ? 'status-in-progress'
+                                : task.status === 'Completed'
+                                  ? 'status-completed'
+                                  : ''
+                          }`}
                           value={task.status || 'Not Started'}
                           onChange={(e) => {
                             const newStatus = e.target.value;
@@ -1270,7 +1279,7 @@ export default function EmployeeDashboard() {
 
                 <div>
                   <h4>Pending</h4>
-                  <strong>{assignedTasks.length}</strong>
+                  <strong>{pendingAssignedTasks.length}</strong>
 
                   <span>Tasks</span>
                 </div>
@@ -1292,7 +1301,9 @@ export default function EmployeeDashboard() {
                   <span>Tasks</span>
                 </div>
 
-                <button>View all →</button>
+                <button onClick={() => navigate('/assigned-tasks/in-progress')}>
+                  View All
+                </button>
               </div>
 
               {/* Completed */}
@@ -1307,7 +1318,9 @@ export default function EmployeeDashboard() {
                   <span>Tasks</span>
                 </div>
 
-                <button>View all →</button>
+                <button onClick={() => navigate('/assigned-tasks/completed')}>
+                  View All
+                </button>
               </div>
             </div>
 
@@ -1319,7 +1332,6 @@ export default function EmployeeDashboard() {
               {/* ============================= */}
               {/* PENDING */}
               {/* ============================= */}
-
               <div className="assigned-status-section pending-section">
                 <div className="section-header">
                   <h4>🕐 Pending Tasks</h4>
@@ -1339,6 +1351,7 @@ export default function EmployeeDashboard() {
                     <tbody>
                       {assignedTasks
                         .filter((task) => task.status === 'Not Started')
+                        .slice(0, 2)
                         .map((task) => (
                           <tr key={task._id}>
                             <td>{task.title}</td>
@@ -1353,15 +1366,23 @@ export default function EmployeeDashboard() {
 
                             <td>
                               <span
-                                className={`priority-badge ${task.priority?.toLowerCase()}`}
+                                className={`priority-badge ${
+                                  task.priority?.toLowerCase() || 'medium'
+                                }`}
                               >
-                                {task.priority}
+                                {task.priority || 'Medium'}
                               </span>
                             </td>
                           </tr>
                         ))}
                     </tbody>
                   </table>
+
+                  {/* Show only when more than 2 tasks exist */}
+                  {assignedTasks.filter((task) => task.status === 'Not Started')
+                    .length > 2 && (
+                    <div className="table-more-text">and much more...</div>
+                  )}
                 </div>
               </div>
 
@@ -1372,8 +1393,6 @@ export default function EmployeeDashboard() {
               <div className="assigned-status-section progress-section">
                 <div className="section-header">
                   <h4>↻ In Progress Tasks</h4>
-
-                  <button>View All</button>
                 </div>
 
                 <div className="task-table-wrapper">
@@ -1390,6 +1409,7 @@ export default function EmployeeDashboard() {
                     <tbody>
                       {assignedTasks
                         .filter((task) => task.status === 'In Progress')
+                        .slice(0, 2)
                         .map((task) => (
                           <tr key={task._id}>
                             <td>{task.title}</td>
@@ -1413,6 +1433,13 @@ export default function EmployeeDashboard() {
                         ))}
                     </tbody>
                   </table>
+
+                  {/* Show only when more than 2 tasks exist  */}
+
+                  {assignedTasks.filter((task) => task.status === 'In Progress')
+                    .length > 2 && (
+                    <div className="table-more-text">and much more...</div>
+                  )}
                 </div>
               </div>
 
@@ -1423,8 +1450,6 @@ export default function EmployeeDashboard() {
               <div className="assigned-status-section completed-section">
                 <div className="section-header">
                   <h4>✓ Completed Tasks</h4>
-
-                  <button>View All</button>
                 </div>
 
                 <div className="task-table-wrapper">
@@ -1437,10 +1462,10 @@ export default function EmployeeDashboard() {
                         <th>Priority</th>
                       </tr>
                     </thead>
-
                     <tbody>
                       {assignedTasks
                         .filter((task) => task.status === 'Completed')
+                        .slice(0, 2)
                         .map((task) => (
                           <tr key={task._id}>
                             <td>{task.title}</td>
@@ -1448,22 +1473,28 @@ export default function EmployeeDashboard() {
                             <td>{task.assignedTo?.name || 'Unknown'}</td>
 
                             <td>
-                              {task.updatedAt
-                                ? new Date(task.updatedAt).toLocaleDateString()
+                              {task.dueDate
+                                ? new Date(task.dueDate).toLocaleDateString()
                                 : 'N/A'}
                             </td>
 
                             <td>
                               <span
-                                className={`priority-badge ${task.priority?.toLowerCase()}`}
+                                className={`priority-badge ${
+                                  task.priority?.toLowerCase() || 'medium'
+                                }`}
                               >
-                                {task.priority}
+                                {task.priority || 'Medium'}
                               </span>
                             </td>
                           </tr>
                         ))}
                     </tbody>
                   </table>
+                  {assignedTasks.filter((task) => task.status === 'Completed')
+                    .length > 2 && (
+                    <div className="table-more-text">and much more...</div>
+                  )}
                 </div>
               </div>
             </div>
