@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import '../css/extrapages.css';
+import '../css/EmployeeDashboard.css';
 
 const PendingAssignedTasks = () => {
   const navigate = useNavigate();
@@ -214,80 +214,124 @@ const PendingAssignedTasks = () => {
   }
 
   return (
-    <div className="assigned-status-page">
+    <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       {/* ================= HEADER ================= */}
-      <div className="status-page-header">
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <button
           type="button"
-          className="status-back-button"
           onClick={() => navigate('/employee-dashboard')}
+          className="mb-5 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
         >
-          <span className="back-arrow">←</span>
+          <span className="text-lg">←</span>
           Back to Dashboard
         </button>
 
-        <div className="status-header-content">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="status-title-row">
-              <h2>Pending Tasks</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-slate-800 sm:text-3xl">
+                Pending Tasks
+              </h2>
 
-              <span className="task-count-badge">{pendingTasks.length}</span>
+              <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
+                {pendingTasks.length}
+              </span>
             </div>
 
-            <p>Tasks assigned by you that are waiting to be started.</p>
+            <p className="mt-2 text-sm text-slate-500 sm:text-base">
+              Tasks assigned by you that are waiting to be started.
+            </p>
           </div>
         </div>
       </div>
 
       {/* ================= TASK CARDS ================= */}
       {pendingTasks.length === 0 ? (
-        <div className="no-tasks-message">No pending tasks found.</div>
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center shadow-sm">
+          <p className="text-sm font-medium text-slate-500 sm:text-base">
+            No pending tasks found.
+          </p>
+        </div>
       ) : (
-        <div className="assigned-task-cards">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {pendingTasks.map((task) => (
-            <div className="assigned-task-card pending-card" key={task._id}>
+            <div
+              key={task._id}
+              className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md"
+            >
               {/* Status */}
-              <div className="pending-card-top">
-                <span className="status-badge pending">Pending</span>
+              <div className="flex items-center justify-between border-b border-orange-100 bg-orange-50 px-5 py-4">
+                <span className="inline-flex items-center rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
+                  Pending
+                </span>
               </div>
 
               {/* Task Information */}
-              <div className="pending-task-info">
-                <p>
-                  <strong>Title:</strong> {task.title || 'No title'}
+              <div className="space-y-3 px-5 py-5">
+                <p className="wrap-break-word text-sm text-slate-600">
+                  <strong className="font-semibold text-slate-800">
+                    Title:
+                  </strong>{' '}
+                  {task.title || 'No title'}
                 </p>
 
-                <p>
-                  <strong>Due Date:</strong>{' '}
+                <p className="text-sm text-slate-600">
+                  <strong className="font-semibold text-slate-800">
+                    Due Date:
+                  </strong>{' '}
                   {task.dueDate
                     ? new Date(task.dueDate).toLocaleDateString()
                     : 'No due date'}
                 </p>
 
-                <p>
-                  <strong>Priority:</strong> {task.priority || 'Medium'}
+                <p className="text-sm text-slate-600">
+                  <strong className="font-semibold text-slate-800">
+                    Priority:
+                  </strong>{' '}
+                  <span
+                    className={`ml-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                      task.priority === 'High'
+                        ? 'bg-red-100 text-red-700'
+                        : task.priority === 'Low'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-yellow-100 text-yellow-700'
+                    }`}
+                  >
+                    {task.priority || 'Medium'}
+                  </span>
                 </p>
 
-                <p>
-                  <strong>Assigned To:</strong> {task.assignedTo?.name || 'N/A'}
+                <p className="text-sm text-slate-600">
+                  <strong className="font-semibold text-slate-800">
+                    Assigned To:
+                  </strong>{' '}
+                  {task.assignedTo?.name || 'N/A'}
                 </p>
 
-                <p>
-                  <strong>Assigned By:</strong> {task.assignedBy?.name || 'Me'}
+                <p className="text-sm text-slate-600">
+                  <strong className="font-semibold text-slate-800">
+                    Assigned By:
+                  </strong>{' '}
+                  {task.assignedBy?.name || 'Me'}
                 </p>
               </div>
 
               {/* Editable Remarks */}
-              <div className="pending-remarks">
-                <label>
-                  <strong>Remarks:</strong>
+              <div className="border-t border-slate-100 bg-slate-50 px-5 py-5">
+                <label
+                  htmlFor={`remarks-${task._id}`}
+                  className="mb-2 block text-sm font-semibold text-slate-700"
+                >
+                  Remarks:
                 </label>
 
                 <textarea
+                  id={`remarks-${task._id}`}
                   value={task.remarks || ''}
                   onChange={(e) => handleRemarkChange(task._id, e.target.value)}
                   placeholder="Add remarks..."
                   rows={3}
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
                 />
               </div>
             </div>

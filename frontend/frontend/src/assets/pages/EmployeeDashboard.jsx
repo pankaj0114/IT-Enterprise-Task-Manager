@@ -672,17 +672,15 @@ export default function EmployeeDashboard() {
 
       console.log('Quick task created:', response.data);
 
-      const createdTask = response.data.task;
-
-      // Add immediately to My Tasks
-      setTasks((prev) => [createdTask, ...prev]);
-
-      // Clear only the form
+      // Clear form
       setNewTask({
         title: '',
         dueDate: '',
         client: '',
       });
+
+      // Fetch fresh tasks from database
+      await fetchTasks();
     } catch (error) {
       console.error(
         'Error quick adding task:',
@@ -954,59 +952,197 @@ export default function EmployeeDashboard() {
   };
 
   return (
-    <div className="employee-dashboard">
-      {/* Sidebar */}
-      <div className="sidebar">
-        <div className="employee-info">
-          {user ? <h3>{user.name}</h3> : <h3>Loading...</h3>}
+    <div className="min-h-screen w-full bg-slate-50 flex flex-col lg:flex-row">
+      {/* =========================================================
+      SIDEBAR
+  ========================================================= */}
+      <div
+        className="
+      w-full lg:w-64
+      lg:min-h-screen
+      bg-linear-to-b from-blue-500 to-blue-600
+      text-white
+      shrink-0
+      p-4
+      lg:sticky lg:top-0
+      lg:h-screen
+      overflow-y-auto
+    "
+      >
+        {/* Employee Info */}
+        <div className="px-3 py-4 mb-4">
+          {user ? (
+            <h3 className="text-lg font-semibold truncate">{user.name}</h3>
+          ) : (
+            <h3 className="text-lg font-semibold">Loading...</h3>
+          )}
         </div>
-        <button className="btn-logout" onClick={handleLogout}>
+
+        {/* Logout */}
+        <button
+          className="
+        w-full
+        px-4 py-2
+        mb-5
+        rounded-md
+        bg-red-500
+        hover:bg-red-600
+        active:bg-red-700
+        text-white
+        font-medium
+        text-sm
+        transition-all
+        duration-200
+        shadow-sm
+      "
+          onClick={handleLogout}
+        >
           Logout
         </button>
-        <ul>
+
+        {/* Navigation */}
+        <ul className="space-y-1">
+          {/* My Tasks */}
           <li
             onClick={() => setActiveTab('myTasks')}
-            className={activeTab === 'myTasks' ? 'active' : ''}
+            className={`
+          flex items-center
+          gap-2
+          px-3 py-3
+          rounded-md
+          cursor-pointer
+          text-sm
+          transition-all
+          duration-200
+          ${
+            activeTab === 'myTasks'
+              ? 'bg-white/20 font-semibold shadow-sm'
+              : 'hover:bg-white/10'
+          }
+        `}
           >
-            <MdListAlt style={{ marginRight: '8px' }} />
-            My Tasks
-          </li>
-          <li
-            onClick={() => setActiveTab('assignedTasks')}
-            className={activeTab === 'assignedTasks' ? 'active' : ''}
-          >
-            <MdOutlineNearMe style={{ marginRight: '8px' }} />
-            Assigned Task
+            <MdListAlt size={20} />
+            <span>My Tasks</span>
           </li>
 
+          {/* Assigned Tasks */}
+          <li
+            onClick={() => setActiveTab('assignedTasks')}
+            className={`
+          flex items-center
+          gap-2
+          px-3 py-3
+          rounded-md
+          cursor-pointer
+          text-sm
+          transition-all
+          duration-200
+          ${
+            activeTab === 'assignedTasks'
+              ? 'bg-white/20 font-semibold shadow-sm'
+              : 'hover:bg-white/10'
+          }
+        `}
+          >
+            <MdOutlineNearMe size={20} />
+            <span>Assigned Task</span>
+          </li>
+
+          {/* Completed Tasks */}
           <li
             onClick={() => {
               setActiveTab('completedTasks');
               fetchCompletedTasks();
             }}
-            className={activeTab === 'completedTasks' ? 'active' : ''}
+            className={`
+          flex items-center
+          gap-2
+          px-3 py-3
+          rounded-md
+          cursor-pointer
+          text-sm
+          transition-all
+          duration-200
+          ${
+            activeTab === 'completedTasks'
+              ? 'bg-white/20 font-semibold shadow-sm'
+              : 'hover:bg-white/10'
+          }
+        `}
           >
-            <MdOutlineChecklist style={{ marginRight: '8px' }} />
-            Completed Tasks
+            <MdOutlineChecklist size={20} />
+            <span>Completed Tasks</span>
           </li>
+
+          {/* Clients */}
           <li
             onClick={() => setActiveTab('clients')}
-            className={activeTab === 'clients' ? 'active' : ''}
+            className={`
+          flex items-center
+          gap-2
+          px-3 py-3
+          rounded-md
+          cursor-pointer
+          text-sm
+          transition-all
+          duration-200
+          ${
+            activeTab === 'clients'
+              ? 'bg-white/20 font-semibold shadow-sm'
+              : 'hover:bg-white/10'
+          }
+        `}
           >
-            Clients
+            <span className="w-5 text-center">◉</span>
+            <span>Clients</span>
           </li>
+
+          {/* Notifications */}
           <li
             onClick={() => {
               setActiveTab('notifications');
               markNotificationsAsRead();
             }}
-            className={activeTab === 'notifications' ? 'active' : ''}
+            className={`
+          flex items-center
+          gap-2
+          px-3 py-3
+          rounded-md
+          cursor-pointer
+          text-sm
+          transition-all
+          duration-200
+          ${
+            activeTab === 'notifications'
+              ? 'bg-white/20 font-semibold shadow-sm'
+              : 'hover:bg-white/10'
+          }
+        `}
           >
-            <div className="notification-icon-wrapper">
+            <div className="relative flex items-center justify-center">
               <MdNotificationsNone size={24} />
 
               {unreadCount > 0 && (
-                <span className="notification-badge">
+                <span
+                  className="
+                absolute
+                -top-2
+                -right-2
+                min-w-4.5
+                h-4.5
+                px-1
+                rounded-full
+                bg-red-500
+                text-white
+                text-[10px]
+                font-bold
+                flex
+                items-center
+                justify-center
+                border-2
+                border-blue-500
+              "
+                >
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -1017,246 +1153,470 @@ export default function EmployeeDashboard() {
         </ul>
       </div>
 
-      {/* Main Panel */}
-      <div className="main-panel">
+      {/* =========================================================
+      MAIN PANEL
+  ========================================================= */}
+      <div
+        className="
+      flex-1
+      min-w-0
+      p-3
+      sm:p-5
+      lg:p-6
+      overflow-x-hidden
+    "
+      >
+        {/* =======================================================
+        MY TASKS
+    ======================================================= */}
         {activeTab === 'myTasks' && (
-          <div className="task-list">
-            {/* ==============================
-          TASK FORM
-      ============================== */}
-            <div className="task-form">
-              <div className="form-group title-input-group">
-                <label htmlFor="title">Title</label>
+          <div className="w-full">
+            {/* ================= TASK FORM ================= */}
+            <div
+              className="
+            w-full
+            bg-white
+            rounded-xl
+            shadow-sm
+            border
+            border-slate-200
+            p-4
+            sm:p-5
+            mb-6
+          "
+            >
+              <div
+                className="
+              grid
+              grid-cols-1
+              md:grid-cols-2
+              xl:grid-cols-4
+              gap-4
+              items-end
+            "
+              >
+                {/* Title */}
+                <div className="w-full">
+                  <label
+                    htmlFor="title"
+                    className="
+                  block
+                  text-sm
+                  font-medium
+                  text-slate-700
+                  mb-1.5
+                "
+                  >
+                    Title
+                  </label>
 
-                <div className="title-input-wrapper">
+                  <div className="flex w-full">
+                    <input
+                      id="title"
+                      name="title"
+                      type="text"
+                      value={newTask.title}
+                      onChange={handleChange}
+                      placeholder="Enter task title"
+                      className="
+                    flex-1
+                    min-w-0
+                    h-10
+                    px-3
+                    border
+                    border-slate-300
+                    rounded-l-md
+                    outline-none
+                    text-sm
+                    text-slate-700
+                    focus:ring-2
+                    focus:ring-blue-400
+                    focus:border-blue-400
+                  "
+                    />
+
+                    <button
+                      type="button"
+                      onClick={handleQuickAddTask}
+                      title="Quick add task"
+                      className="
+                    w-10
+                    h-10
+                    rounded-r-md
+                    bg-blue-500
+                    hover:bg-blue-600
+                    text-white
+                    text-xl
+                    font-semibold
+                    transition
+                  "
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Due Date */}
+                <div className="w-full">
+                  <label
+                    htmlFor="dueDate"
+                    className="
+                  block
+                  text-sm
+                  font-medium
+                  text-slate-700
+                  mb-1.5
+                "
+                  >
+                    Due Date
+                  </label>
+
                   <input
-                    id="title"
-                    name="title"
-                    type="text"
-                    value={newTask.title}
+                    id="dueDate"
+                    name="dueDate"
+                    type="date"
+                    value={newTask.dueDate}
                     onChange={handleChange}
-                    placeholder="Enter task title"
+                    className="
+                  w-full
+                  h-10
+                  px-3
+                  border
+                  border-slate-300
+                  rounded-md
+                  outline-none
+                  text-sm
+                  focus:ring-2
+                  focus:ring-blue-400
+                  focus:border-blue-400
+                "
                   />
+                </div>
 
+                {/* Client */}
+                <div className="w-full">
+                  <label
+                    htmlFor="client"
+                    className="
+                  block
+                  text-sm
+                  font-medium
+                  text-slate-700
+                  mb-1.5
+                "
+                  >
+                    Client
+                  </label>
+
+                  <select
+                    id="client"
+                    name="client"
+                    value={newTask.client}
+                    onChange={(e) =>
+                      setNewTask({
+                        ...newTask,
+                        client: e.target.value,
+                      })
+                    }
+                    className="
+                  w-full
+                  h-10
+                  px-3
+                  border
+                  border-slate-300
+                  rounded-md
+                  bg-white
+                  text-sm
+                  text-slate-700
+                  outline-none
+                  focus:ring-2
+                  focus:ring-blue-400
+                  focus:border-blue-400
+                "
+                  >
+                    <option value="">Select a client</option>
+
+                    {clients.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Add Task */}
+                <div className="w-full flex md:justify-end">
                   <button
                     type="button"
-                    className="quick-add-btn"
-                    onClick={handleQuickAddTask}
-                    title="Quick add task"
+                    onClick={handleAddTask}
+                    className="
+                  w-full
+                  md:w-auto
+                  h-10
+                  px-5
+                  rounded-md
+                  bg-blue-500
+                  hover:bg-blue-600
+                  text-white
+                  text-sm
+                  font-medium
+                  transition
+                  shadow-sm
+                "
                   >
-                    +
+                    Add Task
                   </button>
                 </div>
               </div>
-
-              <div className="form-group">
-                <label htmlFor="dueDate">Due Date</label>
-
-                <input
-                  id="dueDate"
-                  name="dueDate"
-                  type="date"
-                  value={newTask.dueDate}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="client">Client</label>
-
-                <select
-                  id="client"
-                  name="client"
-                  value={newTask.client}
-                  onChange={(e) =>
-                    setNewTask({
-                      ...newTask,
-                      client: e.target.value,
-                    })
-                  }
-                >
-                  <option value="">Select a client</option>
-
-                  {clients.map((c) => (
-                    <option key={c._id} value={c._id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="assign-btn"
-                  onClick={handleAddTask}
-                >
-                  Add Task
-                </button>
-              </div>
             </div>
 
-            {/* ==============================
-          MY TASKS
-      ============================== */}
+            {/* ================= MY TASKS ================= */}
+            <h3
+              className="
+            text-lg
+            sm:text-xl
+            font-semibold
+            text-slate-800
+            mb-4
+          "
+            >
+              My Tasks
+            </h3>
 
-            <h3>My Tasks</h3>
+            {/* Responsive table wrapper */}
+            <div
+              className="
+            w-full
+            overflow-x-auto
+            bg-white
+            rounded-xl
+            border
+            border-slate-200
+            shadow-sm
+          "
+            >
+              <table
+                className="
+              w-full
+              min-w-225
+              text-sm
+              border-collapse
+            "
+              >
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-200">
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Title
+                    </th>
 
-            <table className="task-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Issue Date</th>
-                  <th>Due Date</th>
-                  <th>Status</th>
-                  <th>Client</th>
-                  <th>Assigned By</th>
-                  <th>Remarks</th>
-                </tr>
-              </thead>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Issue Date
+                    </th>
 
-              <tbody>
-                {tasks
-                  .filter((task) => {
-                    // Only tasks assigned TO logged-in user
-                    const isMyTask =
-                      String(task.assignedTo?._id) === String(user?._id);
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Due Date
+                    </th>
 
-                    // Don't show completed tasks
-                    const isNotCompleted = task.status !== 'Completed';
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Status
+                    </th>
 
-                    return isMyTask && isNotCompleted;
-                  })
-                  .map((task) => (
-                    <tr key={task._id}>
-                      {/* ==============================
-                    TITLE
-                ============================== */}
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Client
+                    </th>
 
-                      <td>{task.title}</td>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Assigned By
+                    </th>
 
-                      {/* ==============================
-                    ISSUE DATE
-                ============================== */}
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Remarks
+                    </th>
+                  </tr>
+                </thead>
 
-                      <td>
-                        <input
-                          type="date"
-                          value={
-                            task.issueDate
-                              ? new Date(task.issueDate)
-                                  .toISOString()
-                                  .split('T')[0]
-                              : new Date().toISOString().split('T')[0]
-                          }
-                          readOnly
-                          className="fixed-date"
-                        />
-                      </td>
+                <tbody>
+                  {tasks
+                    .filter((task) => {
+                      const isMyTask =
+                        String(task.assignedTo?._id) === String(user?._id);
 
-                      {/* ==============================
-                    DUE DATE
-                ============================== */}
+                      const isNotCompleted = task.status !== 'Completed';
 
-                      <td>
-                        <input
-                          type="date"
-                          value={
-                            task.dueDate
-                              ? new Date(task.dueDate)
-                                  .toISOString()
-                                  .split('T')[0]
-                              : ''
-                          }
-                          onChange={(e) =>
-                            handleDueDateChange(task._id, e.target.value)
-                          }
-                          className="editable-date"
-                        />
-                      </td>
+                      return isMyTask && isNotCompleted;
+                    })
+                    .map((task) => (
+                      <tr
+                        key={task._id}
+                        className="
+                      border-b
+                      border-slate-100
+                      hover:bg-slate-50
+                      transition
+                    "
+                      >
+                        {/* Title */}
+                        <td className="px-4 py-3 text-slate-700 font-medium">
+                          {task.title}
+                        </td>
 
-                      {/* ==============================
-                    STATUS
-                ============================== */}
-
-                      <td>
-                        <select
-                          className={`status-select ${
-                            task.status === 'Not Started'
-                              ? 'status-not-started'
-                              : task.status === 'In Progress'
-                                ? 'status-in-progress'
-                                : task.status === 'Completed'
-                                  ? 'status-completed'
-                                  : ''
-                          }`}
-                          value={task.status || 'Not Started'}
-                          onChange={(e) => {
-                            const newStatus = e.target.value;
-
-                            if (newStatus === 'Completed') {
-                              setSelectedTaskId(task._id);
-                              setShowPopup(true);
-                            } else {
-                              handleTaskChange(e, task._id);
+                        {/* Issue Date */}
+                        <td className="px-4 py-3">
+                          <input
+                            type="date"
+                            value={
+                              task.issueDate
+                                ? new Date(task.issueDate)
+                                    .toISOString()
+                                    .split('T')[0]
+                                : new Date().toISOString().split('T')[0]
                             }
-                          }}
-                        >
-                          <option value="Not Started">Not Started</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Completed">Completed</option>
-                        </select>
-                      </td>
+                            readOnly
+                            className="
+                          w-full
+                          min-w-32.5
+                          px-2
+                          py-2
+                          rounded-md
+                          border
+                          border-slate-200
+                          bg-slate-50
+                          text-xs
+                          text-slate-600
+                        "
+                          />
+                        </td>
 
-                      {/* ==============================
-                    CLIENT
-                ============================== */}
+                        {/* Due Date */}
+                        <td className="px-4 py-3">
+                          <input
+                            type="date"
+                            value={
+                              task.dueDate
+                                ? new Date(task.dueDate)
+                                    .toISOString()
+                                    .split('T')[0]
+                                : ''
+                            }
+                            onChange={(e) =>
+                              handleDueDateChange(task._id, e.target.value)
+                            }
+                            className="
+                          w-full
+                          min-w-32.5
+                          px-2
+                          py-2
+                          rounded-md
+                          border
+                          border-slate-300
+                          bg-white
+                          text-xs
+                          outline-none
+                          focus:ring-2
+                          focus:ring-blue-400
+                        "
+                          />
+                        </td>
 
-                      <td>{task.client?.name || 'No client'}</td>
-
-                      {/* ==============================
-                    ASSIGNED BY
-                ============================== */}
-
-                      <td>
-                        {String(task.assignedBy?._id) === String(user?._id)
-                          ? 'Me'
-                          : task.assignedBy?.name || 'Unknown'}
-                      </td>
-
-                      {/* ==============================
-                    REMARKS
-                ============================== */}
-
-                      <td>
-                        <textarea
-                          id={`remarks-${task._id}`}
-                          name="remarks"
-                          value={task.remarks || ''}
-                          onChange={(e) =>
-                            handleRemarkChange(task._id, e.target.value)
+                        {/* Status */}
+                        <td className="px-4 py-3">
+                          <select
+                            className={`
+                          w-full
+                          min-w-31.25
+                          px-2
+                          py-2
+                          rounded-md
+                          border
+                          text-xs
+                          font-medium
+                          outline-none
+                          ${
+                            task.status === 'Not Started'
+                              ? 'bg-orange-50 text-orange-700 border-orange-200'
+                              : task.status === 'In Progress'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : task.status === 'Completed'
+                                  ? 'bg-green-50 text-green-700 border-green-200'
+                                  : 'bg-white border-slate-300'
                           }
-                          className="task-remarks-updated"
-                          placeholder="Add your remarks..."
-                          rows={2}
-                          style={{
-                            width: '100%',
-                            resize: 'vertical',
-                            padding: '6px',
-                            borderRadius: '4px',
-                            border: '1px solid #ccc',
-                          }}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+                        `}
+                            value={task.status || 'Not Started'}
+                            onChange={(e) => {
+                              const newStatus = e.target.value;
+
+                              if (newStatus === 'Completed') {
+                                setSelectedTaskId(task._id);
+                                setShowPopup(true);
+                              } else {
+                                handleTaskChange(e, task._id);
+                              }
+                            }}
+                          >
+                            <option value="Not Started">Not Started</option>
+
+                            <option value="In Progress">In Progress</option>
+
+                            <option value="Completed">Completed</option>
+                          </select>
+                        </td>
+
+                        {/* Client */}
+                        <td className="px-4 py-3 text-slate-600">
+                          {task.client?.name || 'No client'}
+                        </td>
+
+                        {/* Assigned By */}
+                        <td className="px-4 py-3 text-slate-600">
+                          {String(task.assignedBy?._id) === String(user?._id)
+                            ? 'Me'
+                            : task.assignedBy?.name || 'Unknown'}
+                        </td>
+
+                        {/* Remarks */}
+                        <td className="px-4 py-3">
+                          <textarea
+                            id={`remarks-${task._id}`}
+                            name="remarks"
+                            value={task.remarks || ''}
+                            onChange={(e) =>
+                              handleRemarkChange(task._id, e.target.value)
+                            }
+                            placeholder="Add your remarks..."
+                            rows={2}
+                            className="
+                          w-full
+                          min-w-45
+                          resize-y
+                          px-2
+                          py-2
+                          rounded-md
+                          border
+                          border-slate-300
+                          bg-green-50
+                          text-sm
+                          text-slate-700
+                          outline-none
+                          placeholder:text-slate-400
+                          focus:ring-2
+                          focus:ring-green-300
+                          focus:border-green-300
+                        "
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
+        {/* =======================================================
+        ASSIGNED TASKS
+    ======================================================= */}
         {activeTab === 'assignedTasks' && (
-          <div className="assigned-task-section">
+          <div className="w-full">
             {/* Assign Task Form */}
             <AssignTaskPage
               onTaskCreated={fetchTasks}
@@ -1266,85 +1626,227 @@ export default function EmployeeDashboard() {
               setActiveTab={setActiveTab}
             />
 
-            <h3 className="assigned-task-heading">Assigned Tasks</h3>
+            <h3
+              className="
+            mt-6
+            mb-5
+            text-xl
+            font-semibold
+            text-slate-800
+          "
+            >
+              Assigned Tasks
+            </h3>
 
-            {/* ============================= */}
-            {/* STATUS SUMMARY CARDS */}
-            {/* ============================= */}
-
-            <div className="task-status-summary">
+            {/* ================= STATUS SUMMARY ================= */}
+            <div
+              className="
+            grid
+            grid-cols-1
+            sm:grid-cols-2
+            xl:grid-cols-3
+            gap-4
+            mb-6
+          "
+            >
               {/* Pending */}
-              <div className="status-card pending-card">
-                <div className="status-icon">🕐</div>
-
-                <div>
-                  <h4>Pending</h4>
-                  <strong>{pendingAssignedTasks.length}</strong>
-
-                  <span>Tasks</span>
+              <div
+                className="
+              rounded-xl
+              border
+              border-orange-100
+              bg-orange-50
+              p-5
+              shadow-sm
+              flex
+              items-center
+              gap-4
+            "
+              >
+                <div
+                  className="
+                w-11 h-11
+                rounded-full
+                bg-orange-100
+                flex items-center justify-center
+                text-xl
+              "
+                >
+                  🕐
                 </div>
 
-                <button onClick={() => navigate('/assigned-tasks/pending')}>
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-orange-700">
+                    Pending
+                  </h4>
+
+                  <strong className="block text-2xl font-bold text-slate-800">
+                    {pendingAssignedTasks.length}
+                  </strong>
+
+                  <span className="text-xs text-slate-500">Tasks</span>
+                </div>
+
+                <button
+                  onClick={() => navigate('/assigned-tasks/pending')}
+                  className="
+                px-3 py-2
+                rounded-md
+                bg-orange-500
+                hover:bg-orange-600
+                text-white
+                text-xs
+                font-medium
+              "
+                >
                   View All
                 </button>
               </div>
 
               {/* In Progress */}
-              <div className="status-card progress-card">
-                <div className="status-icon">↻</div>
-
-                <div>
-                  <h4>In Progress</h4>
-
-                  <strong>{inprogressAssignedTasks.length}</strong>
-
-                  <span>Tasks</span>
+              <div
+                className="
+              rounded-xl
+              border
+              border-blue-100
+              bg-blue-50
+              p-5
+              shadow-sm
+              flex
+              items-center
+              gap-4
+            "
+              >
+                <div
+                  className="
+                w-11 h-11
+                rounded-full
+                bg-blue-100
+                flex items-center justify-center
+                text-xl
+              "
+                >
+                  ↻
                 </div>
 
-                <button onClick={() => navigate('/assigned-tasks/in-progress')}>
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-blue-700">
+                    In Progress
+                  </h4>
+
+                  <strong className="block text-2xl font-bold text-slate-800">
+                    {inprogressAssignedTasks.length}
+                  </strong>
+
+                  <span className="text-xs text-slate-500">Tasks</span>
+                </div>
+
+                <button
+                  onClick={() => navigate('/assigned-tasks/in-progress')}
+                  className="
+                px-3 py-2
+                rounded-md
+                bg-blue-500
+                hover:bg-blue-600
+                text-white
+                text-xs
+                font-medium
+              "
+                >
                   View All
                 </button>
               </div>
 
               {/* Completed */}
-              <div className="status-card completed-card">
-                <div className="status-icon">✓</div>
-
-                <div>
-                  <h4>Completed</h4>
-
-                  <strong>{completedAssignedTasks.length}</strong>
-
-                  <span>Tasks</span>
+              <div
+                className="
+              rounded-xl
+              border
+              border-green-100
+              bg-green-50
+              p-5
+              shadow-sm
+              flex
+              items-center
+              gap-4
+            "
+              >
+                <div
+                  className="
+                w-11 h-11
+                rounded-full
+                bg-green-100
+                flex items-center justify-center
+                text-xl
+              "
+                >
+                  ✓
                 </div>
 
-                <button onClick={() => navigate('/assigned-tasks/completed')}>
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-green-700">
+                    Completed
+                  </h4>
+
+                  <strong className="block text-2xl font-bold text-slate-800">
+                    {completedAssignedTasks.length}
+                  </strong>
+
+                  <span className="text-xs text-slate-500">Tasks</span>
+                </div>
+
+                <button
+                  onClick={() => navigate('/assigned-tasks/completed')}
+                  className="
+                px-3 py-2
+                rounded-md
+                bg-green-500
+                hover:bg-green-600
+                text-white
+                text-xs
+                font-medium
+              "
+                >
                   View All
                 </button>
               </div>
             </div>
 
-            {/* ============================= */}
-            {/* THREE TASK SECTIONS */}
-            {/* ============================= */}
-
-            <div className="assigned-task-columns">
-              {/* ============================= */}
+            {/* ================= THREE TASK SECTIONS ================= */}
+            <div
+              className="
+            grid
+            grid-cols-1
+            xl:grid-cols-3
+            gap-5
+            mb-6
+          "
+            >
               {/* PENDING */}
-              {/* ============================= */}
-              <div className="assigned-status-section pending-section">
-                <div className="section-header">
-                  <h4>🕐 Pending Tasks</h4>
+              <div
+                className="
+              bg-white
+              rounded-xl
+              border
+              border-orange-100
+              shadow-sm
+              overflow-hidden
+            "
+              >
+                <div className="px-4 py-4 bg-orange-50 border-b border-orange-100">
+                  <h4 className="font-semibold text-orange-700">
+                    🕐 Pending Tasks
+                  </h4>
                 </div>
 
-                <div className="task-table-wrapper">
-                  <table className="task-table">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-125 text-sm">
                     <thead>
-                      <tr>
-                        <th>Title</th>
-                        <th>Assigned To</th>
-                        <th>Due Date</th>
-                        <th>Priority</th>
+                      <tr className="bg-slate-50 border-b">
+                        <th className="px-3 py-3 text-left">Title</th>
+                        <th className="px-3 py-3 text-left">Assigned To</th>
+                        <th className="px-3 py-3 text-left">Due Date</th>
+                        <th className="px-3 py-3 text-left">Priority</th>
                       </tr>
                     </thead>
 
@@ -1353,22 +1855,38 @@ export default function EmployeeDashboard() {
                         .filter((task) => task.status === 'Not Started')
                         .slice(0, 2)
                         .map((task) => (
-                          <tr key={task._id}>
-                            <td>{task.title}</td>
+                          <tr
+                            key={task._id}
+                            className="border-b hover:bg-slate-50"
+                          >
+                            <td className="px-3 py-3">{task.title}</td>
 
-                            <td>{task.assignedTo?.name || 'Unknown'}</td>
+                            <td className="px-3 py-3">
+                              {task.assignedTo?.name || 'Unknown'}
+                            </td>
 
-                            <td>
+                            <td className="px-3 py-3 whitespace-nowrap">
                               {task.dueDate
                                 ? new Date(task.dueDate).toLocaleDateString()
                                 : 'N/A'}
                             </td>
 
-                            <td>
+                            <td className="px-3 py-3">
                               <span
-                                className={`priority-badge ${
-                                  task.priority?.toLowerCase() || 'medium'
-                                }`}
+                                className={`
+                              inline-flex
+                              px-2.5 py-1
+                              rounded-full
+                              text-xs
+                              font-medium
+                              ${
+                                task.priority?.toLowerCase() === 'high'
+                                  ? 'bg-red-100 text-red-700'
+                                  : task.priority?.toLowerCase() === 'low'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                              }
+                            `}
                               >
                                 {task.priority || 'Medium'}
                               </span>
@@ -1377,32 +1895,41 @@ export default function EmployeeDashboard() {
                         ))}
                     </tbody>
                   </table>
-
-                  {/* Show only when more than 2 tasks exist */}
-                  {assignedTasks.filter((task) => task.status === 'Not Started')
-                    .length > 2 && (
-                    <div className="table-more-text">and much more...</div>
-                  )}
                 </div>
+
+                {assignedTasks.filter((task) => task.status === 'Not Started')
+                  .length > 2 && (
+                  <div className="px-4 py-3 text-right text-sm text-slate-500 italic">
+                    and much more...
+                  </div>
+                )}
               </div>
 
-              {/* ============================= */}
               {/* IN PROGRESS */}
-              {/* ============================= */}
-
-              <div className="assigned-status-section progress-section">
-                <div className="section-header">
-                  <h4>↻ In Progress Tasks</h4>
+              <div
+                className="
+              bg-white
+              rounded-xl
+              border
+              border-blue-100
+              shadow-sm
+              overflow-hidden
+            "
+              >
+                <div className="px-4 py-4 bg-blue-50 border-b border-blue-100">
+                  <h4 className="font-semibold text-blue-700">
+                    ↻ In Progress Tasks
+                  </h4>
                 </div>
 
-                <div className="task-table-wrapper">
-                  <table className="task-table">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-125 text-sm">
                     <thead>
-                      <tr>
-                        <th>Title</th>
-                        <th>Assigned To</th>
-                        <th>Due Date</th>
-                        <th>Priority</th>
+                      <tr className="bg-slate-50 border-b">
+                        <th className="px-3 py-3 text-left">Title</th>
+                        <th className="px-3 py-3 text-left">Assigned To</th>
+                        <th className="px-3 py-3 text-left">Due Date</th>
+                        <th className="px-3 py-3 text-left">Priority</th>
                       </tr>
                     </thead>
 
@@ -1411,78 +1938,38 @@ export default function EmployeeDashboard() {
                         .filter((task) => task.status === 'In Progress')
                         .slice(0, 2)
                         .map((task) => (
-                          <tr key={task._id}>
-                            <td>{task.title}</td>
+                          <tr
+                            key={task._id}
+                            className="border-b hover:bg-slate-50"
+                          >
+                            <td className="px-3 py-3">{task.title}</td>
 
-                            <td>{task.assignedTo?.name || 'Unknown'}</td>
+                            <td className="px-3 py-3">
+                              {task.assignedTo?.name || 'Unknown'}
+                            </td>
 
-                            <td>
+                            <td className="px-3 py-3 whitespace-nowrap">
                               {task.dueDate
                                 ? new Date(task.dueDate).toLocaleDateString()
                                 : 'N/A'}
                             </td>
 
-                            <td>
+                            <td className="px-3 py-3">
                               <span
-                                className={`priority-badge ${task.priority?.toLowerCase()}`}
-                              >
-                                {task.priority}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-
-                  {/* Show only when more than 2 tasks exist  */}
-
-                  {assignedTasks.filter((task) => task.status === 'In Progress')
-                    .length > 2 && (
-                    <div className="table-more-text">and much more...</div>
-                  )}
-                </div>
-              </div>
-
-              {/* ============================= */}
-              {/* COMPLETED */}
-              {/* ============================= */}
-
-              <div className="assigned-status-section completed-section">
-                <div className="section-header">
-                  <h4>✓ Completed Tasks</h4>
-                </div>
-
-                <div className="task-table-wrapper">
-                  <table className="task-table">
-                    <thead>
-                      <tr>
-                        <th>Title</th>
-                        <th>Assigned To</th>
-                        <th>Completed On</th>
-                        <th>Priority</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assignedTasks
-                        .filter((task) => task.status === 'Completed')
-                        .slice(0, 2)
-                        .map((task) => (
-                          <tr key={task._id}>
-                            <td>{task.title}</td>
-
-                            <td>{task.assignedTo?.name || 'Unknown'}</td>
-
-                            <td>
-                              {task.dueDate
-                                ? new Date(task.dueDate).toLocaleDateString()
-                                : 'N/A'}
-                            </td>
-
-                            <td>
-                              <span
-                                className={`priority-badge ${
-                                  task.priority?.toLowerCase() || 'medium'
-                                }`}
+                                className={`
+                              inline-flex
+                              px-2.5 py-1
+                              rounded-full
+                              text-xs
+                              font-medium
+                              ${
+                                task.priority?.toLowerCase() === 'high'
+                                  ? 'bg-red-100 text-red-700'
+                                  : task.priority?.toLowerCase() === 'low'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                              }
+                            `}
                               >
                                 {task.priority || 'Medium'}
                               </span>
@@ -1491,274 +1978,628 @@ export default function EmployeeDashboard() {
                         ))}
                     </tbody>
                   </table>
-                  {assignedTasks.filter((task) => task.status === 'Completed')
-                    .length > 2 && (
-                    <div className="table-more-text">and much more...</div>
-                  )}
                 </div>
+
+                {assignedTasks.filter((task) => task.status === 'In Progress')
+                  .length > 2 && (
+                  <div className="px-4 py-3 text-right text-sm text-slate-500 italic">
+                    and much more...
+                  </div>
+                )}
+              </div>
+
+              {/* COMPLETED */}
+              <div
+                className="
+              bg-white
+              rounded-xl
+              border
+              border-green-100
+              shadow-sm
+              overflow-hidden
+            "
+              >
+                <div className="px-4 py-4 bg-green-50 border-b border-green-100">
+                  <h4 className="font-semibold text-green-700">
+                    ✓ Completed Tasks
+                  </h4>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-125 text-sm">
+                    <thead>
+                      <tr className="bg-slate-50 border-b">
+                        <th className="px-3 py-3 text-left">Title</th>
+                        <th className="px-3 py-3 text-left">Assigned To</th>
+                        <th className="px-3 py-3 text-left">Completed On</th>
+                        <th className="px-3 py-3 text-left">Priority</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {assignedTasks
+                        .filter((task) => task.status === 'Completed')
+                        .slice(0, 2)
+                        .map((task) => (
+                          <tr
+                            key={task._id}
+                            className="border-b hover:bg-slate-50"
+                          >
+                            <td className="px-3 py-3">{task.title}</td>
+
+                            <td className="px-3 py-3">
+                              {task.assignedTo?.name || 'Unknown'}
+                            </td>
+
+                            <td className="px-3 py-3 whitespace-nowrap">
+                              {task.dueDate
+                                ? new Date(task.dueDate).toLocaleDateString()
+                                : 'N/A'}
+                            </td>
+
+                            <td className="px-3 py-3">
+                              <span
+                                className={`
+                              inline-flex
+                              px-2.5 py-1
+                              rounded-full
+                              text-xs
+                              font-medium
+                              ${
+                                task.priority?.toLowerCase() === 'high'
+                                  ? 'bg-red-100 text-red-700'
+                                  : task.priority?.toLowerCase() === 'low'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                              }
+                            `}
+                              >
+                                {task.priority || 'Medium'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {assignedTasks.filter((task) => task.status === 'Completed')
+                  .length > 2 && (
+                  <div className="px-4 py-3 text-right text-sm text-slate-500 italic">
+                    and much more...
+                  </div>
+                )}
               </div>
             </div>
-            <div className="task-list">
-              <h3>Assigned Tasks</h3>
 
-              <table className="task-table">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Due Date</th>
-                    <th>Priority</th>
-                    <th>Remarks</th>
-                    <th>Client</th>
-                    <th>Assigned To</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
+            {/* ================= FULL ASSIGNED TASK TABLE ================= */}
+            <div
+              className="
+            bg-white
+            rounded-xl
+            border
+            border-slate-200
+            shadow-sm
+            overflow-hidden
+          "
+            >
+              <div className="p-4 border-b border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-800">
+                  Assigned Tasks
+                </h3>
+              </div>
 
-                <tbody>
-                  {assignedTasks.map((task) => (
-                    <tr key={task._id}>
-                      {/* ==============================
-                    TITLE
-                ============================== */}
-
-                      <td>{task.title}</td>
-
-                      {/* ==============================
-                    DUE DATE
-                ============================== */}
-
-                      <td>
-                        {task.dueDate
-                          ? new Date(task.dueDate).toLocaleDateString()
-                          : 'No due date'}
-                      </td>
-
-                      {/* ==============================
-                    PRIORITY
-                ============================== */}
-
-                      <td>
-                        <select
-                          value={task.priority || 'Medium'}
-                          onChange={(e) =>
-                            handlePriorityChange(task._id, e.target.value)
-                          }
-                        >
-                          <option value="Low">Low</option>
-
-                          <option value="Medium">Medium</option>
-
-                          <option value="High">High</option>
-                        </select>
-                      </td>
-
-                      {/* ==============================
-                    REMARKS
-                ============================== */}
-
-                      <td>
-                        <input
-                          type="text"
-                          name="remarks"
-                          value={task.remarks || ''}
-                          onChange={(e) =>
-                            handleRemarkChange(task._id, e.target.value)
-                          }
-                        />
-                      </td>
-
-                      {/* ==============================
-                    CLIENT
-                ============================== */}
-
-                      <td>
-                        <select
-                          name="client"
-                          value={task.client?._id || task.client || ''}
-                          onChange={(e) => Change(e, task._id)}
-                        >
-                          <option value="">-- Select Client --</option>
-
-                          {clients.map((c) => (
-                            <option key={c._id} value={c._id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-
-                      {/* ==============================
-                    ASSIGNED TO
-                ============================== */}
-
-                      <td>{task.assignedTo?.name || 'Unknown'}</td>
-
-                      {/* ==============================
-                    ACTIONS
-                ============================== */}
-
-                      <td>
-                        <button onClick={() => handleUpdateTask(task._id)}>
-                          Update
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-250 text-sm">
+                  <thead>
+                    <tr className="bg-slate-100 border-b">
+                      <th className="px-4 py-3 text-left">Title</th>
+                      <th className="px-4 py-3 text-left">Due Date</th>
+                      <th className="px-4 py-3 text-left">Priority</th>
+                      <th className="px-4 py-3 text-left">Remarks</th>
+                      <th className="px-4 py-3 text-left">Client</th>
+                      <th className="px-4 py-3 text-left">Assigned To</th>
+                      <th className="px-4 py-3 text-left">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+
+                  <tbody>
+                    {assignedTasks.map((task) => (
+                      <tr
+                        key={task._id}
+                        className="
+                      border-b
+                      border-slate-100
+                      hover:bg-slate-50
+                    "
+                      >
+                        {/* Title */}
+                        <td className="px-4 py-3 font-medium text-slate-700">
+                          {task.title}
+                        </td>
+
+                        {/* Due Date */}
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {task.dueDate
+                            ? new Date(task.dueDate).toLocaleDateString()
+                            : 'No due date'}
+                        </td>
+
+                        {/* Priority */}
+                        <td className="px-4 py-3">
+                          <select
+                            value={task.priority || 'Medium'}
+                            onChange={(e) =>
+                              handlePriorityChange(task._id, e.target.value)
+                            }
+                            className="
+                          px-2
+                          py-2
+                          rounded-md
+                          border
+                          border-slate-300
+                          bg-white
+                          text-xs
+                          outline-none
+                          focus:ring-2
+                          focus:ring-blue-400
+                        "
+                          >
+                            <option value="Low">Low</option>
+
+                            <option value="Medium">Medium</option>
+
+                            <option value="High">High</option>
+                          </select>
+                        </td>
+
+                        {/* Remarks */}
+                        <td className="px-4 py-3">
+                          <input
+                            type="text"
+                            name="remarks"
+                            value={task.remarks || ''}
+                            onChange={(e) =>
+                              handleRemarkChange(task._id, e.target.value)
+                            }
+                            className="
+                          w-full
+                          min-w-45
+                          px-3
+                          py-2
+                          rounded-md
+                          border
+                          border-slate-300
+                          outline-none
+                          text-sm
+                          focus:ring-2
+                          focus:ring-green-300
+                          focus:border-green-300
+                        "
+                          />
+                        </td>
+
+                        {/* Client */}
+                        <td className="px-4 py-3">
+                          <select
+                            name="client"
+                            value={task.client?._id || task.client || ''}
+                            onChange={(e) => Change(e, task._id)}
+                            className="
+                          px-2
+                          py-2
+                          rounded-md
+                          border
+                          border-slate-300
+                          bg-white
+                          text-xs
+                          outline-none
+                          focus:ring-2
+                          focus:ring-blue-400
+                        "
+                          >
+                            <option value="">-- Select Client --</option>
+
+                            {clients.map((c) => (
+                              <option key={c._id} value={c._id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+
+                        {/* Assigned To */}
+                        <td className="px-4 py-3 text-slate-600">
+                          {task.assignedTo?.name || 'Unknown'}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleUpdateTask(task._id)}
+                            className="
+                          px-4
+                          py-2
+                          rounded-md
+                          bg-blue-500
+                          hover:bg-blue-600
+                          text-white
+                          text-xs
+                          font-medium
+                          transition
+                        "
+                          >
+                            Update
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Completed Tasks */}
+        {/* =======================================================
+        COMPLETED TASKS
+    ======================================================= */}
         {activeTab === 'completedTasks' && (
-          <div className="task-list">
-            <h3>Completed Tasks</h3>
+          <div className="w-full">
+            <h3 className="text-xl font-semibold text-slate-800 mb-5">
+              Completed Tasks
+            </h3>
 
             {completedTasks.length === 0 ? (
-              <p>No completed tasks found.</p>
+              <div
+                className="
+              bg-white
+              rounded-xl
+              border
+              border-slate-200
+              p-8
+              text-center
+              text-slate-500
+            "
+              >
+                No completed tasks found.
+              </div>
             ) : (
-              completedTasks.map((task) => {
-                const isEditing = editingTimeTaskId === task._id;
+              <div className="space-y-4">
+                {completedTasks.map((task) => {
+                  const isEditing = editingTimeTaskId === task._id;
 
-                return (
-                  <div className="task-card" key={task._id}>
-                    <h4>{task.title}</h4>
+                  return (
+                    <div
+                      className="
+                    bg-white
+                    rounded-xl
+                    border
+                    border-green-100
+                    shadow-sm
+                    p-5
+                  "
+                      key={task._id}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                        <h4 className="text-lg font-semibold text-slate-800">
+                          {task.title}
+                        </h4>
 
-                    <p>
-                      <strong>Remarks:</strong> {task.remarks || 'No remarks'}
-                    </p>
-
-                    <p>
-                      <strong>Priority:</strong> {task.priority || 'Normal'}
-                    </p>
-
-                    <p>
-                      <strong>Due Date:</strong>{' '}
-                      {task.dueDate
-                        ? new Date(task.dueDate).toLocaleDateString()
-                        : 'N/A'}
-                    </p>
-
-                    {/* TIME SECTION */}
-                    {!isEditing ? (
-                      <p>
-                        <strong>Time Spent:</strong> {task.totalHours ?? 0}{' '}
-                        hours {task.totalMinutes ?? 0} minutes
-                      </p>
-                    ) : (
-                      <div className="edit-time-section">
-                        <strong>Edit Time Spent:</strong>
-
-                        <div className="time-inputs">
-                          <div>
-                            <label>Hours</label>
-
-                            <input
-                              type="number"
-                              min="0"
-                              value={editHours}
-                              onChange={(e) => setEditHours(e.target.value)}
-                              placeholder="Hours"
-                            />
-                          </div>
-
-                          <div>
-                            <label>Minutes</label>
-
-                            <input
-                              type="number"
-                              min="0"
-                              max="59"
-                              value={editMinutes}
-                              onChange={(e) => setEditMinutes(e.target.value)}
-                              placeholder="Minutes"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="time-edit-buttons">
-                          <button
-                            className="save-time-btn"
-                            onClick={() => handleUpdateCompletedTime(task._id)}
-                          >
-                            Save
-                          </button>
-
-                          <button
-                            className="cancel-time-btn"
-                            onClick={() => {
-                              setEditingTimeTaskId(null);
-                              setEditHours('');
-                              setEditMinutes('');
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <p className="completed-status">
-                      <strong>Status:</strong> Completed
-                    </p>
-
-                    {/* ACTION BUTTONS */}
-                    <div className="task-card-actions">
-                      {!isEditing && (
-                        <button
-                          className="edit-time-btn"
-                          onClick={() => {
-                            setEditingTimeTaskId(task._id);
-
-                            setEditHours(String(task.totalHours ?? 0));
-
-                            setEditMinutes(String(task.totalMinutes ?? 0));
-                          }}
+                        <span
+                          className="
+                        inline-flex
+                        w-fit
+                        px-3
+                        py-1
+                        rounded-full
+                        bg-green-100
+                        text-green-700
+                        text-xs
+                        font-semibold
+                      "
                         >
-                          Edit Time
-                        </button>
+                          Completed
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <p className="text-sm text-slate-600">
+                          <strong className="text-slate-800">Remarks:</strong>{' '}
+                          {task.remarks || 'No remarks'}
+                        </p>
+
+                        <p className="text-sm text-slate-600">
+                          <strong className="text-slate-800">Priority:</strong>{' '}
+                          {task.priority || 'Normal'}
+                        </p>
+
+                        <p className="text-sm text-slate-600">
+                          <strong className="text-slate-800">Due Date:</strong>{' '}
+                          {task.dueDate
+                            ? new Date(task.dueDate).toLocaleDateString()
+                            : 'N/A'}
+                        </p>
+
+                        <p className="text-sm text-slate-600">
+                          <strong className="text-slate-800">
+                            Time Spent:
+                          </strong>{' '}
+                          {task.totalHours ?? 0} hours {task.totalMinutes ?? 0}{' '}
+                          minutes
+                        </p>
+                      </div>
+
+                      {/* Time Editing */}
+                      {isEditing && (
+                        <div
+                          className="
+                        mt-5
+                        p-4
+                        rounded-lg
+                        bg-green-50
+                        border
+                        border-green-100
+                      "
+                        >
+                          <strong className="block mb-3 text-green-800">
+                            Edit Time Spent
+                          </strong>
+
+                          <div
+                            className="
+                          grid
+                          grid-cols-1
+                          sm:grid-cols-2
+                          gap-3
+                        "
+                          >
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Hours
+                              </label>
+
+                              <input
+                                type="number"
+                                min="0"
+                                value={editHours}
+                                onChange={(e) => setEditHours(e.target.value)}
+                                placeholder="Hours"
+                                className="
+                              w-full
+                              px-3
+                              py-2
+                              rounded-md
+                              border
+                              border-slate-300
+                              bg-white
+                              outline-none
+                              focus:ring-2
+                              focus:ring-green-300
+                            "
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                Minutes
+                              </label>
+
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={editMinutes}
+                                onChange={(e) => setEditMinutes(e.target.value)}
+                                placeholder="Minutes"
+                                className="
+                              w-full
+                              px-3
+                              py-2
+                              rounded-md
+                              border
+                              border-slate-300
+                              bg-white
+                              outline-none
+                              focus:ring-2
+                              focus:ring-green-300
+                            "
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 mt-4">
+                            <button
+                              className="
+                            px-4
+                            py-2
+                            rounded-md
+                            bg-green-500
+                            hover:bg-green-600
+                            text-white
+                            text-sm
+                            font-medium
+                          "
+                              onClick={() =>
+                                handleUpdateCompletedTime(task._id)
+                              }
+                            >
+                              Save
+                            </button>
+
+                            <button
+                              className="
+                            px-4
+                            py-2
+                            rounded-md
+                            bg-slate-200
+                            hover:bg-slate-300
+                            text-slate-700
+                            text-sm
+                            font-medium
+                          "
+                              onClick={() => {
+                                setEditingTimeTaskId(null);
+                                setEditHours('');
+                                setEditMinutes('');
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
                       )}
 
-                      <button onClick={() => handleUncompleteTask(task._id)}>
-                        Uncomplete
-                      </button>
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-2 mt-5">
+                        {!isEditing && (
+                          <button
+                            className="
+                          px-4
+                          py-2
+                          rounded-md
+                          bg-green-500
+                          hover:bg-green-600
+                          text-white
+                          text-sm
+                          font-medium
+                        "
+                            onClick={() => {
+                              setEditingTimeTaskId(task._id);
+
+                              setEditHours(String(task.totalHours ?? 0));
+
+                              setEditMinutes(String(task.totalMinutes ?? 0));
+                            }}
+                          >
+                            Edit Time
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleUncompleteTask(task._id)}
+                          className="
+                        px-4
+                        py-2
+                        rounded-md
+                        bg-orange-500
+                        hover:bg-orange-600
+                        text-white
+                        text-sm
+                        font-medium
+                      "
+                        >
+                          Uncomplete
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
 
+        {/* =======================================================
+        COMPLETION TIME POPUP
+    ======================================================= */}
         {showPopup && (
-          <div className="popup-overlay">
-            <div className="popup">
-              <h3> Upon Completion of your task, Please Log your Time</h3>
-              <input
-                id="hours"
-                type="number"
-                placeholder="hours"
-                value={hours}
-                onChange={(e) => setHours(e.target.value)}
-              />
-              <input
-                id="minutes"
-                type="number"
-                placeholder="minutes"
-                value={minutes}
-                onChange={(e) => setMinutes(e.target.value)}
-              />
-              <div className="popup-actions">
-                <button onClick={() => setShowPopup(false)}>Cancel</button>
+          <div
+            className="
+          fixed
+          inset-0
+          z-50
+          bg-black/50
+          flex
+          items-center
+          justify-center
+          p-4
+        "
+          >
+            <div
+              className="
+            w-full
+            max-w-md
+            bg-white
+            rounded-xl
+            shadow-2xl
+            p-5
+          "
+            >
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                Upon Completion of your task, Please Log your Time
+              </h3>
+
+              <div className="space-y-3">
+                <input
+                  id="hours"
+                  type="number"
+                  placeholder="Hours"
+                  value={hours}
+                  onChange={(e) => setHours(e.target.value)}
+                  className="
+                w-full
+                px-3
+                py-2
+                rounded-md
+                border
+                border-slate-300
+                outline-none
+                focus:ring-2
+                focus:ring-blue-400
+              "
+                />
+
+                <input
+                  id="minutes"
+                  type="number"
+                  placeholder="Minutes"
+                  value={minutes}
+                  onChange={(e) => setMinutes(e.target.value)}
+                  className="
+                w-full
+                px-3
+                py-2
+                rounded-md
+                border
+                border-slate-300
+                outline-none
+                focus:ring-2
+                focus:ring-blue-400
+              "
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  onClick={() => setShowPopup(false)}
+                  className="
+                px-4
+                py-2
+                rounded-md
+                bg-slate-200
+                hover:bg-slate-300
+                text-slate-700
+                text-sm
+              "
+                >
+                  Cancel
+                </button>
+
                 <button
                   onClick={() => {
-                    // 👇 Debug log here
-                    // console.log('Submitting:', hours, minutes);
-
-                    // Then call your complete handler
                     handleCompleteTask();
                   }}
+                  className="
+                px-4
+                py-2
+                rounded-md
+                bg-green-500
+                hover:bg-green-600
+                text-white
+                text-sm
+                font-medium
+              "
                 >
                   Save
                 </button>
@@ -1767,61 +2608,149 @@ export default function EmployeeDashboard() {
           </div>
         )}
 
-        {/* Clients */}
+        {/* =======================================================
+        CLIENTS
+    ======================================================= */}
         {activeTab === 'clients' && (
-          <div className="client-list">
-            <h3>Clients</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Company</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((client) => (
-                  <tr key={client._id}>
-                    <td>{client.name}</td>
-                    <td>{client.email}</td>
-                    <td>{client.company}</td>
+          <div className="w-full">
+            <h3 className="text-xl font-semibold text-slate-800 mb-5">
+              Clients
+            </h3>
+
+            <div
+              className="
+            bg-white
+            rounded-xl
+            border
+            border-slate-200
+            shadow-sm
+            overflow-x-auto
+          "
+            >
+              <table className="w-full min-w-150 text-sm">
+                <thead>
+                  <tr className="bg-slate-100 border-b">
+                    <th className="px-4 py-3 text-left font-semibold">Name</th>
+
+                    <th className="px-4 py-3 text-left font-semibold">Email</th>
+
+                    <th className="px-4 py-3 text-left font-semibold">
+                      Company
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+
+                <tbody>
+                  {clients.map((client) => (
+                    <tr key={client._id} className="border-b hover:bg-slate-50">
+                      <td className="px-4 py-3">{client.name}</td>
+
+                      <td className="px-4 py-3">{client.email}</td>
+
+                      <td className="px-4 py-3">{client.company}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
-        {activeTab === 'notifications' && (
-          <div className="notifications-page">
-            <div className="notifications-header">
-              <h2>Notifications</h2>
 
-              <span>
+        {/* =======================================================
+        NOTIFICATIONS
+    ======================================================= */}
+        {activeTab === 'notifications' && (
+          <div className="w-full">
+            <div
+              className="
+            flex
+            flex-col
+            sm:flex-row
+            sm:items-center
+            sm:justify-between
+            gap-2
+            mb-5
+          "
+            >
+              <h2 className="text-xl font-semibold text-slate-800">
+                Notifications
+              </h2>
+
+              <span className="text-sm text-slate-500">
                 {notifications.length} notification
                 {notifications.length !== 1 ? 's' : ''}
               </span>
             </div>
 
             {notifications.length === 0 ? (
-              <div className="no-notifications">
-                <MdNotificationsNone size={50} />
+              <div
+                className="
+              bg-white
+              rounded-xl
+              border
+              border-slate-200
+              shadow-sm
+              p-10
+              text-center
+            "
+              >
+                <MdNotificationsNone
+                  size={50}
+                  className="mx-auto text-slate-400 mb-3"
+                />
 
-                <h3>No notifications</h3>
+                <h3 className="text-lg font-semibold text-slate-700">
+                  No notifications
+                </h3>
 
-                <p>You don't have any notifications right now.</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  You don't have any notifications right now.
+                </p>
               </div>
             ) : (
-              <div className="notification-list">
+              <div className="space-y-3">
                 {notifications.map((notification) => (
-                  <div className="notification-card" key={notification._id}>
-                    <div className="notification-icon">🔔</div>
+                  <div
+                    className="
+                  bg-white
+                  rounded-xl
+                  border
+                  border-slate-200
+                  shadow-sm
+                  p-4
+                  flex
+                  gap-4
+                  hover:shadow-md
+                  transition
+                "
+                    key={notification._id}
+                  >
+                    <div
+                      className="
+                    shrink-0
+                    w-10
+                    h-10
+                    rounded-full
+                    bg-blue-50
+                    flex
+                    items-center
+                    justify-center
+                    text-lg
+                  "
+                    >
+                      🔔
+                    </div>
 
-                    <div className="notification-content">
-                      <h4>New Notification</h4>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-semibold text-slate-800">
+                        New Notification
+                      </h4>
 
-                      <p>{notification.message}</p>
+                      <p className="mt-1 text-sm text-slate-600  wrap-break-word">
+                        {notification.message}
+                      </p>
 
-                      <small>
+                      <small className="block mt-2 text-xs text-slate-400">
                         {notification.createdAt
                           ? new Date(notification.createdAt).toLocaleString()
                           : ''}

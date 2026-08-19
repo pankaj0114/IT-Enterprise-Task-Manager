@@ -309,7 +309,7 @@ router.put('/:id/remarks', authMiddleware, async (req, res) => {
         },
       },
       {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
       },
     );
@@ -408,7 +408,7 @@ router.put('/:id/complete', verifyToken, async (req, res) => {
         },
       },
       {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
       },
     );
@@ -496,8 +496,8 @@ router.put('/:id/uncomplete', verifyToken, async (req, res) => {
         },
       },
       {
-        new: true,
         runValidators: true,
+        returnDocument: 'after',
       },
     );
 
@@ -762,7 +762,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
       taskId,
       { $set: updateData },
       {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
       },
     )
