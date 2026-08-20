@@ -20,6 +20,9 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department' },
+    dateOfBirth: {
+      type: Date,
+    },
     designation: { type: String, trim: true },
     avatar: { type: String, default: '' },
     isActive: { type: Boolean, default: true },

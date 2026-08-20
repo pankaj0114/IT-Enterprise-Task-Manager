@@ -105,7 +105,7 @@ const AssignTaskPage = ({
   return (
     <div
       className="
-      min-h-screen w-full
+       w-full
       bg-slate-50
       px-4 py-6
       sm:px-6

@@ -19,6 +19,7 @@ import {
   MdOutlineNearMe,
   MdOutlineChecklist,
   MdNotificationsNone,
+  MdDelete,
 } from 'react-icons/md';
 
 export default function EmployeeDashboard() {
@@ -228,6 +229,14 @@ export default function EmployeeDashboard() {
   const openPopup = (taskId) => {
     setSelectedTaskId(taskId);
     setShowPopup(true);
+  };
+
+  const handleTitleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+
+      handleQuickAddTask();
+    }
   };
 
   const fetchTasks = async () => {
@@ -493,10 +502,10 @@ export default function EmployeeDashboard() {
       return;
     }
 
-    // Update UI immediately
-    setTasks((prev) =>
-      prev.map((task) =>
-        task._id === taskId
+    // Immediately update the task in the UI
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        String(task._id) === String(taskId)
           ? {
               ...task,
               remarks: value,
@@ -510,14 +519,15 @@ export default function EmployeeDashboard() {
       clearTimeout(typingTimeouts[taskId]);
     }
 
-    // Save after user stops typing for 1 second
+    // Save after user stops typing
     const timeout = setTimeout(async () => {
       try {
         const token = localStorage.getItem('accessToken');
 
         console.log('Saving remark for task:', taskId);
+        console.log('Remark being saved:', value);
 
-        await axios.put(
+        const response = await axios.put(
           `http://localhost:5000/api/tasks/${taskId}/remarks`,
           {
             remarks: value,
@@ -530,7 +540,7 @@ export default function EmployeeDashboard() {
           },
         );
 
-        console.log('Remark saved successfully');
+        console.log('Remark saved successfully:', response.data);
       } catch (error) {
         console.error(
           'Error automatically saving remark:',
@@ -596,6 +606,40 @@ export default function EmployeeDashboard() {
       setUser(res.data);
     } catch (error) {
       console.error('Error fetching user:', error);
+    }
+  };
+
+  const handleDeleteNotification = async (notificationId) => {
+    try {
+      if (!notificationId) {
+        console.error('Notification ID is missing');
+        return;
+      }
+
+      const token = localStorage.getItem('accessToken');
+
+      await axios.delete(
+        `http://localhost:5000/api/notifications/${notificationId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      // Remove notification immediately from UI
+      setNotifications((prevNotifications) =>
+        prevNotifications.filter(
+          (notification) => String(notification._id) !== String(notificationId),
+        ),
+      );
+
+      console.log('Notification deleted successfully');
+    } catch (error) {
+      console.error(
+        'Error deleting notification:',
+        error.response?.data || error.message,
+      );
     }
   };
 
@@ -1217,6 +1261,7 @@ export default function EmployeeDashboard() {
                       type="text"
                       value={newTask.title}
                       onChange={handleChange}
+                      onKeyDown={handleTitleKeyDown}
                       placeholder="Enter task title"
                       className="
                     flex-1
@@ -2162,6 +2207,7 @@ export default function EmployeeDashboard() {
                             onChange={(e) =>
                               handleRemarkChange(task._id, e.target.value)
                             }
+                            placeholder="Add remarks..."
                             className="
                           w-full
                           min-w-45
@@ -2661,16 +2707,17 @@ export default function EmployeeDashboard() {
     ======================================================= */}
         {activeTab === 'notifications' && (
           <div className="w-full">
+            {/* ================= NOTIFICATION HEADER ================= */}
             <div
               className="
-            flex
-            flex-col
-            sm:flex-row
-            sm:items-center
-            sm:justify-between
-            gap-2
-            mb-5
-          "
+      mb-5
+      flex
+      flex-col
+      gap-2
+      sm:flex-row
+      sm:items-center
+      sm:justify-between
+    "
             >
               <h2 className="text-xl font-semibold text-slate-800">
                 Notifications
@@ -2682,80 +2729,118 @@ export default function EmployeeDashboard() {
               </span>
             </div>
 
+            {/* ================= EMPTY STATE ================= */}
             {notifications.length === 0 ? (
               <div
                 className="
-              bg-white
-              rounded-xl
-              border
-              border-slate-200
-              shadow-sm
-              p-10
-              text-center
-            "
+        rounded-xl
+        border
+        border-slate-200
+        bg-white
+        p-10
+        text-center
+        shadow-sm
+      "
               >
                 <MdNotificationsNone
                   size={50}
-                  className="mx-auto text-slate-400 mb-3"
+                  className="mx-auto mb-3 text-slate-400"
                 />
 
                 <h3 className="text-lg font-semibold text-slate-700">
                   No notifications
                 </h3>
 
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="mt-1 text-sm text-slate-500">
                   You don't have any notifications right now.
                 </p>
               </div>
             ) : (
+              /* ================= NOTIFICATION LIST ================= */
               <div className="space-y-3">
                 {notifications.map((notification) => (
                   <div
-                    className="
-                  bg-white
-                  rounded-xl
-                  border
-                  border-slate-200
-                  shadow-sm
-                  p-4
-                  flex
-                  gap-4
-                  hover:shadow-md
-                  transition
-                "
                     key={notification._id}
+                    className="
+            flex
+            items-start
+            gap-3
+            rounded-xl
+            border
+            border-slate-200
+            bg-white
+            p-4
+            shadow-sm
+            transition
+            hover:shadow-md
+            sm:gap-4
+          "
                   >
+                    {/* ================= ICON ================= */}
                     <div
                       className="
-                    shrink-0
-                    w-10
-                    h-10
-                    rounded-full
-                    bg-blue-50
-                    flex
-                    items-center
-                    justify-center
-                    text-lg
-                  "
+              flex
+              h-10
+              w-10
+              shrink-0
+              items-center
+              justify-center
+              rounded-full
+              bg-blue-50
+              text-lg
+            "
                     >
                       🔔
                     </div>
 
+                    {/* ================= CONTENT ================= */}
                     <div className="min-w-0 flex-1">
                       <h4 className="font-semibold text-slate-800">
                         New Notification
                       </h4>
 
-                      <p className="mt-1 text-sm text-slate-600  wrap-break-word">
+                      <p
+                        className="
+                mt-1
+                wrap-break-word
+                text-sm
+                leading-6
+                text-slate-600
+              "
+                      >
                         {notification.message}
                       </p>
 
-                      <small className="block mt-2 text-xs text-slate-400">
+                      <small className="mt-2 block text-xs text-slate-400">
                         {notification.createdAt
                           ? new Date(notification.createdAt).toLocaleString()
                           : ''}
                       </small>
                     </div>
+
+                    {/* ================= DELETE BUTTON ================= */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNotification(notification._id)}
+                      title="Delete notification"
+                      aria-label="Delete notification"
+                      className="
+              flex
+              h-9
+              w-9
+              shrink-0
+              items-center
+              justify-center
+              rounded-lg
+              text-slate-400
+              transition
+              hover:bg-red-50
+              hover:text-red-600
+              active:scale-95
+            "
+                    >
+                      <MdDelete size={20} />
+                    </button>
                   </div>
                 ))}
               </div>

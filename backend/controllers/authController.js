@@ -3,26 +3,51 @@ import bcrypt from 'bcryptjs'; // use bcryptjs
 import jwt from 'jsonwebtoken';
 
 // Register new user
+
 export const registerUser = async (req, res) => {
+  console.log('🔥 registerUser controller reached');
+  console.log('Request body:', req.body);
+
   const { name, email, password, role } = req.body;
+
   try {
     const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res.status(400).json({ message: 'Email already exists' });
+
+    console.log('Existing user:', existingUser);
+
+    if (existingUser) {
+      return res.status(400).json({
+        message: 'Email already exists',
+      });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    console.log('Password hashed successfully');
 
     const newUser = new User({
       name,
       email,
       password: hashedPassword,
-      role: role || 'employee',
+      role,
     });
 
+    console.log('Saving user...');
+
     await newUser.save();
-    res.status(201).json({ message: 'User registered successfully' });
+
+    console.log('User saved successfully');
+
+    return res.status(201).json({
+      message: 'User registered successfully',
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ REGISTER ERROR:', error);
+
+    return res.status(500).json({
+      message: 'Server error',
+      error: error.message,
+    });
   }
 };
 // ✅ Login controller
