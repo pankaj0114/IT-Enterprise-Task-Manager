@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs'; // use bcryptjs
 import jwt from 'jsonwebtoken';
+import Notification from '../models/Notification.js';
 import crypto from 'crypto';
 import transporter from '../config/mailer.js';
 
@@ -331,15 +332,35 @@ export const verifyOtp = async (req, res) => {
 
 export const resetPassword = async (req, res) => {
   try {
-    const { email, newPassword, confirmPassword } = req.body;
-
-    console.log('RESET PASSWORD REQUEST:', {
-      email,
+    console.log('=================================');
+    console.log('RESET PASSWORD REQUEST');
+    console.log('Request body:', {
+      email: req.body.email,
+      hasNewPassword: Boolean(req.body.newPassword),
+      hasConfirmPassword: Boolean(req.body.confirmPassword),
     });
 
-    if (!email || !newPassword || !confirmPassword) {
+    const { email, newPassword, confirmPassword } = req.body;
+
+    // -----------------------------------------------
+    // VALIDATION
+    // -----------------------------------------------
+
+    if (!email) {
       return res.status(400).json({
-        message: 'All fields are required.',
+        message: 'Email is required.',
+      });
+    }
+
+    if (!newPassword) {
+      return res.status(400).json({
+        message: 'New password is required.',
+      });
+    }
+
+    if (!confirmPassword) {
+      return res.status(400).json({
+        message: 'Confirm password is required.',
       });
     }
 
@@ -351,57 +372,127 @@ export const resetPassword = async (req, res) => {
 
     if (newPassword.length < 8) {
       return res.status(400).json({
-        message: 'Password must be at least 8 characters.',
+        message: 'Password must be at least 8 characters long.',
       });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
 
+    // -----------------------------------------------
+    // FIND EMPLOYEE
+    // -----------------------------------------------
+
     const user = await User.findOne({
       email: normalizedEmail,
       role: 'employee',
     }).select(
-      '+resetPasswordVerified +resetPasswordOtp +resetPasswordOtpExpires',
+      '+password resetPasswordVerified resetPasswordOtp resetPasswordOtpExpires',
     );
 
     if (!user) {
-      return res.status(400).json({
-        message: 'Invalid request.',
+      return res.status(404).json({
+        message: 'Employee not found.',
       });
     }
 
-    console.log('resetPasswordVerified:', user.resetPasswordVerified);
+    console.log('Employee found:', user.email);
 
-    if (!user.resetPasswordVerified) {
+    console.log('OTP verified:', user.resetPasswordVerified);
+
+    // -----------------------------------------------
+    // OTP MUST BE VERIFIED
+    // -----------------------------------------------
+
+    if (user.resetPasswordVerified !== true) {
       return res.status(403).json({
-        message: 'Please verify OTP first.',
+        message: 'Please verify the OTP before changing your password.',
       });
     }
+
+    // -----------------------------------------------
+    // HASH NEW PASSWORD
+    // -----------------------------------------------
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     user.password = hashedPassword;
 
-    // Clear reset information
+    user.passwordChangedAt = new Date();
+
+    // Clear OTP/reset state
     user.resetPasswordOtp = null;
     user.resetPasswordOtpExpires = null;
     user.resetPasswordVerified = false;
 
-    // Optional: track password change
-    user.passwordChangedAt = new Date();
+    // -----------------------------------------------
+    // SAVE PASSWORD
+    // -----------------------------------------------
 
     await user.save();
 
-    console.log('Password reset successfully');
+    console.log('PASSWORD UPDATED SUCCESSFULLY:', user.email);
+
+    // =================================================
+    // CREATE ADMIN NOTIFICATION
+    // =================================================
+
+    try {
+      const admins = await User.find({
+        role: 'admin',
+        isActive: true,
+      }).select('_id');
+
+      console.log('Active admins:', admins.length);
+
+      if (admins.length > 0) {
+        const notifications = admins.map((admin) => ({
+          recipient: admin._id,
+          sender: user._id,
+          message: `Employee ${user.name} has changed their password.`,
+          type: 'password_changed',
+          isRead: false,
+        }));
+
+        await Notification.insertMany(notifications);
+
+        console.log('Admin notification created successfully.');
+
+        // Socket notification
+        const io = req.app.get('io');
+
+        if (io) {
+          admins.forEach((admin) => {
+            io.to(String(admin._id)).emit('newNotification', {
+              message: `Employee ${user.name} has changed their password.`,
+              type: 'password_changed',
+              createdAt: new Date(),
+            });
+          });
+        }
+      }
+    } catch (notificationError) {
+      // IMPORTANT:
+      // Notification failure should NOT make password reset fail.
+      console.error('Notification creation failed:', notificationError);
+    }
+
+    // -----------------------------------------------
+    // SUCCESS
+    // -----------------------------------------------
 
     return res.status(200).json({
-      message: 'Password reset successfully.',
+      message: 'Password changed successfully.',
     });
   } catch (error) {
+    console.error('=================================');
+
     console.error('RESET PASSWORD ERROR:', error);
 
+    console.error('=================================');
+
     return res.status(500).json({
-      message: 'Server error while resetting password.',
+      message: 'Unable to reset password.',
+      error: error.message,
     });
   }
 };

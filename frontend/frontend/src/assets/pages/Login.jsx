@@ -40,17 +40,25 @@ export default function Login() {
 
       // Redirect based on role
       if (userRole === 'employee') {
-        navigate('/employee-dashboard');
-      } else if (userRole === 'hr_manager') {
-        navigate('/hr-dashboard');
+        navigate('/employee-dashboard', {
+          replace: true,
+        });
       } else if (userRole === 'admin') {
-        navigate('/admin-dashboard');
+        navigate('/admin-dashboard', {
+          replace: true,
+        });
+      } else if (userRole === 'hr_manager') {
+        navigate('/hr-dashboard', {
+          replace: true,
+        });
       } else if (userRole === 'team_leader') {
-        navigate('/team-dashboard');
+        navigate('/team-dashboard', {
+          replace: true,
+        });
       } else if (userRole === 'super_admin') {
-        navigate('/super-dashboard');
-      } else {
-        navigate('/dashboard');
+        navigate('/super-dashboard', {
+          replace: true,
+        });
       }
     } catch (error) {
       setMessage(error.response?.data?.message || 'Error logging in');

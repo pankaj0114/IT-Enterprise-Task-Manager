@@ -1,8 +1,23 @@
 import express from 'express';
 import Notification from '../models/Notification.js';
 import authMiddleware from '../middleware/authMiddleware.js';
+import adminMiddleware from '../middleware/adminMiddleware.js';
+//import authMiddleware from '../middleware/authMiddleware.js';
+
+import { getAdminNotifications } from '../controllers/notificationController.js';
+
+import {
+  getMyNotifications,
+  markNotificationsAsRead,
+} from '../controllers/notificationController.js';
 
 const router = express.Router();
+
+router.get('/', authMiddleware, adminMiddleware, getAdminNotifications);
+
+router.get('/', authMiddleware, getMyNotifications);
+
+router.put('/read-all', authMiddleware, markNotificationsAsRead);
 
 router.get('/', authMiddleware, async (req, res) => {
   try {

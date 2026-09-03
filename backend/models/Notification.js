@@ -13,9 +13,18 @@ const NotificationSchema = new mongoose.Schema(
       required: true,
     },
     task: { type: mongoose.Schema.Types.ObjectId, ref: 'Task', required: true },
-    message: { type: String, required: true },
+    message: { type: String, required: true, trim: true },
     read: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
+    type: {
+      type: String,
+      default: 'system',
+    },
+
+    isRead: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

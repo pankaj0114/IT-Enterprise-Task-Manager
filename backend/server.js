@@ -16,6 +16,7 @@ import userRoutes from './routes/userRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import clientRoutes from './routes/clientRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+//import notificationRoutes from './routes/notificationRoutes.js';
 
 dotenv.config();
 dns.setServers(['1.1.1.1', '8.8.8.8']);
@@ -75,6 +76,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/admin', adminRoutes);
+// app.use('/api/notifications', notificationRoutes);
 
 // Database connection
 connectDB();

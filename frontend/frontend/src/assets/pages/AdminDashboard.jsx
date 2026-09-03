@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { MdPersonAdd, MdLogout } from 'react-icons/md';
 import '../css/EmployeeDashboard.css';
 import { Eye, EyeOff } from 'lucide-react';
+import { io } from 'socket.io-client';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -45,6 +46,12 @@ const AdminDashboard = () => {
   const [employeePerformance, setEmployeePerformance] = useState([]);
 
   const [loadingPerformance, setLoadingPerformance] = useState(false);
+
+  const [notifications, setNotifications] = useState([]);
+
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
 
   //const [selectedEmployee, setSelectedEmployee] = useState('');
   const storedUser = localStorage.getItem('user');
@@ -595,6 +602,110 @@ const AdminDashboard = () => {
       setLoadingPerformance(false);
     }
   };
+
+  const fetchNotifications = async () => {
+    try {
+      setLoadingNotifications(true);
+
+      const token = localStorage.getItem('accessToken');
+
+      if (!token) {
+        return;
+      }
+
+      const response = await axios.get(
+        'http://localhost:5000/api/notifications',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const data = Array.isArray(response.data) ? response.data : [];
+
+      setNotifications(data);
+
+      setUnreadNotificationCount(
+        data.filter((notification) => !notification.isRead).length,
+      );
+    } catch (error) {
+      console.error(
+        'Fetch admin notifications error:',
+        error.response?.data || error.message,
+      );
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  const markNotificationsAsRead = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      await axios.put(
+        'http://localhost:5000/api/notifications/read-all',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setNotifications((prev) =>
+        prev.map((notification) => ({
+          ...notification,
+          isRead: true,
+        })),
+      );
+
+      setUnreadNotificationCount(0);
+    } catch (error) {
+      console.error('MARK READ ERROR:', error.response?.data || error.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  useEffect(() => {
+    if (!admin?._id) {
+      return;
+    }
+
+    console.log('Connecting admin socket for:', admin._id);
+
+    const socket = io('http://localhost:5000', {
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('connect', () => {
+      console.log('ADMIN SOCKET CONNECTED:', socket.id);
+
+      socket.emit('join', String(admin._id));
+
+      console.log('ADMIN JOINED ROOM:', String(admin._id));
+    });
+
+    socket.on('newNotification', (notification) => {
+      console.log('NEW ADMIN NOTIFICATION:', notification);
+
+      setNotifications((prev) => [notification, ...prev]);
+
+      setUnreadNotificationCount((prev) => prev + 1);
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('ADMIN SOCKET ERROR:', error);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [admin?._id]);
+
   // ==========================================
   // LOGOUT
   // ==========================================
@@ -801,6 +912,58 @@ const AdminDashboard = () => {
             <span className="text-lg">📊</span>
 
             <span>Employee Performance</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('notifications');
+              markNotificationsAsRead();
+              fetchNotifications();
+            }}
+            className={`
+    mt-2
+    flex
+    w-full
+    items-center
+    justify-between
+    gap-3
+    rounded-lg
+    px-4
+    py-3
+    text-left
+    transition
+
+    ${
+      activeTab === 'notifications'
+        ? 'bg-blue-600 text-white'
+        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+    }
+  `}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-lg">🔔</span>
+
+              <span>Notifications</span>
+            </div>
+
+            {unreadNotificationCount > 0 && (
+              <span
+                className="
+        min-w-6
+        rounded-full
+        bg-red-500
+        px-2
+        py-0.5
+        text-center
+        text-xs
+        font-bold
+        text-white
+      "
+              >
+                {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+              </span>
+            )}
           </button>
         </nav>
 
@@ -2762,6 +2925,268 @@ const AdminDashboard = () => {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'notifications' && (
+          <div className="mx-auto w-full max-w-5xl">
+            {/* Header */}
+
+            <div className="mb-6">
+              <div
+                className="
+        flex
+        flex-col
+        gap-3
+        sm:flex-row
+        sm:items-center
+        sm:justify-between
+      "
+              >
+                <div>
+                  <h1
+                    className="
+            text-2xl
+            font-bold
+            text-slate-800
+            sm:text-3xl
+          "
+                  >
+                    Notifications
+                  </h1>
+
+                  <p
+                    className="
+            mt-1
+            text-sm
+            text-slate-500
+          "
+                  >
+                    Important activity and security notifications.
+                  </p>
+                </div>
+
+                <span
+                  className="
+          w-fit
+          rounded-full
+          bg-blue-50
+          px-3
+          py-1
+          text-xs
+          font-semibold
+          text-blue-600
+        "
+                >
+                  {unreadNotificationCount} unread
+                </span>
+              </div>
+            </div>
+
+            {/* Notifications */}
+
+            {loadingNotifications ? (
+              <div
+                className="
+        rounded-2xl
+        border
+        border-slate-200
+        bg-white
+        p-10
+        text-center
+        text-slate-500
+        shadow-sm
+      "
+              >
+                Loading notifications...
+              </div>
+            ) : notifications.length === 0 ? (
+              <div
+                className="
+        rounded-2xl
+        border
+        border-slate-200
+        bg-white
+        p-10
+        text-center
+        shadow-sm
+      "
+              >
+                <div
+                  className="
+          mx-auto
+          mb-4
+          flex
+          h-14
+          w-14
+          items-center
+          justify-center
+          rounded-full
+          bg-slate-100
+          text-2xl
+        "
+                >
+                  🔔
+                </div>
+
+                <h3
+                  className="
+          text-lg
+          font-semibold
+          text-slate-700
+        "
+                >
+                  No notifications
+                </h3>
+
+                <p
+                  className="
+          mt-1
+          text-sm
+          text-slate-500
+        "
+                >
+                  You don't have any notifications right now.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map((notification) => (
+                  <div
+                    key={notification._id}
+                    className={`
+                rounded-2xl
+                border
+                bg-white
+                p-4
+                shadow-sm
+                transition
+                sm:p-5
+
+                ${
+                  notification.isRead
+                    ? 'border-slate-200'
+                    : 'border-blue-200 bg-blue-50/30'
+                }
+              `}
+                  >
+                    <div
+                      className="
+                flex
+                items-start
+                gap-4
+              "
+                    >
+                      {/* Icon */}
+
+                      <div
+                        className="
+                  flex
+                  h-11
+                  w-11
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-full
+                  bg-blue-100
+                  text-lg
+                "
+                      >
+                        {notification.type === 'password_changed' ? '🔐' : '🔔'}
+                      </div>
+
+                      {/* Content */}
+
+                      <div
+                        className="
+                  min-w-0
+                  flex-1
+                "
+                      >
+                        <div
+                          className="
+                    flex
+                    flex-col
+                    gap-1
+                    sm:flex-row
+                    sm:items-center
+                    sm:justify-between
+                  "
+                        >
+                          <h4
+                            className="
+                      font-semibold
+                      text-slate-800
+                    "
+                          >
+                            {notification.type === 'password_changed'
+                              ? 'Password Changed'
+                              : 'Notification'}
+                          </h4>
+
+                          {!notification.isRead && (
+                            <span
+                              className="
+                        w-fit
+                        rounded-full
+                        bg-blue-100
+                        px-2.5
+                        py-1
+                        text-[10px]
+                        font-bold
+                        uppercase
+                        tracking-wide
+                        text-blue-700
+                      "
+                            >
+                              New
+                            </span>
+                          )}
+                        </div>
+
+                        <p
+                          className="
+                    mt-1
+                    wrap-break-word
+                    text-sm
+                    leading-6
+                    text-slate-600
+                  "
+                        >
+                          {notification.message}
+                        </p>
+
+                        <div
+                          className="
+                    mt-2
+                    flex
+                    flex-col
+                    gap-1
+                    text-xs
+                    text-slate-400
+                    sm:flex-row
+                    sm:items-center
+                    sm:gap-3
+                  "
+                        >
+                          {notification.sender?.name && (
+                            <span>Employee: {notification.sender.name}</span>
+                          )}
+
+                          <span>
+                            {notification.createdAt
+                              ? new Date(
+                                  notification.createdAt,
+                                ).toLocaleString()
+                              : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>
