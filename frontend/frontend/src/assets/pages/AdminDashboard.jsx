@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { MdPersonAdd, MdLogout } from 'react-icons/md';
 import '../css/EmployeeDashboard.css';
 import { Eye, EyeOff } from 'lucide-react';
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -39,6 +41,10 @@ const AdminDashboard = () => {
   const [adminTasks, setAdminTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [deletingTaskId, setDeletingTaskId] = useState(null);
+
+  const [employeePerformance, setEmployeePerformance] = useState([]);
+
+  const [loadingPerformance, setLoadingPerformance] = useState(false);
 
   //const [selectedEmployee, setSelectedEmployee] = useState('');
   const storedUser = localStorage.getItem('user');
@@ -87,6 +93,11 @@ const AdminDashboard = () => {
     try {
       const token = localStorage.getItem('accessToken');
 
+      if (!token) {
+        navigate('/', { replace: true });
+        return;
+      }
+
       const response = await axios.get('http://localhost:5000/api/auth/me', {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -95,18 +106,32 @@ const AdminDashboard = () => {
 
       console.log('Logged-in admin:', response.data);
 
+      if (response.data?.role !== 'admin') {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        navigate('/', { replace: true });
+        return;
+      }
+
       setAdmin(response.data);
+      setUser(response.data);
+      localStorage.setItem('user', JSON.stringify(response.data));
     } catch (error) {
       console.error(
-        'Error fetching admin:',
+        'Admin authentication failed:',
         error.response?.data || error.message,
       );
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      navigate('/', { replace: true });
     }
   };
 
   useEffect(() => {
     fetchAdmin();
-  }, []);
+  }, [navigate]);
 
   // ==========================================
   // FETCH EMPLOYEES
@@ -525,6 +550,51 @@ const AdminDashboard = () => {
       setDeletingTaskId(null);
     }
   };
+
+  useEffect(() => {
+    if (activeTab === 'employeePerformance') {
+      fetchEmployeePerformance();
+    }
+  }, [activeTab]);
+
+  // ==========================================
+  // FETCH EMPLOYEE PERFORMANCE
+  // ==========================================
+
+  const fetchEmployeePerformance = async () => {
+    try {
+      setLoadingPerformance(true);
+
+      const token = localStorage.getItem('accessToken');
+
+      if (!token) {
+        console.error('Access token not found.');
+        return;
+      }
+
+      const response = await axios.get(
+        'http://localhost:5000/api/admin/employee-performance',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('EMPLOYEE PERFORMANCE:', response.data);
+
+      setEmployeePerformance(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error(
+        'Error fetching employee performance:',
+        error.response?.data || error.message,
+      );
+
+      setEmployeePerformance([]);
+    } finally {
+      setLoadingPerformance(false);
+    }
+  };
   // ==========================================
   // LOGOUT
   // ==========================================
@@ -532,19 +602,20 @@ const AdminDashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-
-    window.location.href = '/';
+    localStorage.removeItem('user');
+    navigate('/', { replace: true });
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-slate-50">
       {/* ======================================
           SIDEBAR
       ====================================== */}
 
       <aside
         className="
-        w-64
+        z-40
+        w-20
         bg-slate-900
         text-white
         min-h-screen
@@ -554,56 +625,92 @@ const AdminDashboard = () => {
         left-0
         top-0
         bottom-0
+        transition-all
+        duration-300
+        lg:w-64
       "
       >
         {/* Admin Info */}
 
         <div
           className="
-          px-6
-          py-6
+          px-3
+          py-5
           border-b
           border-slate-700
+          lg:px-6
+          lg:py-6
         "
         >
           <p
             className="
-            text-xs
+            text-center
+            text-[10px]
             text-slate-400
             uppercase
             tracking-wider
+            lg:text-left
+            lg:text-xs
           "
           >
-            Admin
+            <span className="hidden lg:inline">Admin</span>
+            <span className="lg:hidden">A</span>
           </p>
 
           <h3
             className="
             mt-1
+            hidden
+            truncate
+            text-center
             text-lg
             font-semibold
+            lg:block
+            lg:text-left
           "
           >
             {admin?.name || 'Loading...'}
           </h3>
+
+          <div
+            className="
+              mx-auto
+              mt-1
+              flex
+              h-9
+              w-9
+              items-center
+              justify-center
+              rounded-full
+              bg-blue-600
+              text-sm
+              font-bold
+              lg:hidden
+            "
+          >
+            {admin?.name?.charAt(0)?.toUpperCase() || 'A'}
+          </div>
         </div>
 
         {/* Navigation */}
 
-        <nav className="flex-1 px-3 py-5">
+        <nav className="flex-1 space-y-2 px-2 py-5 lg:px-3">
           <button
             type="button"
             onClick={() => setActiveTab('userRegistration')}
             className={`
-              w-full
               flex
+              w-full
               items-center
+              justify-center
               gap-3
-              px-4
-              py-3
               rounded-lg
+              px-3
+              py-3
               text-left
               transition
+              lg:justify-start
+              lg:px-4
               ${
                 activeTab === 'userRegistration'
                   ? 'bg-blue-600 text-white'
@@ -613,48 +720,51 @@ const AdminDashboard = () => {
           >
             <MdPersonAdd size={22} />
 
-            <span>User Registration</span>
+            <span className="hidden lg:inline">User Registration</span>
           </button>
-          <br></br>
           <button
             type="button"
             onClick={() => setActiveTab('clients')}
             className={`
-              w-full
               flex
+              w-full
               items-center
+              justify-center
               gap-3
-              px-4
-              py-3
               rounded-lg
+              px-3
+              py-3
               text-left
               transition
+              lg:justify-start
+              lg:px-4
               ${
-                activeTab === 'userRegistration'
+                activeTab === 'clients'
                   ? 'bg-blue-600 text-white'
                   : 'text-slate-300 hover:bg-slate-800'
               }
             `}
           >
-            <MdPersonAdd size={22} />
+            <span className="shrink-0 text-lg">👥</span>
 
-            <span>Add Clients</span>
+            <span className="hidden lg:inline">Clients</span>
           </button>
-
           <button
             type="button"
             onClick={() => setActiveTab('allTasks')}
             className={`
-    mt-2
     w-full
     flex
     items-center
+    justify-center
     gap-3
     rounded-lg
-    px-4
+    px-3
     py-3
     text-left
     transition
+    lg:justify-start
+    lg:px-4
     ${
       activeTab === 'allTasks'
         ? 'bg-blue-600 text-white'
@@ -663,13 +773,40 @@ const AdminDashboard = () => {
   `}
           >
             <span className="text-lg">📋</span>
-            <span>All Tasks</span>
+            <span className="hidden lg:inline">All Tasks</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('employeePerformance')}
+            className={`
+    mt-2
+    flex
+    w-full
+    items-center
+    gap-3
+    rounded-lg
+    px-4
+    py-3
+    text-left
+    transition
+
+    ${
+      activeTab === 'employeePerformance'
+        ? 'bg-blue-600 text-white'
+        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+    }
+  `}
+          >
+            <span className="text-lg">📊</span>
+
+            <span>Employee Performance</span>
           </button>
         </nav>
 
         {/* Logout */}
 
-        <div className="p-4 border-t border-slate-700">
+        <div className="border-t border-slate-700 p-2 lg:p-4">
           <button
             type="button"
             onClick={handleLogout}
@@ -689,7 +826,7 @@ const AdminDashboard = () => {
             "
           >
             <MdLogout size={20} />
-            Logout
+            <span className="hidden lg:inline">Logout</span>
           </button>
         </div>
       </aside>
@@ -700,11 +837,12 @@ const AdminDashboard = () => {
 
       <main
         className="
-        ml-64
-        flex-1
         min-h-screen
+        w-full
+        pl-20
         p-4
         sm:p-6
+        lg:pl-64
         lg:p-8
       "
       >
@@ -1204,21 +1342,19 @@ const AdminDashboard = () => {
             {/* ==========================================
         PAGE HEADER
     ========================================== */}
-
             <div className="mb-6">
               <h1 className="text-2xl font-bold text-slate-800 sm:text-3xl">
                 Clients
               </h1>
 
               <p className="mt-1 text-sm text-slate-500 sm:text-base">
-                Create clients and assign them to employees.
+                Create clients and assign them to one or multiple employees.
               </p>
             </div>
 
             {/* ==========================================
-        ADD CLIENT
+        ADD NEW CLIENT
     ========================================== */}
-
             <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="mb-5">
                 <h2 className="text-lg font-semibold text-slate-800">
@@ -1314,21 +1450,19 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                {/* Messages */}
-
+                {/* Error */}
                 {clientError && (
                   <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                     {clientError}
                   </div>
                 )}
 
+                {/* Success */}
                 {clientMessage && (
                   <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-600">
                     {clientMessage}
                   </div>
                 )}
-
-                {/* Button */}
 
                 <div className="mt-5 flex justify-end">
                   <button
@@ -1338,7 +1472,8 @@ const AdminDashboard = () => {
               rounded-lg
               bg-blue-600
               px-6 py-2.5
-              text-sm font-semibold
+              text-sm
+              font-semibold
               text-white
               shadow-sm
               transition
@@ -1356,7 +1491,6 @@ const AdminDashboard = () => {
             {/* ==========================================
         ASSIGN CLIENT
     ========================================== */}
-
             <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="mb-5">
                 <h2 className="text-lg font-semibold text-slate-800">
@@ -1364,12 +1498,12 @@ const AdminDashboard = () => {
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Assign an existing client to an employee.
+                  Assign one client to one or multiple employees.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                {/* Client */}
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                {/* ================= CLIENT SELECT ================= */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
                     Select Client
@@ -1377,7 +1511,28 @@ const AdminDashboard = () => {
 
                   <select
                     value={selectedClient}
-                    onChange={(e) => setSelectedClient(e.target.value)}
+                    onChange={(e) => {
+                      const clientId = e.target.value;
+
+                      setSelectedClient(clientId);
+
+                      const selectedClientData = clients.find(
+                        (client) => String(client._id) === String(clientId),
+                      );
+
+                      if (
+                        selectedClientData &&
+                        Array.isArray(selectedClientData.assignedTo)
+                      ) {
+                        setSelectedEmployees(
+                          selectedClientData.assignedTo.map((employee) =>
+                            String(employee._id || employee),
+                          ),
+                        );
+                      } else {
+                        setSelectedEmployees([]);
+                      }
+                    }}
                     className="
               w-full
               rounded-lg
@@ -1385,6 +1540,7 @@ const AdminDashboard = () => {
               bg-white
               px-4 py-2.5
               text-sm
+              text-slate-700
               outline-none
               focus:border-blue-500
               focus:ring-2
@@ -1402,100 +1558,119 @@ const AdminDashboard = () => {
                   </select>
                 </div>
 
-                {/* Employee */}
+                {/* ================= EMPLOYEES ================= */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Assign To Employee
+                    Assign To Employee(s)
                   </label>
+
                   <div
                     className="
-      max-h-52
-      overflow-y-auto
-      rounded-lg
-      border
-      border-slate-300
-      bg-white
-      p-2
-    "
+            max-h-60
+            overflow-y-auto
+            rounded-lg
+            border border-slate-300
+            bg-white
+            p-2
+          "
                   >
                     {employees.length === 0 ? (
                       <p className="px-3 py-3 text-sm text-slate-500">
                         No employees available.
                       </p>
                     ) : (
-                      employees.map((employee) => (
-                        <label
-                          key={employee._id}
-                          className="
-            flex
-            cursor-pointer
-            items-center
-            gap-3
-            rounded-lg
-            px-3
-            py-2.5
-            transition
-            hover:bg-slate-50
-          "
-                        >
-                          <input
-                            type="checkbox"
-                            value={employee._id}
-                            checked={selectedEmployees.includes(employee._id)}
-                            onChange={(e) => {
-                              const employeeId = e.target.value;
+                      employees.map((employee) => {
+                        const employeeId = String(employee._id);
 
-                              setSelectedEmployees((prev) =>
-                                prev.includes(employeeId)
-                                  ? prev.filter((id) => id !== employeeId)
-                                  : [...prev, employeeId],
-                              );
-                            }}
-                            className="
-              h-4
-              w-4
-              rounded
-              border-slate-300
-              text-blue-600
-              focus:ring-blue-500
-            "
-                          />
+                        const isChecked =
+                          selectedEmployees.includes(employeeId);
 
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-slate-700">
-                              {employee.name}
-                            </p>
+                        return (
+                          <label
+                            key={employee._id}
+                            className={`
+                      flex
+                      cursor-pointer
+                      items-center
+                      gap-3
+                      rounded-lg
+                      px-3
+                      py-3
+                      transition
+                      ${isChecked ? 'bg-blue-50' : 'hover:bg-slate-50'}
+                    `}
+                          >
+                            <input
+                              type="checkbox"
+                              value={employeeId}
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedEmployees((prev) => [
+                                    ...prev,
+                                    employeeId,
+                                  ]);
+                                } else {
+                                  setSelectedEmployees((prev) =>
+                                    prev.filter((id) => id !== employeeId),
+                                  );
+                                }
+                              }}
+                              className="
+                        h-4 w-4
+                        rounded
+                        border-slate-300
+                        text-blue-600
+                        focus:ring-blue-500
+                      "
+                            />
 
-                            <p className="truncate text-xs text-slate-400">
-                              {employee.email}
-                            </p>
-                          </div>
-                        </label>
-                      ))
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-700">
+                                {employee.name}
+                              </p>
+
+                              <p className="text-xs text-slate-400">
+                                {employee.email}
+                              </p>
+                            </div>
+
+                            {isChecked && (
+                              <span className="ml-auto text-xs font-semibold text-blue-600">
+                                Selected
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })
                     )}
                   </div>
 
-                  {selectedEmployees.length > 0 && (
-                    <p className="mt-2 text-xs text-blue-600">
-                      {selectedEmployees.length} employee
-                      {selectedEmployees.length !== 1 ? 's' : ''} selected
-                    </p>
-                  )}
+                  <p className="mt-2 text-xs text-slate-500">
+                    {selectedEmployees.length} employee
+                    {selectedEmployees.length !== 1 ? 's' : ''} selected
+                  </p>
                 </div>
               </div>
 
+              {/* Assign button */}
               <div className="mt-5 flex justify-end">
                 <button
                   type="button"
                   onClick={handleAssignClient}
+                  disabled={!selectedClient || selectedEmployees.length === 0}
                   className="
             rounded-lg
             bg-emerald-600
             px-6 py-2.5
-            text-sm font-semibold
+            text-sm
+            font-semibold
             text-white
+            shadow-sm
             transition
             hover:bg-emerald-700
+            disabled:cursor-not-allowed
+            disabled:opacity-50
           "
                 >
                   Assign Client
@@ -1506,37 +1681,56 @@ const AdminDashboard = () => {
             {/* ==========================================
         CLIENT TABLE
     ========================================== */}
+            <div
+              className="
+      overflow-hidden
+      rounded-2xl
+      border border-slate-200
+      bg-white
+      shadow-sm
+    "
+            >
+              {/* Table header */}
+              <div
+                className="
+        flex
+        flex-col
+        gap-2
+        border-b border-slate-200
+        px-5 py-5
+        sm:flex-row
+        sm:items-center
+        sm:justify-between
+        sm:px-6
+      "
+              >
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800">
+                    All Clients
+                  </h2>
 
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-800">
-                      All Clients
-                    </h2>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      All clients available in the CRM.
-                    </p>
-                  </div>
-
-                  <span
-                    className="
-            w-fit
-            rounded-full
-            bg-blue-50
-            px-3 py-1
-            text-xs
-            font-semibold
-            text-blue-600
-          "
-                  >
-                    {clients.length} client
-                    {clients.length !== 1 ? 's' : ''}
-                  </span>
+                  <p className="mt-1 text-sm text-slate-500">
+                    View clients and their employee assignments.
+                  </p>
                 </div>
+
+                <span
+                  className="
+          w-fit
+          rounded-full
+          bg-blue-50
+          px-3 py-1
+          text-xs
+          font-semibold
+          text-blue-600
+        "
+                >
+                  {clients.length} client
+                  {clients.length !== 1 ? 's' : ''}
+                </span>
               </div>
 
+              {/* Table */}
               <div className="overflow-x-auto">
                 <table className="w-full min-w-212.5 text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50">
@@ -1568,7 +1762,12 @@ const AdminDashboard = () => {
                       <tr>
                         <td
                           colSpan={5}
-                          className="px-6 py-12 text-center text-slate-500"
+                          className="
+                    px-6
+                    py-12
+                    text-center
+                    text-slate-500
+                  "
                         >
                           No clients available.
                         </td>
@@ -1579,35 +1778,46 @@ const AdminDashboard = () => {
                           key={client._id}
                           className="transition hover:bg-slate-50"
                         >
+                          {/* Client */}
                           <td className="px-6 py-4 font-medium text-slate-800">
-                            {client.name}
+                            {client.name || 'N/A'}
                           </td>
 
+                          {/* Email */}
                           <td className="px-6 py-4 text-slate-600">
-                            {client.email}
+                            {client.email || 'N/A'}
                           </td>
 
+                          {/* Company */}
                           <td className="px-6 py-4 text-slate-600">
-                            {client.company}
+                            {client.company || 'N/A'}
                           </td>
 
+                          {/* Assigned Employees */}
                           <td className="px-6 py-4">
-                            {client.assignedTo?.length > 0 ? (
-                              <div className="flex flex-wrap gap-1.5">
+                            {Array.isArray(client.assignedTo) &&
+                            client.assignedTo.length > 0 ? (
+                              <div
+                                className="
+                        flex
+                        max-w-md
+                        flex-wrap
+                        gap-1.5
+                      "
+                              >
                                 {client.assignedTo.map((employee) => (
                                   <span
                                     key={employee._id}
                                     className="
-            rounded-full
-            bg-blue-50
-            px-2.5
-            py-1
-            text-xs
-            font-medium
-            text-blue-700
-          "
+                                rounded-full
+                                bg-blue-50
+                                px-2.5 py-1
+                                text-xs
+                                font-medium
+                                text-blue-700
+                              "
                                   >
-                                    {employee.name}
+                                    {employee.name || 'Unknown'}
                                   </span>
                                 ))}
                               </div>
@@ -1616,30 +1826,32 @@ const AdminDashboard = () => {
                             )}
                           </td>
 
+                          {/* Status */}
                           <td className="px-6 py-4">
-                            {client.assignedTo?.length > 0 ? (
+                            {Array.isArray(client.assignedTo) &&
+                            client.assignedTo.length > 0 ? (
                               <span
                                 className="
-        rounded-full
-        bg-green-100
-        px-3 py-1
-        text-xs
-        font-semibold
-        text-green-700
-      "
+                        rounded-full
+                        bg-green-100
+                        px-3 py-1
+                        text-xs
+                        font-semibold
+                        text-green-700
+                      "
                               >
                                 Assigned
                               </span>
                             ) : (
                               <span
                                 className="
-        rounded-full
-        bg-orange-100
-        px-3 py-1
-        text-xs
-        font-semibold
-        text-orange-700
-      "
+                        rounded-full
+                        bg-orange-100
+                        px-3 py-1
+                        text-xs
+                        font-semibold
+                        text-orange-700
+                      "
                               >
                                 Available
                               </span>
@@ -1883,6 +2095,665 @@ const AdminDashboard = () => {
                                 ? 'Deleting...'
                                 : 'Delete'}
                             </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'employeePerformance' && (
+          <div className="mx-auto w-full max-w-7xl">
+            {/* ==========================================
+        HEADER
+    ========================================== */}
+
+            <div className="mb-6">
+              <div
+                className="
+        flex
+        flex-col
+        gap-3
+        sm:flex-row
+        sm:items-center
+        sm:justify-between
+      "
+              >
+                <div>
+                  <h1
+                    className="
+            text-2xl
+            font-bold
+            text-slate-800
+            sm:text-3xl
+          "
+                  >
+                    Employee Performance
+                  </h1>
+
+                  <p
+                    className="
+            mt-1
+            text-sm
+            text-slate-500
+            sm:text-base
+          "
+                  >
+                    Monitor completed tasks and total time spent by each
+                    employee.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchEmployeePerformance}
+                  disabled={loadingPerformance}
+                  className="
+            w-fit
+            rounded-lg
+            border
+            border-slate-300
+            bg-white
+            px-4
+            py-2.5
+            text-sm
+            font-medium
+            text-slate-600
+            shadow-sm
+            transition
+            hover:bg-slate-50
+            disabled:cursor-not-allowed
+            disabled:opacity-50
+          "
+                >
+                  {loadingPerformance ? 'Refreshing...' : 'Refresh'}
+                </button>
+              </div>
+            </div>
+
+            {/* ==========================================
+        SUMMARY CARDS
+    ========================================== */}
+
+            <div
+              className="
+      mb-6
+      grid
+      grid-cols-1
+      gap-4
+      sm:grid-cols-2
+      lg:grid-cols-3
+    "
+            >
+              {/* Employees */}
+              <div
+                className="
+        rounded-2xl
+        border
+        border-slate-200
+        bg-white
+        p-5
+        shadow-sm
+        sm:p-6
+      "
+              >
+                <div
+                  className="
+          flex
+          items-center
+          justify-between
+        "
+                >
+                  <div>
+                    <p
+                      className="
+              text-sm
+              font-medium
+              text-slate-500
+            "
+                    >
+                      Total Employees
+                    </p>
+
+                    <p
+                      className="
+              mt-2
+              text-3xl
+              font-bold
+              text-slate-800
+            "
+                    >
+                      {employeePerformance.length}
+                    </p>
+                  </div>
+
+                  <div
+                    className="
+            flex
+            h-12
+            w-12
+            items-center
+            justify-center
+            rounded-xl
+            bg-blue-50
+            text-xl
+          "
+                  >
+                    👥
+                  </div>
+                </div>
+              </div>
+
+              {/* Completed Tasks */}
+              <div
+                className="
+        rounded-2xl
+        border
+        border-slate-200
+        bg-white
+        p-5
+        shadow-sm
+        sm:p-6
+      "
+              >
+                <div
+                  className="
+          flex
+          items-center
+          justify-between
+        "
+                >
+                  <div>
+                    <p
+                      className="
+              text-sm
+              font-medium
+              text-slate-500
+            "
+                    >
+                      Completed Tasks
+                    </p>
+
+                    <p
+                      className="
+              mt-2
+              text-3xl
+              font-bold
+              text-slate-800
+            "
+                    >
+                      {employeePerformance.reduce(
+                        (total, employee) =>
+                          total + Number(employee.completedTasks || 0),
+                        0,
+                      )}
+                    </p>
+                  </div>
+
+                  <div
+                    className="
+            flex
+            h-12
+            w-12
+            items-center
+            justify-center
+            rounded-xl
+            bg-green-50
+            text-xl
+            text-green-600
+          "
+                  >
+                    ✓
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Time */}
+              <div
+                className="
+        rounded-2xl
+        border
+        border-slate-200
+        bg-white
+        p-5
+        shadow-sm
+        sm:p-6
+      "
+              >
+                <div
+                  className="
+          flex
+          items-center
+          justify-between
+        "
+                >
+                  <div>
+                    <p
+                      className="
+              text-sm
+              font-medium
+              text-slate-500
+            "
+                    >
+                      Total Time Spent
+                    </p>
+
+                    <p
+                      className="
+              mt-2
+              text-3xl
+              font-bold
+              text-slate-800
+            "
+                    >
+                      {(() => {
+                        const totalMinutes = employeePerformance.reduce(
+                          (total, employee) =>
+                            total + Number(employee.totalMinutesSpent || 0),
+                          0,
+                        );
+
+                        return `${Math.floor(
+                          totalMinutes / 60,
+                        )}h ${totalMinutes % 60}m`;
+                      })()}
+                    </p>
+                  </div>
+
+                  <div
+                    className="
+            flex
+            h-12
+            w-12
+            items-center
+            justify-center
+            rounded-xl
+            bg-purple-50
+            text-xl
+          "
+                  >
+                    ⏱
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ==========================================
+        PERFORMANCE TABLE
+    ========================================== */}
+
+            <div
+              className="
+      overflow-hidden
+      rounded-2xl
+      border
+      border-slate-200
+      bg-white
+      shadow-sm
+    "
+            >
+              {/* Table Header */}
+
+              <div
+                className="
+        flex
+        flex-col
+        gap-2
+        border-b
+        border-slate-200
+        px-5
+        py-5
+        sm:flex-row
+        sm:items-center
+        sm:justify-between
+        sm:px-6
+      "
+              >
+                <div>
+                  <h2
+                    className="
+            text-lg
+            font-semibold
+            text-slate-800
+          "
+                  >
+                    Employee Performance
+                  </h2>
+
+                  <p
+                    className="
+            mt-1
+            text-sm
+            text-slate-500
+          "
+                  >
+                    Summary of completed work and time spent.
+                  </p>
+                </div>
+
+                <span
+                  className="
+          w-fit
+          rounded-full
+          bg-blue-50
+          px-3
+          py-1
+          text-xs
+          font-semibold
+          text-blue-600
+        "
+                >
+                  {employeePerformance.length} employees
+                </span>
+              </div>
+
+              {/* Responsive Table */}
+
+              <div className="overflow-x-auto">
+                <table
+                  className="
+          w-full
+          min-w-237.5
+          text-sm
+        "
+                >
+                  <thead
+                    className="
+            border-b
+            border-slate-200
+            bg-slate-50
+          "
+                  >
+                    <tr>
+                      <th
+                        className="
+                px-6
+                py-4
+                text-left
+                font-semibold
+                text-slate-600
+              "
+                      >
+                        Employee
+                      </th>
+
+                      <th
+                        className="
+                px-6
+                py-4
+                text-left
+                font-semibold
+                text-slate-600
+              "
+                      >
+                        Email
+                      </th>
+
+                      <th
+                        className="
+                px-6
+                py-4
+                text-center
+                font-semibold
+                text-slate-600
+              "
+                      >
+                        Completed Tasks
+                      </th>
+
+                      <th
+                        className="
+                px-6
+                py-4
+                text-center
+                font-semibold
+                text-slate-600
+              "
+                      >
+                        Total Hours
+                      </th>
+
+                      <th
+                        className="
+                px-6
+                py-4
+                text-center
+                font-semibold
+                text-slate-600
+              "
+                      >
+                        Total Minutes
+                      </th>
+
+                      <th
+                        className="
+                px-6
+                py-4
+                text-center
+                font-semibold
+                text-slate-600
+              "
+                      >
+                        Total Time
+                      </th>
+
+                      <th
+                        className="
+                px-6
+                py-4
+                text-center
+                font-semibold
+                text-slate-600
+              "
+                      >
+                        Avg. Time / Task
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody
+                    className="
+            divide-y
+            divide-slate-100
+          "
+                  >
+                    {loadingPerformance ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="
+                    px-6
+                    py-14
+                    text-center
+                    text-slate-500
+                  "
+                        >
+                          Loading employee performance...
+                        </td>
+                      </tr>
+                    ) : employeePerformance.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="
+                    px-6
+                    py-14
+                    text-center
+                    text-slate-500
+                  "
+                        >
+                          No employee performance data available.
+                        </td>
+                      </tr>
+                    ) : (
+                      employeePerformance.map((employee) => (
+                        <tr
+                          key={employee.employeeId}
+                          className="
+                      transition
+                      hover:bg-slate-50
+                    "
+                        >
+                          {/* Employee */}
+
+                          <td
+                            className="
+                      px-6
+                      py-5
+                    "
+                          >
+                            <div
+                              className="
+                        flex
+                        items-center
+                        gap-3
+                      "
+                            >
+                              <div
+                                className="
+                          flex
+                          h-10
+                          w-10
+                          shrink-0
+                          items-center
+                          justify-center
+                          rounded-full
+                          bg-blue-50
+                          font-semibold
+                          text-blue-600
+                        "
+                              >
+                                {employee.name?.charAt(0)?.toUpperCase() || 'E'}
+                              </div>
+
+                              <div>
+                                <p
+                                  className="
+                            font-semibold
+                            text-slate-800
+                          "
+                                >
+                                  {employee.name}
+                                </p>
+
+                                <p
+                                  className="
+                            text-xs
+                            text-slate-400
+                          "
+                                >
+                                  Employee
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Email */}
+
+                          <td
+                            className="
+                      px-6
+                      py-5
+                      text-slate-600
+                    "
+                          >
+                            {employee.email}
+                          </td>
+
+                          {/* Completed Tasks */}
+
+                          <td
+                            className="
+                      px-6
+                      py-5
+                      text-center
+                    "
+                          >
+                            <span
+                              className="
+                        inline-flex
+                        min-w-12
+                        items-center
+                        justify-center
+                        rounded-full
+                        bg-green-50
+                        px-3
+                        py-1.5
+                        font-semibold
+                        text-green-700
+                      "
+                            >
+                              {employee.completedTasks}
+                            </span>
+                          </td>
+
+                          {/* Hours */}
+
+                          <td
+                            className="
+                      px-6
+                      py-5
+                      text-center
+                      font-semibold
+                      text-slate-700
+                    "
+                          >
+                            {employee.totalHours}h
+                          </td>
+
+                          {/* Minutes */}
+
+                          <td
+                            className="
+                      px-6
+                      py-5
+                      text-center
+                      font-semibold
+                      text-slate-700
+                    "
+                          >
+                            {employee.totalMinutes}m
+                          </td>
+
+                          {/* Total Time */}
+
+                          <td
+                            className="
+                      px-6
+                      py-5
+                      text-center
+                    "
+                          >
+                            <span
+                              className="
+                        inline-flex
+                        rounded-lg
+                        bg-blue-50
+                        px-3
+                        py-1.5
+                        font-semibold
+                        text-blue-700
+                      "
+                            >
+                              {employee.totalHours}h {employee.totalMinutes}m
+                            </span>
+                          </td>
+
+                          {/* Average */}
+
+                          <td
+                            className="
+                      px-6
+                      py-5
+                      text-center
+                      text-slate-600
+                    "
+                          >
+                            {employee.averageTime}
                           </td>
                         </tr>
                       ))

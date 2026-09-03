@@ -10,6 +10,7 @@ import {
   createClient,
   getAllAdminTasks,
   deleteAdminTask,
+  getEmployeePerformance,
 } from '../controllers/adminController.js';
 
 //import authMiddleware from '../middleware/authMiddleware.js';
@@ -37,5 +38,12 @@ router.get('/tasks', authMiddleware, adminMiddleware, getAllAdminTasks);
 
 router.delete('/tasks/:id', authMiddleware, adminMiddleware, deleteAdminTask);
 router.get('/employees', authMiddleware, adminMiddleware, getEmployees);
+
+router.get(
+  '/employee-performance',
+  authMiddleware,
+  adminMiddleware,
+  getEmployeePerformance,
+);
 
 export default router;

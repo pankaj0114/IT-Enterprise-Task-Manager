@@ -257,3 +257,118 @@ export const deleteAdminTask = async (req, res) => {
     });
   }
 };
+
+// ==========================================
+// GET EMPLOYEE PERFORMANCE
+// ==========================================
+
+export const getEmployeePerformance = async (req, res) => {
+  try {
+    // Get all employees
+    const employees = await User.find({
+      role: 'employee',
+    }).select('_id name email');
+
+    // Get completed-task totals grouped by employee
+    const performanceData = await Task.aggregate([
+      {
+        $match: {
+          status: 'Completed',
+          assignedTo: { $ne: null },
+        },
+      },
+
+      {
+        $group: {
+          _id: '$assignedTo',
+
+          completedTasks: {
+            $sum: 1,
+          },
+
+          totalMinutesSpent: {
+            $sum: {
+              $add: [
+                {
+                  $multiply: [
+                    {
+                      $ifNull: ['$totalHours', 0],
+                    },
+                    60,
+                  ],
+                },
+                {
+                  $ifNull: ['$totalMinutes', 0],
+                },
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    // Convert ObjectId -> performance object
+    const performanceMap = new Map();
+
+    performanceData.forEach((item) => {
+      performanceMap.set(String(item._id), {
+        completedTasks: item.completedTasks || 0,
+
+        totalMinutesSpent: item.totalMinutesSpent || 0,
+      });
+    });
+
+    // Include employees with ZERO completed tasks too
+    const result = employees.map((employee) => {
+      const data = performanceMap.get(String(employee._id)) || {
+        completedTasks: 0,
+        totalMinutesSpent: 0,
+      };
+
+      const totalMinutes = data.totalMinutesSpent;
+
+      const totalHours = Math.floor(totalMinutes / 60);
+
+      const remainingMinutes = totalMinutes % 60;
+
+      const averageMinutes =
+        data.completedTasks > 0
+          ? Math.round(totalMinutes / data.completedTasks)
+          : 0;
+
+      const averageHours = Math.floor(averageMinutes / 60);
+
+      const averageRemainingMinutes = averageMinutes % 60;
+
+      return {
+        employeeId: employee._id,
+        name: employee.name,
+        email: employee.email,
+
+        completedTasks: data.completedTasks,
+
+        totalHours,
+
+        totalMinutes: remainingMinutes,
+
+        totalMinutesSpent: totalMinutes,
+
+        averageTime:
+          data.completedTasks > 0
+            ? `${averageHours}h ${averageRemainingMinutes}m`
+            : '—',
+      };
+    });
+
+    // Highest completed tasks first
+    result.sort((a, b) => b.completedTasks - a.completedTasks);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Employee performance error:', error);
+
+    return res.status(500).json({
+      message: 'Failed to fetch employee performance.',
+    });
+  }
+};
