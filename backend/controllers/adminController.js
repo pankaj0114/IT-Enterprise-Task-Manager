@@ -2,12 +2,12 @@
 
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
+import Client from '../models/Client.js';
+import Task from '../models/Task.js';
 
 export const registerEmployee = async (req, res) => {
   try {
     const { name, email, password, confirmPassword, dateOfBirth } = req.body;
-
-    console.log('Registration data:', req.body);
 
     if (!name || !email || !password || !confirmPassword || !dateOfBirth) {
       return res.status(400).json({
@@ -21,7 +21,9 @@ export const registerEmployee = async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({
+      email: email.toLowerCase().trim(),
+    });
 
     if (existingUser) {
       return res.status(400).json({
@@ -29,11 +31,12 @@ export const registerEmployee = async (req, res) => {
       });
     }
 
+    // Hash password before saving
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const employee = new User({
-      name,
-      email,
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
       password: hashedPassword,
       role: 'employee',
       dateOfBirth,
@@ -41,20 +44,24 @@ export const registerEmployee = async (req, res) => {
 
     await employee.save();
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Employee registered successfully',
+
       employee: {
         _id: employee._id,
         name: employee.name,
         email: employee.email,
         dateOfBirth: employee.dateOfBirth,
+
+        // Only for immediate frontend display
+        passwordForDisplay: password,
       },
     });
   } catch (error) {
     console.error('Register employee error:', error);
 
-    res.status(500).json({
-      message: 'Server error',
+    return res.status(500).json({
+      message: 'Server error while registering employee',
     });
   }
 };
@@ -70,7 +77,183 @@ export const getEmployees = async (req, res) => {
     console.error('Error fetching employees:', error);
 
     res.status(500).json({
-      message: 'Server error',
+      message: 'Failed to fetch employees',
+    });
+  }
+};
+
+export const createClient = async (req, res) => {
+  try {
+    const { name, email, company } = req.body;
+
+    if (!name || !email || !company) {
+      return res.status(400).json({
+        message: 'Client name, email and company are required.',
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const existingClient = await Client.findOne({
+      email: normalizedEmail,
+    });
+
+    if (existingClient) {
+      return res.status(400).json({
+        message: 'A client with this email already exists.',
+      });
+    }
+
+    const client = new Client({
+      name: name.trim(),
+      email: normalizedEmail,
+      company: company.trim(),
+      assignedTo: null,
+    });
+
+    await client.save();
+
+    return res.status(201).json({
+      message: 'Client created successfully.',
+      client,
+    });
+  } catch (error) {
+    console.error('Create client error:', error);
+
+    return res.status(500).json({
+      message: 'Failed to create client.',
+    });
+  }
+};
+export const assignClientToEmployees = async (req, res) => {
+  try {
+    const { clientId, employeeIds } = req.body;
+
+    console.log('Assign client request:', {
+      clientId,
+      employeeIds,
+    });
+
+    if (!clientId) {
+      return res.status(400).json({
+        message: 'Client is required.',
+      });
+    }
+
+    if (!Array.isArray(employeeIds) || employeeIds.length === 0) {
+      return res.status(400).json({
+        message: 'At least one employee must be selected.',
+      });
+    }
+
+    // Verify that all selected IDs belong to employees
+    const employees = await User.find({
+      _id: { $in: employeeIds },
+      role: 'employee',
+    }).select('_id name email');
+
+    if (employees.length !== employeeIds.length) {
+      return res.status(400).json({
+        message: 'One or more selected employees are invalid.',
+      });
+    }
+
+    const client = await Client.findById(clientId);
+
+    if (!client) {
+      return res.status(404).json({
+        message: 'Client not found.',
+      });
+    }
+
+    // Replace current assignment with the selected employees
+    client.assignedTo = employeeIds;
+
+    await client.save();
+
+    const updatedClient = await Client.findById(client._id).populate(
+      'assignedTo',
+      'name email',
+    );
+
+    return res.status(200).json({
+      message: 'Client assigned successfully.',
+      client: updatedClient,
+    });
+  } catch (error) {
+    console.error('Assign client error:', error);
+
+    return res.status(500).json({
+      message: 'Failed to assign client.',
+      error: error.message,
+    });
+  }
+};
+
+export const getAdminClients = async (req, res) => {
+  try {
+    const clients = await Client.find()
+      .populate('assignedTo', 'name email')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json(clients);
+  } catch (error) {
+    console.error('Error fetching admin clients:', error);
+
+    return res.status(500).json({
+      message: 'Failed to fetch clients',
+      error: error.message,
+    });
+  }
+};
+
+export const getAllAdminTasks = async (req, res) => {
+  try {
+    const tasks = await Task.find()
+      .populate('assignedBy', 'name email')
+      .populate('assignedTo', 'name email')
+      .populate('client', 'name company')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json(tasks);
+  } catch (error) {
+    console.error('Get all admin tasks error:', error);
+
+    return res.status(500).json({
+      message: 'Failed to fetch all tasks',
+    });
+  }
+};
+
+export const deleteAdminTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        message: 'Task ID is required',
+      });
+    }
+
+    const task = await Task.findById(id);
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Task not found',
+      });
+    }
+
+    await Task.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      message: 'Task deleted successfully',
+      taskId: id,
+    });
+  } catch (error) {
+    console.error('Delete admin task error:', error);
+
+    return res.status(500).json({
+      message: 'Failed to delete task',
     });
   }
 };

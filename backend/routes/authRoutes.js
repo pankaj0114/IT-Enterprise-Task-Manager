@@ -9,6 +9,9 @@ import {
   loginUser,
   refreshToken,
   logoutUser,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
 } from '../controllers/authController.js';
 
 const router = express.Router();
@@ -18,6 +21,12 @@ router.post('/register', registerUser);
 router.post('/login', loginUser);
 
 router.post('/refresh', refreshToken);
+
+router.post('/forgot-password', forgotPassword);
+
+router.post('/verify-otp', verifyOtp);
+
+router.post('/reset-password', resetPassword);
 
 router.get('/me', authMiddleware, async (req, res) => {
   try {

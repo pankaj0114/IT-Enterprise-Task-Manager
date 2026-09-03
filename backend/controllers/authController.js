@@ -1,6 +1,8 @@
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs'; // use bcryptjs
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import transporter from '../config/mailer.js';
 
 // Register new user
 
@@ -111,4 +113,295 @@ export const refreshToken = async (req, res) => {
 export const logoutUser = async (req, res) => {
   // If you’re not storing refresh tokens in DB, you can just respond success
   res.json({ message: 'Logged out successfully' });
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    console.log('Forgot password request:', email);
+
+    if (!email) {
+      return res.status(400).json({
+        message: 'Email is required',
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Find employee
+    const user = await User.findOne({
+      email: normalizedEmail,
+      role: 'employee',
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: 'This password reset option is available for employees only.',
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otp = crypto.randomInt(100000, 1000000).toString();
+
+    console.log('Generated OTP:', otp);
+
+    // Hash OTP before storing
+    const hashedOtp = await bcrypt.hash(otp, 10);
+
+    // OTP expires in 5 minutes
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    user.resetPasswordOtp = hashedOtp;
+    user.resetPasswordOtpExpires = expiresAt;
+    user.resetPasswordVerified = false;
+
+    await user.save();
+
+    console.log('OTP saved successfully');
+
+    // Send OTP email
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'Employee Password Reset OTP',
+
+      html: `
+        <div style="
+          font-family: Arial, sans-serif;
+          max-width: 600px;
+          margin: auto;
+          padding: 30px;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          background: #ffffff;
+        ">
+
+          <h2 style="color: #1e293b;">
+            Password Reset Request
+          </h2>
+
+          <p>Hello ${user.name},</p>
+
+          <p>
+            We received a request to reset your password.
+          </p>
+
+          <p>Your verification OTP is:</p>
+
+          <div style="
+            text-align: center;
+            margin: 25px 0;
+          ">
+            <span style="
+              font-size: 32px;
+              font-weight: bold;
+              letter-spacing: 8px;
+              color: #2563eb;
+            ">
+              ${otp}
+            </span>
+          </div>
+
+          <p>
+            This OTP will expire in
+            <strong>5 minutes</strong>.
+          </p>
+
+          <p>
+            If you did not request this password reset,
+            please ignore this email.
+          </p>
+
+          <hr />
+
+          <p style="font-size: 12px; color: #64748b;">
+            This is an automated email. Please do not reply.
+          </p>
+
+        </div>
+      `,
+    });
+
+    console.log('OTP email sent successfully');
+
+    return res.status(200).json({
+      message: 'OTP sent successfully to your email.',
+    });
+  } catch (error) {
+    console.error('=================================');
+    console.error('FORGOT PASSWORD ERROR');
+    console.error(error);
+    console.error('=================================');
+
+    return res.status(500).json({
+      message: 'Unable to send OTP.',
+      error: error.message,
+    });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    console.log('VERIFY OTP REQUEST:', {
+      email,
+      otp,
+    });
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        message: 'Email and OTP are required.',
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // IMPORTANT:
+    // Explicitly select fields that are select:false
+    const user = await User.findOne({
+      email: normalizedEmail,
+      role: 'employee',
+    }).select(
+      '+resetPasswordOtp +resetPasswordOtpExpires +resetPasswordVerified',
+    );
+
+    console.log('USER FOUND:', !!user);
+
+    if (!user) {
+      return res.status(400).json({
+        message: 'Invalid OTP.',
+      });
+    }
+
+    console.log('OTP HASH EXISTS:', !!user.resetPasswordOtp);
+    console.log('OTP EXPIRES:', user.resetPasswordOtpExpires);
+    console.log('OTP VERIFIED:', user.resetPasswordVerified);
+
+    if (!user.resetPasswordOtp) {
+      return res.status(400).json({
+        message: 'OTP not found. Please request a new OTP.',
+      });
+    }
+
+    // Check 5-minute expiration
+    if (
+      !user.resetPasswordOtpExpires ||
+      user.resetPasswordOtpExpires.getTime() < Date.now()
+    ) {
+      user.resetPasswordOtp = null;
+      user.resetPasswordOtpExpires = null;
+      user.resetPasswordVerified = false;
+
+      await user.save();
+
+      return res.status(400).json({
+        message: 'OTP has expired. Please request a new OTP.',
+      });
+    }
+
+    // Compare entered OTP with hashed OTP
+    const isValidOtp = await bcrypt.compare(String(otp), user.resetPasswordOtp);
+
+    console.log('OTP VALID:', isValidOtp);
+
+    if (!isValidOtp) {
+      return res.status(400).json({
+        message: 'Invalid OTP.',
+      });
+    }
+
+    // OTP verified successfully
+    user.resetPasswordVerified = true;
+
+    await user.save();
+
+    return res.status(200).json({
+      message: 'OTP verified successfully.',
+    });
+  } catch (error) {
+    console.error('VERIFY OTP ERROR:', error);
+
+    return res.status(500).json({
+      message: 'Server error while verifying OTP.',
+    });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword, confirmPassword } = req.body;
+
+    console.log('RESET PASSWORD REQUEST:', {
+      email,
+    });
+
+    if (!email || !newPassword || !confirmPassword) {
+      return res.status(400).json({
+        message: 'All fields are required.',
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        message: 'Passwords do not match.',
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters.',
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+      role: 'employee',
+    }).select(
+      '+resetPasswordVerified +resetPasswordOtp +resetPasswordOtpExpires',
+    );
+
+    if (!user) {
+      return res.status(400).json({
+        message: 'Invalid request.',
+      });
+    }
+
+    console.log('resetPasswordVerified:', user.resetPasswordVerified);
+
+    if (!user.resetPasswordVerified) {
+      return res.status(403).json({
+        message: 'Please verify OTP first.',
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    user.password = hashedPassword;
+
+    // Clear reset information
+    user.resetPasswordOtp = null;
+    user.resetPasswordOtpExpires = null;
+    user.resetPasswordVerified = false;
+
+    // Optional: track password change
+    user.passwordChangedAt = new Date();
+
+    await user.save();
+
+    console.log('Password reset successfully');
+
+    return res.status(200).json({
+      message: 'Password reset successfully.',
+    });
+  } catch (error) {
+    console.error('RESET PASSWORD ERROR:', error);
+
+    return res.status(500).json({
+      message: 'Server error while resetting password.',
+    });
+  }
 };

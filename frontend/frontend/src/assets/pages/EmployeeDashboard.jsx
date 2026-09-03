@@ -49,6 +49,8 @@ export default function EmployeeDashboard() {
   const [myTasks, setMyTasks] = useState([]);
   const [assignedTasks, setAssignedTasks] = useState([]);
   const remarkTimeouts = useRef({});
+  const [myClients, setMyClients] = useState([]);
+  const [loadingMyClients, setLoadingMyClients] = useState(false);
 
   const [newTask, setNewTask] = useState({
     title: '',
@@ -554,6 +556,47 @@ export default function EmployeeDashboard() {
       [taskId]: timeout,
     }));
   };
+
+  const fetchMyClients = async () => {
+    try {
+      setLoadingMyClients(true);
+
+      const accessToken = localStorage.getItem('accessToken');
+
+      if (!accessToken) {
+        console.error('Access token not found');
+        return;
+      }
+
+      const response = await axios.get(
+        'http://localhost:5000/api/clients/my-clients',
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      console.log('MY ASSIGNED CLIENTS:', response.data);
+
+      setMyClients(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error(
+        'Error fetching assigned clients:',
+        error.response?.data || error.message,
+      );
+
+      setMyClients([]);
+    } finally {
+      setLoadingMyClients(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'clients') {
+      fetchMyClients();
+    }
+  }, [activeTab]);
 
   const fetchCompletedTasks = async () => {
     try {
@@ -1358,32 +1401,34 @@ export default function EmployeeDashboard() {
                     name="client"
                     value={newTask.client}
                     onChange={(e) =>
-                      setNewTask({
-                        ...newTask,
+                      setNewTask((prev) => ({
+                        ...prev,
                         client: e.target.value,
-                      })
+                      }))
                     }
                     className="
-                  w-full
-                  h-10
-                  px-3
-                  border
-                  border-slate-300
-                  rounded-md
-                  bg-white
-                  text-sm
-                  text-slate-700
-                  outline-none
-                  focus:ring-2
-                  focus:ring-blue-400
-                  focus:border-blue-400
-                "
+    w-full
+    rounded-lg
+    border
+    border-slate-300
+    bg-white
+    px-4
+    py-2.5
+    text-sm
+    text-slate-700
+    outline-none
+    transition
+    focus:border-blue-500
+    focus:ring-2
+    focus:ring-blue-100
+  "
                   >
-                    <option value="">Select a client</option>
+                    <option value="">Select an assigned client</option>
 
-                    {clients.map((c) => (
-                      <option key={c._id} value={c._id}>
-                        {c.name}
+                    {myClients.map((client) => (
+                      <option key={client._id} value={client._id}>
+                        {client.name}
+                        {client.company ? ` - ${client.company}` : ''}
                       </option>
                     ))}
                   </select>
@@ -2659,45 +2704,117 @@ export default function EmployeeDashboard() {
     ======================================================= */}
         {activeTab === 'clients' && (
           <div className="w-full">
-            <h3 className="text-xl font-semibold text-slate-800 mb-5">
-              Clients
-            </h3>
+            {/* Header */}
+            <div className="mb-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">
+                    My Clients
+                  </h2>
 
+                  <p className="mt-1 text-sm text-slate-500">
+                    Clients assigned to you by the administrator.
+                  </p>
+                </div>
+
+                <span
+                  className="
+            w-fit
+            rounded-full
+            bg-blue-50
+            px-3 py-1
+            text-xs
+            font-semibold
+            text-blue-600
+          "
+                >
+                  {myClients.length} client
+                  {myClients.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+
+            {/* Client Table */}
             <div
               className="
-            bg-white
-            rounded-xl
-            border
-            border-slate-200
-            shadow-sm
-            overflow-x-auto
-          "
+        overflow-hidden
+        rounded-2xl
+        border
+        border-slate-200
+        bg-white
+        shadow-sm
+      "
             >
-              <table className="w-full min-w-150 text-sm">
-                <thead>
-                  <tr className="bg-slate-100 border-b">
-                    <th className="px-4 py-3 text-left font-semibold">Name</th>
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-162.5 text-sm">
+                  <thead className="border-b border-slate-200 bg-slate-50">
+                    <tr>
+                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                        Client
+                      </th>
 
-                    <th className="px-4 py-3 text-left font-semibold">Email</th>
+                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                        Email
+                      </th>
 
-                    <th className="px-4 py-3 text-left font-semibold">
-                      Company
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {clients.map((client) => (
-                    <tr key={client._id} className="border-b hover:bg-slate-50">
-                      <td className="px-4 py-3">{client.name}</td>
-
-                      <td className="px-4 py-3">{client.email}</td>
-
-                      <td className="px-4 py-3">{client.company}</td>
+                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                        Company
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {loadingMyClients ? (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="
+                    px-6
+                    py-12
+                    text-center
+                    text-slate-500
+                  "
+                        >
+                          Loading your clients...
+                        </td>
+                      </tr>
+                    ) : myClients.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="
+                    px-6
+                    py-12
+                    text-center
+                    text-slate-500
+                  "
+                        >
+                          No clients have been assigned to you.
+                        </td>
+                      </tr>
+                    ) : (
+                      myClients.map((client) => (
+                        <tr
+                          key={client._id}
+                          className="transition hover:bg-slate-50"
+                        >
+                          <td className="px-6 py-4 font-medium text-slate-800">
+                            {client.name}
+                          </td>
+
+                          <td className="px-6 py-4 text-slate-600">
+                            {client.email || 'N/A'}
+                          </td>
+
+                          <td className="px-6 py-4 text-slate-600">
+                            {client.company || 'N/A'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

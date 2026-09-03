@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../css/AssignTaskPage.css';
+//import { useEffect, use } from 'react';
 
 const AssignTaskPage = ({
   user,
@@ -26,6 +27,33 @@ const AssignTaskPage = ({
     const { name, value } = e.target;
     setTask((prev) => ({ ...prev, [name]: value }));
   };
+
+  const fetchClients = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.get('http://localhost:5000/api/clients', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      console.log('ALL CLIENTS FOR TASK ASSIGNMENT:', response.data);
+
+      setClients(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error(
+        'Error fetching clients:',
+        error.response?.data || error.message,
+      );
+
+      setClients([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
 
   const handleSubmit = async () => {
     try {

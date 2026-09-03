@@ -1,14 +1,41 @@
+// models/Client.js
+
 import mongoose from 'mongoose';
 
 const clientSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    email: { type: String },
-    company: { type: String },
-    phone: { type: String },
-    notes: { type: String },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+    },
+
+    company: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    assignedTo: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
-export default mongoose.model('Client', clientSchema);
+clientSchema.index({ assignedTo: 1 });
+
+const Client = mongoose.model('Client', clientSchema);
+
+export default Client;
