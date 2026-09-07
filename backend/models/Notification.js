@@ -7,15 +7,25 @@ const NotificationSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+
     sender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
     },
-    task: { type: mongoose.Schema.Types.ObjectId, ref: 'Task', required: true },
-    message: { type: String, required: true, trim: true },
-    read: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now },
+
+    task: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Task',
+      default: null,
+    },
+
+    message: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     type: {
       type: String,
       default: 'system',
@@ -31,4 +41,12 @@ const NotificationSchema = new mongoose.Schema(
   },
 );
 
-export default mongoose.model('Notification', NotificationSchema);
+NotificationSchema.index({
+  recipient: 1,
+  isRead: 1,
+  createdAt: -1,
+});
+
+const Notification = mongoose.model('Notification', NotificationSchema);
+
+export default Notification;

@@ -476,6 +476,47 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDeleteNotification = async (notificationId) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      console.log('Token exists:', !!token);
+
+      if (!token) {
+        console.error('Admin authentication token not found');
+        return;
+      }
+
+      const deletedNotification = notifications.find(
+        (notification) => notification._id === notificationId,
+      );
+
+      await axios.delete(
+        `http://localhost:5000/api/notifications/${notificationId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setNotifications((prev) =>
+        prev.filter((notification) => notification._id !== notificationId),
+      );
+
+      if (deletedNotification && !deletedNotification.isRead) {
+        setUnreadNotificationCount((prev) => Math.max(0, prev - 1));
+      }
+
+      console.log('Notification deleted successfully');
+    } catch (error) {
+      console.error(
+        'DELETE NOTIFICATION ERROR:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
   const fetchAdminTasks = async () => {
     try {
       setLoadingTasks(true);
@@ -3055,119 +3096,127 @@ const AdminDashboard = () => {
                   <div
                     key={notification._id}
                     className={`
-                rounded-2xl
-                border
-                bg-white
-                p-4
-                shadow-sm
-                transition
-                sm:p-5
-
-                ${
-                  notification.isRead
-                    ? 'border-slate-200'
-                    : 'border-blue-200 bg-blue-50/30'
-                }
-              `}
+      rounded-2xl
+      border
+      bg-white
+      p-4
+      shadow-sm
+      transition
+      sm:p-5
+      ${
+        notification.isRead
+          ? 'border-slate-200'
+          : 'border-blue-200 bg-blue-50/30'
+      }
+    `}
                   >
-                    <div
-                      className="
-                flex
-                items-start
-                gap-4
-              "
-                    >
+                    <div className="flex items-start gap-4">
                       {/* Icon */}
-
                       <div
                         className="
-                  flex
-                  h-11
-                  w-11
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-full
-                  bg-blue-100
-                  text-lg
-                "
+          flex
+          h-11
+          w-11
+          shrink-0
+          items-center
+          justify-center
+          rounded-full
+          bg-blue-100
+          text-lg
+        "
                       >
                         {notification.type === 'password_changed' ? '🔐' : '🔔'}
                       </div>
 
                       {/* Content */}
-
-                      <div
-                        className="
-                  min-w-0
-                  flex-1
-                "
-                      >
+                      <div className="min-w-0 flex-1">
+                        {/* Header */}
                         <div
                           className="
-                    flex
-                    flex-col
-                    gap-1
-                    sm:flex-row
-                    sm:items-center
-                    sm:justify-between
-                  "
+            flex
+            flex-col
+            gap-2
+            sm:flex-row
+            sm:items-center
+            sm:justify-between
+          "
                         >
-                          <h4
-                            className="
-                      font-semibold
-                      text-slate-800
-                    "
-                          >
-                            {notification.type === 'password_changed'
-                              ? 'Password Changed'
-                              : 'Notification'}
-                          </h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-slate-800">
+                              {notification.type === 'password_changed'
+                                ? 'Password Changed'
+                                : 'Notification'}
+                            </h4>
 
-                          {!notification.isRead && (
-                            <span
-                              className="
-                        w-fit
-                        rounded-full
-                        bg-blue-100
-                        px-2.5
-                        py-1
-                        text-[10px]
-                        font-bold
-                        uppercase
-                        tracking-wide
-                        text-blue-700
-                      "
-                            >
-                              New
-                            </span>
-                          )}
+                            {!notification.isRead && (
+                              <span
+                                className="
+                  rounded-full
+                  bg-blue-100
+                  px-2.5
+                  py-1
+                  text-[10px]
+                  font-bold
+                  uppercase
+                  tracking-wide
+                  text-blue-700
+                "
+                              >
+                                New
+                              </span>
+                            )}
+                          </div>
+
+                          {/* DELETE BUTTON */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDeleteNotification(notification._id)
+                            }
+                            className="
+              self-start
+              rounded-lg
+              px-3
+              py-1.5
+              text-xs
+              font-semibold
+              text-red-600
+              transition
+              hover:bg-red-50
+              hover:text-red-700
+              sm:self-auto
+            "
+                          >
+                            Delete
+                          </button>
                         </div>
 
+                        {/* Message */}
                         <p
                           className="
-                    mt-1
-                    wrap-break-word
-                    text-sm
-                    leading-6
-                    text-slate-600
-                  "
+            mt-1
+            wrap-break-word
+            text-sm
+            leading-6
+            text-slate-600
+          "
                         >
                           {notification.message}
                         </p>
 
+                        {/* Metadata */}
                         <div
                           className="
-                    mt-2
-                    flex
-                    flex-col
-                    gap-1
-                    text-xs
-                    text-slate-400
-                    sm:flex-row
-                    sm:items-center
-                    sm:gap-3
-                  "
+            mt-2
+            flex
+            flex-col
+            gap-1
+            text-xs
+            text-slate-400
+            sm:flex-row
+            sm:items-center
+            sm:gap-3
+          "
                         >
                           {notification.sender?.name && (
                             <span>Employee: {notification.sender.name}</span>

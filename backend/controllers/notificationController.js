@@ -14,11 +14,11 @@ export const getMyNotifications = async (req, res) => {
         createdAt: -1,
       });
 
-    return res.status(200).json(notifications);
+    res.status(200).json(notifications);
   } catch (error) {
-    console.error('GET NOTIFICATIONS ERROR:', error);
+    console.error('Get notifications error:', error);
 
-    return res.status(500).json({
+    res.status(500).json({
       message: 'Failed to fetch notifications.',
     });
   }

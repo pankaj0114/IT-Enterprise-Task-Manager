@@ -76,7 +76,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/admin', adminRoutes);
-// app.use('/api/notifications', notificationRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Database connection
 connectDB();
