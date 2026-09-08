@@ -373,45 +373,53 @@ export const getEmployeePerformance = async (req, res) => {
   }
 };
 
-export const updateTaskStatus = async (req, res) => {
+export const resetEmployeePassword = async (req, res) => {
   try {
-    const { taskId } = req.params;
-    const { status } = req.body;
+    const { employeeId } = req.params;
+    const { newPassword } = req.body;
 
-    const allowedStatuses = ['Not Started', 'In Progress', 'Completed'];
-
-    if (!allowedStatuses.includes(status)) {
+    if (!newPassword) {
       return res.status(400).json({
-        message: 'Invalid task status',
+        message: 'New password is required',
       });
     }
 
-    const task = await Task.findById(taskId);
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        message: 'Password must be at least 6 characters long',
+      });
+    }
 
-    if (!task) {
+    const employee = await User.findById(employeeId);
+
+    if (!employee) {
       return res.status(404).json({
-        message: 'Task not found',
+        message: 'Employee not found',
       });
     }
 
-    task.status = status;
+    // Make sure admin can only reset employee passwords
+    if (employee.role !== 'employee') {
+      return res.status(403).json({
+        message: 'You can only reset employee passwords',
+      });
+    }
 
-    await task.save();
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    const updatedTask = await Task.findById(taskId)
-      .populate('assignedBy', 'name email role')
-      .populate('assignedTo', 'name email role')
-      .populate('client', 'name email company');
+    employee.password = hashedPassword;
+
+    await employee.save();
 
     return res.status(200).json({
-      message: 'Task status updated successfully',
-      task: updatedTask,
+      message: 'Employee password reset successfully',
     });
   } catch (error) {
-    console.error('UPDATE TASK STATUS ERROR:', error);
+    console.error('RESET EMPLOYEE PASSWORD ERROR:', error);
 
     return res.status(500).json({
-      message: 'Failed to update task status',
+      message: 'Failed to reset employee password',
       error: error.message,
     });
   }

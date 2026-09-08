@@ -309,7 +309,7 @@ const MyTasks = ({ admin }) => {
       setDueDate('');
       setClient('');
 
-      setSuccess('Task added successfully');
+      //setSuccess('Task added successfully');
     } catch (error) {
       console.error('CREATE TASK ERROR:', error);
       console.error('STATUS:', error.response?.status);

@@ -57,6 +57,17 @@ const AdminDashboard = () => {
 
   const [loadingNotifications, setLoadingNotifications] = useState(false);
 
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState('');
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState('');
+
   //const [selectedEmployee, setSelectedEmployee] = useState('');
   const storedUser = localStorage.getItem('user');
 
@@ -293,7 +304,7 @@ const AdminDashboard = () => {
 
       setEmployees((prevEmployees) => [newEmployee, ...prevEmployees]);
 
-      setSuccessMessage('Employee registered successfully.');
+      //setSuccessMessage('Employee registered successfully.');
 
       // Clear form
       setName('');
@@ -310,6 +321,99 @@ const AdminDashboard = () => {
       setErrorMessage(
         error.response?.data?.message || 'Unable to register employee.',
       );
+    }
+  };
+
+  const handleOpenResetPassword = (employee) => {
+    setSelectedEmployee(employee);
+
+    setNewPassword('');
+    setConfirmNewPassword('');
+
+    setResetPasswordError('');
+    setResetPasswordSuccess('');
+
+    setShowResetPassword(true);
+  };
+
+  const handleCloseResetPassword = () => {
+    setShowResetPassword(false);
+
+    setSelectedEmployee(null);
+
+    setNewPassword('');
+    setConfirmNewPassword('');
+
+    setResetPasswordError('');
+    setResetPasswordSuccess('');
+  };
+
+  const handleResetPassword = async () => {
+    if (!selectedEmployee) {
+      return;
+    }
+
+    if (!newPassword) {
+      setResetPasswordError('Please enter a new password.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setResetPasswordError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setResetPasswordError('Passwords do not match.');
+      return;
+    }
+
+    try {
+      setResetPasswordLoading(true);
+      setResetPasswordError('');
+      setResetPasswordSuccess('');
+
+      const token = localStorage.getItem('accessToken');
+
+      if (!token) {
+        setResetPasswordError(
+          'Authentication token not found. Please login again.',
+        );
+        return;
+      }
+
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/employees/${selectedEmployee._id}/reset-password`,
+        {
+          newPassword,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('RESET PASSWORD RESPONSE:', response.data);
+
+      setResetPasswordSuccess('Password reset successfully.');
+
+      setNewPassword('');
+      setConfirmNewPassword('');
+
+      setTimeout(() => {
+        handleCloseResetPassword();
+      }, 1200);
+    } catch (error) {
+      console.error('RESET PASSWORD ERROR:', error);
+      console.error('STATUS:', error.response?.status);
+      console.error('DATA:', error.response?.data);
+
+      setResetPasswordError(
+        error.response?.data?.message || 'Failed to reset password.',
+      );
+    } finally {
+      setResetPasswordLoading(false);
     }
   };
 
@@ -1569,7 +1673,7 @@ const AdminDashboard = () => {
                       </th>
 
                       <th className="px-6 py-4 text-left font-semibold text-slate-600">
-                        Password
+                        Reset Password
                       </th>
                     </tr>
                   </thead>
@@ -1610,68 +1714,218 @@ const AdminDashboard = () => {
                           </td>
 
                           {/* Password */}
+                          {/* Reset Password */}
                           <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="
-                min-w-27.5
-                rounded-lg
-                bg-slate-100
-                px-3
-                py-2
-                font-mono
-                text-sm
-                text-slate-600
-              "
-                              >
-                                {showPassword[employee._id]
-                                  ? employee.passwordForDisplay ||
-                                    'Not available'
-                                  : '••••••••'}
-                              </span>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setShowPassword((prev) => ({
-                                    ...prev,
-                                    [employee._id]: !prev[employee._id],
-                                  }))
-                                }
-                                title={
-                                  showPassword[employee._id]
-                                    ? 'Hide password'
-                                    : 'Show password'
-                                }
-                                className="
-                flex
-                h-9
-                w-9
-                items-center
-                justify-center
-                rounded-lg
-                text-slate-400
-                transition
-                hover:bg-slate-100
-                hover:text-slate-700
-                focus:outline-none
-                focus:ring-2
-                focus:ring-blue-200
-              "
-                              >
-                                {showPassword[employee._id] ? (
-                                  <EyeOff size={18} />
-                                ) : (
-                                  <Eye size={18} />
-                                )}
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenResetPassword(employee)}
+                              className="
+      rounded-lg
+      bg-blue-600
+      px-4
+      py-2
+      text-sm
+      font-medium
+      text-white
+      transition
+      hover:bg-blue-700
+      focus:outline-none
+      focus:ring-2
+      focus:ring-blue-200
+    "
+                            >
+                              Reset Password
+                            </button>
                           </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
+                {showResetPassword && selectedEmployee && (
+                  <div
+                    className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-black/50
+      p-4
+    "
+                  >
+                    <div
+                      className="
+        w-full
+        max-w-md
+        rounded-xl
+        bg-white
+        p-6
+        shadow-2xl
+      "
+                    >
+                      {/* Header */}
+                      <div className="mb-5">
+                        <h3 className="text-xl font-semibold text-slate-800">
+                          Reset Password
+                        </h3>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                          Set a new password for{' '}
+                          <span className="font-medium text-slate-700">
+                            {selectedEmployee.name}
+                          </span>
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-400">
+                          {selectedEmployee.email}
+                        </p>
+                      </div>
+
+                      {/* New Password */}
+                      <div className="mb-4">
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          New Password
+                        </label>
+
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Enter new password"
+                          className="
+            h-12
+            w-full
+            rounded-lg
+            border
+            border-slate-300
+            px-4
+            text-sm
+            text-slate-800
+            outline-none
+            focus:border-blue-500
+            focus:ring-2
+            focus:ring-blue-100
+          "
+                        />
+                      </div>
+
+                      {/* Confirm Password */}
+                      <div className="mb-4">
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Confirm New Password
+                        </label>
+
+                        <input
+                          type="password"
+                          value={confirmNewPassword}
+                          onChange={(e) =>
+                            setConfirmNewPassword(e.target.value)
+                          }
+                          placeholder="Confirm new password"
+                          className="
+            h-12
+            w-full
+            rounded-lg
+            border
+            border-slate-300
+            px-4
+            text-sm
+            text-slate-800
+            outline-none
+            focus:border-blue-500
+            focus:ring-2
+            focus:ring-blue-100
+          "
+                        />
+                      </div>
+
+                      {/* Error */}
+                      {resetPasswordError && (
+                        <div
+                          className="
+            mb-4
+            rounded-lg
+            border
+            border-red-200
+            bg-red-50
+            px-4
+            py-3
+            text-sm
+            text-red-600
+          "
+                        >
+                          {resetPasswordError}
+                        </div>
+                      )}
+
+                      {/* Success */}
+                      {resetPasswordSuccess && (
+                        <div
+                          className="
+            mb-4
+            rounded-lg
+            border
+            border-green-200
+            bg-green-50
+            px-4
+            py-3
+            text-sm
+            text-green-600
+          "
+                        >
+                          {resetPasswordSuccess}
+                        </div>
+                      )}
+
+                      {/* Buttons */}
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={handleCloseResetPassword}
+                          disabled={resetPasswordLoading}
+                          className="
+            rounded-lg
+            bg-slate-100
+            px-5
+            py-2.5
+            text-sm
+            font-medium
+            text-slate-700
+            hover:bg-slate-200
+            disabled:cursor-not-allowed
+            disabled:opacity-50
+          "
+                        >
+                          Cancel
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleResetPassword}
+                          disabled={resetPasswordLoading}
+                          className="
+            rounded-lg
+            bg-blue-600
+            px-5
+            py-2.5
+            text-sm
+            font-medium
+            text-white
+            hover:bg-blue-700
+            disabled:cursor-not-allowed
+            disabled:opacity-50
+          "
+                        >
+                          {resetPasswordLoading
+                            ? 'Resetting...'
+                            : 'Reset Password'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>{' '}
           </div>

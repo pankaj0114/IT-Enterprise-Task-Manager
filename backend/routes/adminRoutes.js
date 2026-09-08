@@ -11,6 +11,7 @@ import {
   getAllAdminTasks,
   deleteAdminTask,
   getEmployeePerformance,
+  resetEmployeePassword,
 } from '../controllers/adminController.js';
 
 import {
@@ -87,6 +88,13 @@ router.put(
   authMiddleware,
   adminMiddleware,
   updateTaskStatus,
+);
+
+router.put(
+  '/employees/:employeeId/reset-password',
+  authMiddleware,
+  adminMiddleware,
+  resetEmployeePassword,
 );
 
 export default router;
