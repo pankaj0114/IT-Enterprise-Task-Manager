@@ -568,10 +568,6 @@ const AdminDashboard = () => {
 
       setSelectedClient('');
       setSelectedEmployees([]);
-
-      setClientMessage(
-        response.data?.message || 'Client assigned successfully.',
-      );
     } catch (error) {
       console.error(
         'ASSIGN CLIENT ERROR:',

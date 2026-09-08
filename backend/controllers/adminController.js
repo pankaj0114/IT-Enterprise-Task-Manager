@@ -177,7 +177,7 @@ export const assignClientToEmployees = async (req, res) => {
     );
 
     return res.status(200).json({
-      message: 'Client assigned successfully.',
+      // message: 'Client assigned successfully.',
       client: updatedClient,
     });
   } catch (error) {
