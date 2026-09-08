@@ -30,6 +30,9 @@ export default function Login() {
         formData,
       );
 
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+
       // Save tokens
       localStorage.setItem('accessToken', res.data.accessToken);
       localStorage.setItem('refreshToken', res.data.refreshToken);

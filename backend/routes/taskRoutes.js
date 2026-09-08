@@ -27,21 +27,30 @@ router.get('/', async (req, res) => {
 router.get('/my-tasks', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { assignedBy } = req.query;
 
-    const tasks = await Task.find({
-      $or: [{ assignedTo: userId }, { assignedBy: userId }],
-    })
-      .populate('assignedTo', 'name email')
+    const filter = {
+      assignedTo: userId,
+    };
+
+    if (assignedBy) {
+      filter.assignedBy = assignedBy;
+    }
+
+    const tasks = await Task.find(filter)
       .populate('assignedBy', 'name email')
-      .populate('client', 'name')
+      .populate('assignedTo', 'name email')
+      .populate('client', 'name company')
       .sort({ createdAt: -1 });
+
+    console.log('MY TASKS:', JSON.stringify(tasks, null, 2));
 
     res.status(200).json(tasks);
   } catch (error) {
-    console.error('Error fetching my tasks:', error);
+    console.error('GET MY TASKS ERROR:', error);
 
     res.status(500).json({
-      message: 'Server error',
+      message: 'Unable to fetch tasks',
       error: error.message,
     });
   }
@@ -93,10 +102,18 @@ router.get('/me', authMiddleware, async (req, res) => {
 // ✅ Assign Task
 router.post('/assign', authMiddleware, async (req, res) => {
   try {
-    const { title, dueDate, assignedTo, priority, client, quickAdd } = req.body;
+    const {
+      title,
+      dueDate,
+      assignedTo,
+      assignedBy,
+      priority,
+      client,
+      quickAdd,
+    } = req.body;
 
     console.log('========== ASSIGN TASK ==========');
-    console.log('User:', req.user.id);
+    console.log('Logged-in User:', req.user.id);
     console.log('Request body:', req.body);
 
     if (!title || !title.trim()) {
@@ -105,24 +122,23 @@ router.post('/assign', authMiddleware, async (req, res) => {
       });
     }
 
+    // =====================================
+    // QUICK ADD
+    // =====================================
+
     if (quickAdd === true) {
       const task = new Task({
         title: title.trim(),
-
-        // No due date
         dueDate: null,
-
-        // No client
         client: null,
 
-        // Current user
+        // Quick task belongs to logged-in employee
         assignedTo: req.user.id,
 
-        // Current user created it
+        // Quick task created by logged-in employee
         assignedBy: req.user.id,
 
         priority: priority || 'Medium',
-
         status: 'Not Started',
       });
 
@@ -138,9 +154,9 @@ router.post('/assign', authMiddleware, async (req, res) => {
       });
     }
 
-    // ==============================
+    // =====================================
     // VALIDATION
-    // ==============================
+    // =====================================
 
     if (!dueDate) {
       return res.status(400).json({
@@ -160,36 +176,46 @@ router.post('/assign', authMiddleware, async (req, res) => {
       });
     }
 
-    // If client is required
     if (!client) {
       return res.status(400).json({
         message: 'Please select a client',
       });
     }
 
-    // ==============================
+    // =====================================
     // LOGGED-IN USER
-    // ==============================
+    // =====================================
 
     const loggedInUserId = req.user.id.toString();
 
-    // ==============================
-    // CHECK SELF ASSIGNMENT
-    // ==============================
+    // =====================================
+    // ASSIGNED TO
+    // =====================================
 
     const isSelfAssigned =
       assignedTo === 'me' || assignedTo.toString() === loggedInUserId;
 
-    console.log('Self assigned:', isSelfAssigned);
-
-    // If "Me" is selected
     const finalAssignedTo = isSelfAssigned ? req.user.id : assignedTo;
 
-    console.log('Final assignedTo:', finalAssignedTo);
+    // =====================================
+    // ASSIGNED BY
+    // =====================================
 
-    // ==============================
+    // If user selected an employee in
+    // Assigned By dropdown, use that employee.
+    //
+    // If nothing was selected, use logged-in user.
+
+    const finalAssignedBy =
+      assignedBy && assignedBy !== 'me' ? assignedBy : req.user.id;
+
+    console.log('Final assignedTo:', finalAssignedTo);
+    console.log('Final assignedBy:', finalAssignedBy);
+    console.log('Selected client:', client);
+
+    // =====================================
     // CREATE TASK
-    // ==============================
+    // =====================================
 
     const task = new Task({
       title: title.trim(),
@@ -198,11 +224,14 @@ router.post('/assign', authMiddleware, async (req, res) => {
 
       priority,
 
-      client: client, // ✅ ADD CLIENT
+      // Selected client ID
+      client: client,
 
+      // Employee receiving the task
       assignedTo: finalAssignedTo,
 
-      assignedBy: req.user.id,
+      // Employee selected in Assigned By
+      assignedBy: finalAssignedBy,
 
       status: 'Not Started',
     });
@@ -211,32 +240,23 @@ router.post('/assign', authMiddleware, async (req, res) => {
 
     console.log('Task created:', task._id);
 
-    // ==============================
+    // =====================================
     // NOTIFICATION
-    // ONLY WHEN ASSIGNING TO ANOTHER
-    // EMPLOYEE
-    // ==============================
+    // =====================================
 
     let notification = null;
 
     if (!isSelfAssigned) {
       notification = new Notification({
         recipient: finalAssignedTo,
-
         sender: req.user.id,
-
         task: task._id,
-
         message: `You have been assigned a new task: ${task.title}`,
       });
 
       await notification.save();
 
       console.log('Notification created:', notification._id);
-
-      // ==============================
-      // SOCKET.IO
-      // ==============================
 
       const io = req.app.get('io');
 
@@ -249,9 +269,9 @@ router.post('/assign', authMiddleware, async (req, res) => {
       console.log('Self assignment → notification not created');
     }
 
-    // ==============================
+    // =====================================
     // RESPONSE
-    // ==============================
+    // =====================================
 
     return res.status(201).json({
       success: true,

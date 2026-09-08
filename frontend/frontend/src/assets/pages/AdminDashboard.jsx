@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { MdPersonAdd, MdLogout } from 'react-icons/md';
 import '../css/EmployeeDashboard.css';
 import { Eye, EyeOff } from 'lucide-react';
+import MyTasks from '../components/admin/MyTasks';
+import AssignedTasks from '../components/admin/AssignedTasks';
 import { io } from 'socket.io-client';
 
 const AdminDashboard = () => {
@@ -22,6 +24,8 @@ const AdminDashboard = () => {
   const [employees, setEmployees] = useState([]);
 
   const [clients, setClients] = useState([]);
+  //const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [clientForm, setClientForm] = useState({
     name: '',
@@ -553,11 +557,14 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    if (activeTab === 'allTasks') {
+    if (
+      activeTab === 'allTasks' ||
+      activeTab === 'myTasks' ||
+      activeTab === 'assignedTasks'
+    ) {
       fetchAdminTasks();
     }
   }, [activeTab]);
-
   const handleDeleteTask = async (taskId) => {
     if (!taskId) {
       console.error('Task ID is missing');
@@ -847,6 +854,63 @@ const AdminDashboard = () => {
         {/* Navigation */}
 
         <nav className="flex-1 space-y-2 px-2 py-5 lg:px-3">
+          {/* My Tasks */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('myTasks')}
+            className={`
+    flex
+    w-full
+    items-center
+    justify-center
+    gap-3
+    rounded-lg
+    px-3
+    py-3
+    text-left
+    transition
+    lg:justify-start
+    lg:px-4
+    ${
+      activeTab === 'myTasks'
+        ? 'bg-blue-600 text-white'
+        : 'text-slate-300 hover:bg-slate-800'
+    }
+  `}
+          >
+            <span className="text-lg">📋</span>
+
+            <span className="hidden lg:inline">My Tasks</span>
+          </button>
+
+          {/* Assigned Tasks */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('assignedTasks')}
+            className={`
+    flex
+    w-full
+    items-center
+    justify-center
+    gap-3
+    rounded-lg
+    px-3
+    py-3
+    text-left
+    transition
+    lg:justify-start
+    lg:px-4
+    ${
+      activeTab === 'assignedTasks'
+        ? 'bg-blue-600 text-white'
+        : 'text-slate-300 hover:bg-slate-800'
+    }
+  `}
+          >
+            <span className="text-lg">📤</span>
+
+            <span className="hidden lg:inline">Assigned Tasks</span>
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab('userRegistration')}
@@ -1050,6 +1114,25 @@ const AdminDashboard = () => {
         lg:p-8
       "
       >
+        {/* ==========================================
+    MY TASKS
+========================================== */}
+
+        {activeTab === 'myTasks' && (
+          <MyTasks tasks={adminTasks} loading={loadingTasks} admin={admin} />
+        )}
+
+        {/* ==========================================
+    ASSIGNED TASKS
+========================================== */}
+
+        {activeTab === 'assignedTasks' && (
+          <AssignedTasks
+            tasks={adminTasks}
+            loading={loadingTasks}
+            admin={admin}
+          />
+        )}
         {activeTab === 'userRegistration' && (
           <div className="max-w-7xl mx-auto">
             {/* Header */}
@@ -1184,76 +1267,129 @@ const AdminDashboard = () => {
 
                   {/* Password */}
 
+                  {/* Password */}
                   <div>
                     <label
                       className="
-                      block
-                      text-sm
-                      font-medium
-                      text-slate-700
-                      mb-1.5
-                    "
+      block
+      text-sm
+      font-medium
+      text-slate-700
+      mb-1.5
+    "
                     >
                       Password
                     </label>
 
-                    <input
-                      type="password"
-                      name="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter password"
-                      className="
-                        w-full
-                        px-4
-                        py-2.5
-                        rounded-lg
-                        border
-                        border-slate-300
-                        outline-none
-                        focus:ring-2
-                        focus:ring-blue-500
-                        focus:border-blue-500
-                      "
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        name="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter password"
+                        className="
+        w-full
+        px-4
+        py-2.5
+        pr-11
+        rounded-lg
+        border
+        border-slate-300
+        outline-none
+        focus:ring-2
+        focus:ring-blue-500
+        focus:border-blue-500
+      "
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className="
+        absolute
+        right-3
+        top-1/2
+        -translate-y-1/2
+        text-slate-500
+        hover:text-slate-700
+        focus:outline-none
+      "
+                        aria-label={
+                          showPassword ? 'Hide password' : 'Show password'
+                        }
+                      >
+                        {showPassword ? (
+                          <EyeOff size={20} />
+                        ) : (
+                          <Eye size={20} />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Confirm Password */}
-
                   <div>
                     <label
                       className="
-                      block
-                      text-sm
-                      font-medium
-                      text-slate-700
-                      mb-1.5
-                    "
+      block
+      text-sm
+      font-medium
+      text-slate-700
+      mb-1.5
+    "
                     >
                       Confirm Password
                     </label>
 
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirm password"
-                      className="
-                        w-full
-                        px-4
-                        py-2.5
-                        rounded-lg
-                        border
-                        border-slate-300
-                        outline-none
-                        focus:ring-2
-                        focus:ring-blue-500
-                        focus:border-blue-500
-                      "
-                    />
-                  </div>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        name="confirmPassword"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm password"
+                        className="
+        w-full
+        px-4
+        py-2.5
+        pr-11
+        rounded-lg
+        border
+        border-slate-300
+        outline-none
+        focus:ring-2
+        focus:ring-blue-500
+        focus:border-blue-500
+      "
+                      />
 
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        className="
+        absolute
+        right-3
+        top-1/2
+        -translate-y-1/2
+        text-slate-500
+        hover:text-slate-700
+        focus:outline-none
+      "
+                        aria-label={
+                          showConfirmPassword
+                            ? 'Hide confirm password'
+                            : 'Show confirm password'
+                        }
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff size={20} />
+                        ) : (
+                          <Eye size={20} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
                   {/* Date of Birth */}
 
                   <div>
@@ -1266,7 +1402,7 @@ const AdminDashboard = () => {
                       mb-1.5
                     "
                     >
-                      Date of Birth
+                      Date of Joining
                     </label>
 
                     <input
@@ -1429,7 +1565,7 @@ const AdminDashboard = () => {
                       </th>
 
                       <th className="px-6 py-4 text-left font-semibold text-slate-600">
-                        Date of Birth
+                        Date of Joining
                       </th>
 
                       <th className="px-6 py-4 text-left font-semibold text-slate-600">

@@ -4,7 +4,17 @@ import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// ✅ Add new client (HR only)
+console.log('✅ clientRoutes.js loaded');
+
+router.get('/test', (req, res) => {
+  console.log('✅ CLIENT TEST ROUTE HIT');
+
+  res.status(200).json({
+    message: 'Client routes are working',
+  });
+});
+
+// Add new client
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { name, email, company, phone, notes } = req.body;
@@ -18,48 +28,49 @@ router.post('/', authMiddleware, async (req, res) => {
     });
 
     await client.save();
-    res.status(201).json({ message: 'Client added successfully', client });
+
+    res.status(201).json({
+      message: 'Client added successfully',
+      client,
+    });
   } catch (error) {
     console.error('Error adding client:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
 
-// ✅ Get all clients
-router.get('/my-clients', authMiddleware, async (req, res) => {
-  try {
-    console.log('Employee requesting clients:', req.user.id);
-
-    const clients = await Client.find({
-      assignedTo: req.user.id,
-    })
-      .select('name email company')
-      .sort({ createdAt: -1 });
-
-    console.log('Clients returned to employee:', clients);
-
-    return res.status(200).json(clients);
-  } catch (error) {
-    console.error('Error fetching employee clients:', error);
-
-    return res.status(500).json({
-      message: 'Failed to fetch assigned clients.',
+    res.status(500).json({
+      message: 'Server error',
     });
   }
 });
 
-router.get('/', authMiddleware, async (req, res) => {
+// Get clients assigned to logged-in employee
+router.get('/my-clients', authMiddleware, async (req, res) => {
   try {
-    const clients = await Client.find()
-      .select('name email company')
-      .sort({ createdAt: -1 });
+    console.log('========== MY CLIENTS ==========');
+    console.log('REQ.USER:', req.user);
 
-    res.status(200).json(clients);
+    const employeeId = req.user.id;
+
+    console.log('Logged-in employee ID:', employeeId);
+
+    const clients = await Client.find({
+      assignedTo: employeeId,
+    }).sort({
+      name: 1,
+    });
+
+    console.log('Assigned clients:', clients);
+
+    console.log('Client count:', clients.length);
+
+    console.log('================================');
+
+    return res.status(200).json(clients);
   } catch (error) {
-    console.error('Error fetching clients:', error);
+    console.error('GET MY CLIENTS ERROR:', error);
 
-    res.status(500).json({
-      message: 'Failed to fetch clients',
+    return res.status(500).json({
+      message: 'Unable to fetch assigned clients',
+      error: error.message,
     });
   }
 });

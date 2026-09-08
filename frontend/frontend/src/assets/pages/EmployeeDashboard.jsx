@@ -22,6 +22,16 @@ import {
   MdDelete,
 } from 'react-icons/md';
 
+const getTodayDate = () => {
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+
 export default function EmployeeDashboard() {
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('activeTab') || 'myTasks';
@@ -39,6 +49,8 @@ export default function EmployeeDashboard() {
   //const [totalMinutes, setTotalMinutes] = useState('');
 
   const [editingTimeTaskId, setEditingTimeTaskId] = useState(null);
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
 
   const [editHours, setEditHours] = useState('');
   const [editMinutes, setEditMinutes] = useState('');
@@ -54,8 +66,9 @@ export default function EmployeeDashboard() {
 
   const [newTask, setNewTask] = useState({
     title: '',
-    dueDate: '',
+    dueDate: getTodayDate(),
     assignedTo: '',
+    assignedBy: '',
     priority: 'Medium',
     remarks: '',
     client: '',
@@ -241,6 +254,46 @@ export default function EmployeeDashboard() {
     }
   };
 
+  const handleUpdateTaskTitle = async (taskId) => {
+    const trimmedTitle = editingTitle.trim();
+
+    if (!trimmedTitle) {
+      alert('Task title cannot be empty.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        {
+          title: trimmedTitle,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('Task title updated:', response.data);
+
+      // Exit edit mode
+      setEditingTaskId(null);
+      setEditingTitle('');
+
+      // Refresh tasks
+      await fetchTasks();
+    } catch (error) {
+      console.error(
+        'Error updating task title:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
   const fetchTasks = async () => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -403,7 +456,7 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     fetchTasks();
   }, []);
-
+  /*
   const fetchClients = async () => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -415,6 +468,7 @@ export default function EmployeeDashboard() {
       console.error('Error fetching clients:', err);
     }
   };
+  */
 
   const handlePriorityChange = async (taskId, priority) => {
     try {
@@ -559,12 +613,14 @@ export default function EmployeeDashboard() {
 
   const fetchMyClients = async () => {
     try {
-      setLoadingMyClients(true);
+      const token = localStorage.getItem('accessToken');
 
-      const accessToken = localStorage.getItem('accessToken');
+      console.log('========== FETCH MY CLIENTS ==========');
+      console.log('Token exists:', !!token);
+      console.log('Token:', token);
 
-      if (!accessToken) {
-        console.error('Access token not found');
+      if (!token) {
+        console.error('❌ No accessToken found in localStorage');
         return;
       }
 
@@ -572,23 +628,20 @@ export default function EmployeeDashboard() {
         'http://localhost:5000/api/clients/my-clients',
         {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${token}`,
           },
         },
       );
 
-      console.log('MY ASSIGNED CLIENTS:', response.data);
+      console.log('✅ MY CLIENTS:', response.data);
 
-      setMyClients(Array.isArray(response.data) ? response.data : []);
+      setMyClients(response.data);
     } catch (error) {
       console.error(
-        'Error fetching assigned clients:',
+        '❌ FETCH MY CLIENTS ERROR:',
+        error.response?.status,
         error.response?.data || error.message,
       );
-
-      setMyClients([]);
-    } finally {
-      setLoadingMyClients(false);
     }
   };
 
@@ -687,7 +740,7 @@ export default function EmployeeDashboard() {
   };
 
   useEffect(() => {
-    fetchClients();
+    //fetchClients();
     fetchEmployees();
     fetchUser();
   }, [activeTab]);
@@ -735,13 +788,21 @@ export default function EmployeeDashboard() {
 
       const token = localStorage.getItem('accessToken');
 
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date();
+      const todayDate = today.toISOString().split('T')[0];
+
+      // If user selected a due date, use it.
+      // Otherwise, automatically use today's date.
+      const dueDate = newTask.dueDate || todayDate;
+
       const payload = {
         title,
         quickAdd: true,
         assignedTo: 'me',
         priority: 'Medium',
-        dueDate: null,
-        client: null,
+        dueDate,
+        client: newTask.client || null,
       };
 
       console.log('Quick adding task:', payload);
@@ -779,12 +840,7 @@ export default function EmployeeDashboard() {
   const handleAddTask = async () => {
     try {
       if (!newTask.title || newTask.title.trim() === '') {
-        alert('Please add a task title'); // show message
-        return; // stop execution
-      }
-
-      if (!newTask.dueDate) {
-        alert('Please select a due date');
+        alert('Please add a task title');
         return;
       }
 
@@ -792,31 +848,88 @@ export default function EmployeeDashboard() {
         alert('Please select a client');
         return;
       }
+
+      if (!newTask.assignedBy) {
+        alert('Please select Assigned By');
+        return;
+      }
+
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date();
+      const todayDate = `${today.getFullYear()}-${String(
+        today.getMonth() + 1,
+      ).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      // If user selected a date, use it.
+      // Otherwise, use today's date.
+      const finalDueDate = newTask.dueDate || todayDate;
+
       const token = localStorage.getItem('accessToken');
+
       const payload = {
-        title: newTask.title,
-        dueDate: newTask.dueDate,
-        client: newTask.client, // ✅ include client directly
+        title: newTask.title.trim(),
+
+        // Use selected date OR today's date
+        dueDate: finalDueDate,
+
+        client: newTask.client,
         priority: newTask.priority || 'Medium',
-        assignedTo: user._id, // ✅ use actual ObjectId
-        assignedBy: user._id, // ✅ use actual ObjectId
+
+        // Employee selected in Assigned By dropdown
+        assignedBy: newTask.assignedBy,
+
+        // Current logged-in employee
+        assignedTo: user?._id,
+
         remarks: newTask.remarks || '',
-        issueDate: new Date().toISOString().substring(0, 10),
-        quickAdd: true,
+
+        issueDate: todayDate,
+
+        // Normal task
+        quickAdd: false,
       };
-      await axios.post('http://localhost:5000/api/tasks/assign', payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+
+      console.log('========== FRONTEND TASK PAYLOAD ==========');
+      console.log('Logged-in employee:', user?._id);
+      console.log('Selected Assigned By:', newTask.assignedBy);
+      console.log('Selected Client:', newTask.client);
+      console.log('Selected Due Date:', newTask.dueDate);
+      console.log('Final Due Date:', finalDueDate);
+      console.log('Payload:', payload);
+
+      const response = await axios.post(
+        'http://localhost:5000/api/tasks/assign',
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('TASK CREATED:', response.data);
+
+      // Reset form
       setNewTask({
         title: '',
-        dueDate: '',
+
+        // Keep today's date after adding the task
+        dueDate: todayDate,
+
+        assignedBy: '',
         assignedTo: '',
         priority: 'Medium',
         client: '',
+        remarks: '',
       });
-      fetchTasks();
+
+      await fetchTasks();
     } catch (error) {
-      console.error('Error adding task:', error);
+      console.error(
+        'Error adding task:',
+        error.response?.data || error.message,
+      );
     }
   };
 
@@ -1348,13 +1461,7 @@ export default function EmployeeDashboard() {
                 <div className="w-full">
                   <label
                     htmlFor="dueDate"
-                    className="
-                  block
-                  text-sm
-                  font-medium
-                  text-slate-700
-                  mb-1.5
-                "
+                    className="block text-sm font-medium text-slate-700 mb-1.5"
                   >
                     Due Date
                   </label>
@@ -1363,35 +1470,37 @@ export default function EmployeeDashboard() {
                     id="dueDate"
                     name="dueDate"
                     type="date"
-                    value={newTask.dueDate}
+                    value={newTask.dueDate || getTodayDate()}
                     onChange={handleChange}
+                    min={getTodayDate()}
                     className="
-                  w-full
-                  h-10
-                  px-3
-                  border
-                  border-slate-300
-                  rounded-md
-                  outline-none
-                  text-sm
-                  focus:ring-2
-                  focus:ring-blue-400
-                  focus:border-blue-400
-                "
+      w-full
+      h-10
+      px-3
+      border
+      border-slate-300
+      rounded-md
+      outline-none
+      text-sm
+      text-slate-700
+      bg-white
+      focus:ring-2
+      focus:ring-blue-400
+      focus:border-blue-400
+    "
                   />
                 </div>
-
                 {/* Client */}
                 <div className="w-full">
                   <label
                     htmlFor="client"
                     className="
-                  block
-                  text-sm
-                  font-medium
-                  text-slate-700
-                  mb-1.5
-                "
+      block
+      text-sm
+      font-medium
+      text-slate-700
+      mb-1.5
+    "
                   >
                     Client
                   </label>
@@ -1407,21 +1516,22 @@ export default function EmployeeDashboard() {
                       }))
                     }
                     className="
-    w-full
-    rounded-lg
-    border
-    border-slate-300
-    bg-white
-    px-4
-    py-2.5
-    text-sm
-    text-slate-700
-    outline-none
-    transition
-    focus:border-blue-500
-    focus:ring-2
-    focus:ring-blue-100
-  "
+      w-full
+      h-10
+      rounded-lg
+      border
+      border-slate-300
+      bg-white
+      px-4
+      py-2.5
+      text-sm
+      text-slate-700
+      outline-none
+      transition
+      focus:border-blue-500
+      focus:ring-2
+      focus:ring-blue-100
+    "
                   >
                     <option value="">Select an assigned client</option>
 
@@ -1434,30 +1544,88 @@ export default function EmployeeDashboard() {
                   </select>
                 </div>
 
+                {/* Assigned By */}
+                <div className="w-full">
+                  <label
+                    htmlFor="assignedBy"
+                    className="
+      block
+      text-sm
+      font-medium
+      text-slate-700
+      mb-1.5
+    "
+                  >
+                    Assigned By
+                  </label>
+
+                  <select
+                    id="assignedBy"
+                    name="assignedBy"
+                    value={newTask.assignedBy || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+
+                      console.log('SELECTED ASSIGNED BY:', value);
+
+                      setNewTask((prev) => ({
+                        ...prev,
+                        assignedBy: value,
+                      }));
+                    }}
+                    className="
+      w-full
+      h-10
+      rounded-md
+      border
+      border-slate-300
+      bg-white
+      px-3
+      text-sm
+      text-slate-700
+      outline-none
+      transition
+      focus:border-blue-400
+      focus:ring-2
+      focus:ring-blue-400
+    "
+                  >
+                    <option value="">Assigned by </option>
+
+                    {employees.map((employee) => (
+                      <option key={employee._id} value={employee._id}>
+                        {employee.name}
+                        {employee.email ? ` - ${employee.email}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Add Task */}
-                <div className="w-full flex md:justify-end">
+                <div className="col-span-1 md:col-span-2 lg:col-span-4 flex justify-end">
                   <button
                     type="button"
                     onClick={handleAddTask}
                     className="
-                  w-full
-                  md:w-auto
-                  h-10
-                  px-5
-                  rounded-md
-                  bg-blue-500
-                  hover:bg-blue-600
-                  text-white
-                  text-sm
-                  font-medium
-                  transition
-                  shadow-sm
-                "
+      h-11
+      px-7
+      rounded-lg
+      bg-blue-600
+      hover:bg-blue-700
+      text-white
+      text-sm
+      font-semibold
+      shadow-sm
+      transition-all
+      duration-200
+      hover:shadow-md
+      active:scale-[0.98]
+    "
                   >
                     Add Task
                   </button>
                 </div>
-              </div>
+              </div>{' '}
             </div>
 
             {/* ================= MY TASKS ================= */}
@@ -1546,10 +1714,62 @@ export default function EmployeeDashboard() {
                     "
                       >
                         {/* Title */}
+                        {/* Title */}
                         <td className="px-4 py-3 text-slate-700 font-medium">
-                          {task.title}
-                        </td>
+                          {editingTaskId === task._id ? (
+                            <input
+                              type="text"
+                              value={editingTitle}
+                              autoFocus
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleUpdateTaskTitle(task._id);
+                                }
 
+                                if (e.key === 'Escape') {
+                                  setEditingTaskId(null);
+                                  setEditingTitle('');
+                                }
+                              }}
+                              onBlur={() => handleUpdateTaskTitle(task._id)}
+                              className="
+        w-full
+        h-10
+        px-3
+        border
+        border-slate-300
+        rounded-md
+        outline-none
+        text-sm
+        text-slate-700
+        font-normal
+        focus:ring-2
+        focus:ring-blue-400
+        focus:border-blue-400
+      "
+                            />
+                          ) : (
+                            <div
+                              onClick={() => {
+                                setEditingTaskId(task._id);
+                                setEditingTitle(task.title);
+                              }}
+                              className="
+        cursor-text
+        rounded-md
+        px-2
+        py-2
+        hover:bg-slate-100
+        transition
+      "
+                              title="Click to edit title"
+                            >
+                              {task.title}
+                            </div>
+                          )}
+                        </td>
                         {/* Issue Date */}
                         <td className="px-4 py-3">
                           <input
@@ -1653,14 +1873,12 @@ export default function EmployeeDashboard() {
 
                         {/* Client */}
                         <td className="px-4 py-3 text-slate-600">
-                          {task.client?.name || 'No client'}
+                          {task.client?.name || ''}
                         </td>
 
                         {/* Assigned By */}
                         <td className="px-4 py-3 text-slate-600">
-                          {String(task.assignedBy?._id) === String(user?._id)
-                            ? 'Me'
-                            : task.assignedBy?.name || 'Unknown'}
+                          {task.assignedBy?.name || ''}
                         </td>
 
                         {/* Remarks */}

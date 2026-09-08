@@ -372,3 +372,47 @@ export const getEmployeePerformance = async (req, res) => {
     });
   }
 };
+
+export const updateTaskStatus = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { status } = req.body;
+
+    const allowedStatuses = ['Not Started', 'In Progress', 'Completed'];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        message: 'Invalid task status',
+      });
+    }
+
+    const task = await Task.findById(taskId);
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Task not found',
+      });
+    }
+
+    task.status = status;
+
+    await task.save();
+
+    const updatedTask = await Task.findById(taskId)
+      .populate('assignedBy', 'name email role')
+      .populate('assignedTo', 'name email role')
+      .populate('client', 'name email company');
+
+    return res.status(200).json({
+      message: 'Task status updated successfully',
+      task: updatedTask,
+    });
+  } catch (error) {
+    console.error('UPDATE TASK STATUS ERROR:', error);
+
+    return res.status(500).json({
+      message: 'Failed to update task status',
+      error: error.message,
+    });
+  }
+};

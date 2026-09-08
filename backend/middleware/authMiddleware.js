@@ -2,14 +2,12 @@ import jwt from 'jsonwebtoken';
 
 const authMiddleware = (req, res, next) => {
   try {
-    console.log('========== AUTH CHECK ==========');
-    console.log('URL:', req.originalUrl);
-    console.log('METHOD:', req.method);
-
     const authHeader = req.headers.authorization;
 
-    console.log('Authorization header exists:', !!authHeader);
-    console.log('Authorization header:', authHeader);
+    console.log('=================================');
+    console.log('AUTH HEADER:', authHeader);
+    console.log('JWT SECRET EXISTS:', !!process.env.JWT_SECRET);
+    console.log('=================================');
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
@@ -17,10 +15,7 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    const token = authHeader.split(' ')[1];
-
-    console.log('Token exists:', !!token);
-    console.log('Token length:', token?.length);
+    const token = authHeader.substring(7).trim();
 
     if (!token) {
       return res.status(401).json({
@@ -28,22 +23,23 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
+    console.log('TOKEN LENGTH:', token.length);
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    console.log('JWT decoded successfully:', decoded);
+    console.log('✅ JWT VERIFIED');
+    console.log('DECODED TOKEN:', decoded);
 
     req.user = decoded;
 
     next();
   } catch (error) {
-    console.error('========== AUTH ERROR ==========');
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    console.error('JWT_SECRET exists:', !!process.env.JWT_SECRET);
-    console.error('================================');
+    console.error('❌ JWT ERROR:', error.name);
+    console.error('❌ JWT MESSAGE:', error.message);
 
     return res.status(401).json({
       message: 'Invalid or expired token',
+      error: error.message,
     });
   }
 };
