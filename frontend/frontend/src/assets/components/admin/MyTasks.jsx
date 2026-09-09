@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 
 import {
@@ -18,6 +18,21 @@ const MyTasks = ({ admin }) => {
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [client, setClient] = useState('');
+  const [assignedBy, setAssignedBy] = useState('');
+
+  const [employees, setEmployees] = useState([]);
+
+  const [assignedBySearch, setAssignedBySearch] = useState('');
+  const [showAssignedByDropdown, setShowAssignedByDropdown] = useState(false);
+
+  const [clientSearch, setClientSearch] = useState('');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [highlightedClientIndex, setHighlightedClientIndex] = useState(-1);
+
+  const [editingTitleId, setEditingTitleId] = useState(null);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
+
+  const clientDropdownRef = useRef(null);
 
   // ==========================================
   // DATA
@@ -41,25 +56,18 @@ const MyTasks = ({ admin }) => {
 
   const [hours, setHours] = useState('');
   const [minutes, setMinutes] = useState('');
-  //const [client, setClient] = useState('');
+
+  // Form values are kept in title, dueDate, client and assignedBy above.
 
   // ==========================================
   // FETCH MY TASKS
   // ==========================================
-
-  useEffect(() => {
-    fetchMyTasks();
-  }, []);
-
   const fetchMyTasks = async () => {
     try {
       setLoading(true);
       setError('');
 
       const token = localStorage.getItem('accessToken');
-
-      console.log('TOKEN:', token);
-      console.log('TOKEN EXISTS:', !!token);
 
       if (!token) {
         setError('Authentication token not found. Please login again.');
@@ -75,20 +83,30 @@ const MyTasks = ({ admin }) => {
         },
       );
 
-      console.log('MY TASKS RESPONSE:', response.data);
+      console.log('MY TASKS API RESPONSE:', response.data);
 
-      setMyTasks(response.data || []);
-    } catch (err) {
-      console.error('FETCH MY TASKS ERROR:', err);
+      setMyTasks(
+        Array.isArray(response.data)
+          ? response.data
+          : Array.isArray(response.data.tasks)
+            ? response.data.tasks
+            : [],
+      );
+    } catch (error) {
+      console.error('FETCH MY TASKS ERROR:', error);
+      console.error('STATUS:', error.response?.status);
+      console.error('DATA:', error.response?.data);
 
-      console.log('STATUS:', err.response?.status);
-      console.log('RESPONSE:', err.response?.data);
-
-      setError(err.response?.data?.message || 'Failed to load my tasks');
+      setMyTasks([]);
+      setError(error.response?.data?.message || 'Failed to fetch your tasks.');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchMyTasks();
+  }, []);
 
   const handleStatusChange = async (taskId, newStatus) => {
     // If admin selects Completed,
@@ -136,6 +154,211 @@ const MyTasks = ({ admin }) => {
       setError(error.response?.data?.message || 'Failed to update task status');
     }
   };
+
+  const handleTitleChange = async (taskId) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      if (!editingTitleValue.trim()) {
+        setError('Task title cannot be empty.');
+        return;
+      }
+
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/tasks/my/${taskId}/title`,
+        {
+          title: editingTitleValue.trim(),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setMyTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task._id === taskId
+            ? {
+                ...task,
+                title: response.data.task.title,
+              }
+            : task,
+        ),
+      );
+
+      setEditingTitleId(null);
+      setEditingTitleValue('');
+      setError('');
+    } catch (error) {
+      console.error('UPDATE TITLE ERROR:', error);
+
+      setError(error.response?.data?.message || 'Failed to update title');
+    }
+  };
+
+  const handleDueDateChange = async (taskId, newDueDate) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/tasks/my/${taskId}/due-date`,
+        {
+          dueDate: newDueDate || null,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setMyTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task._id === taskId
+            ? {
+                ...task,
+                dueDate: response.data.task.dueDate,
+              }
+            : task,
+        ),
+      );
+
+      setError('');
+    } catch (error) {
+      console.error('UPDATE DUE DATE ERROR:', error);
+
+      setError(error.response?.data?.message || 'Failed to update due date');
+    }
+  };
+  const handleClientChange = async (taskId, clientId) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/tasks/my/${taskId}/client`,
+        {
+          client: clientId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('CLIENT UPDATED:', response.data);
+
+      setMyTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task._id === taskId ? response.data.task : task,
+        ),
+      );
+
+      setClientSearch('');
+      setShowClientDropdown(false);
+      setHighlightedClientIndex(-1);
+
+      setError('');
+    } catch (error) {
+      console.error(
+        'UPDATE CLIENT ERROR:',
+        error.response?.data || error.message,
+      );
+
+      setError(error.response?.data?.message || 'Failed to update client');
+    }
+  };
+
+  const filteredClients = clients.filter((item) => {
+    const clientName = item.name || item.company || '';
+
+    return clientName.toLowerCase().includes(clientSearch.trim().toLowerCase());
+  });
+
+  const handleRemarkChange = (taskId, value) => {
+    setMyTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task._id === taskId
+          ? {
+              ...task,
+              remarks: value,
+            }
+          : task,
+      ),
+    );
+  };
+
+  const handleRemarkUpdate = async (taskId, remarks) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      if (!token) {
+        setError('Authentication token not found. Please login again.');
+        return;
+      }
+
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/tasks/${taskId}`,
+        {
+          remarks,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('REMARK UPDATED:', response.data);
+
+      // Update the UI immediately
+      const updatedTask = response.data.task;
+
+      setMyTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task._id === taskId
+            ? {
+                ...task,
+                ...(updatedTask || {}),
+                remarks: updatedTask?.remarks ?? remarks,
+              }
+            : task,
+        ),
+      );
+
+      setSuccess('Remark updated successfully.');
+
+      setTimeout(() => {
+        setSuccess('');
+      }, 2000);
+    } catch (error) {
+      console.error('UPDATE REMARK ERROR:', error);
+      console.error('STATUS:', error.response?.status);
+      console.error('DATA:', error.response?.data);
+
+      setError(error.response?.data?.message || 'Failed to update remark.');
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        clientDropdownRef.current &&
+        !clientDropdownRef.current.contains(event.target)
+      ) {
+        setShowClientDropdown(false);
+        setHighlightedClientIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleCompleteTask = async () => {
     if (!selectedTask) return;
@@ -246,52 +469,12 @@ const MyTasks = ({ admin }) => {
     }
   };
 
-  useEffect(() => {
-    fetchClients();
-    fetchMyTasks();
-  }, []);
-
-  // ==========================================
-  // CREATE MY TASK
-  // ==========================================
-
-  const handleAddTask = async (e) => {
-    e.preventDefault();
-
-    if (!title.trim()) {
-      setError('Task title is required');
-      return;
-    }
-
-    if (!dueDate) {
-      setError('Due date is required');
-      return;
-    }
-
-    if (!client) {
-      setError('Please select a client');
-      return;
-    }
-
+  const fetchEmployees = async () => {
     try {
-      setCreatingTask(true);
-      setError('');
-      setSuccess('');
-
       const token = localStorage.getItem('accessToken');
 
-      if (!token) {
-        setError('Authentication token not found. Please login again.');
-        return;
-      }
-
-      const response = await axios.post(
-        'http://localhost:5000/api/admin/tasks/my',
-        {
-          title: title.trim(),
-          dueDate,
-          client,
-        },
+      const response = await axios.get(
+        'http://localhost:5000/api/admin/employees/task-assignment',
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -299,23 +482,99 @@ const MyTasks = ({ admin }) => {
         },
       );
 
-      console.log('CREATED TASK:', response.data);
+      console.log('EMPLOYEES FOR ASSIGNED BY:', response.data);
 
-      // Add the newly saved task to the table
-      setMyTasks((prev) => [response.data.task, ...prev]);
+      setEmployees(response.data.employees || []);
+    } catch (error) {
+      console.error(
+        'FETCH EMPLOYEES ERROR:',
+        error.response?.data || error.message,
+      );
+    }
+  };
 
-      // Clear form
+  useEffect(() => {
+    fetchClients();
+    fetchMyTasks();
+    fetchEmployees();
+  }, []);
+
+  // ==========================================
+  // CREATE MY TASK
+  // ==========================================
+
+  const handleAddTask = async (event) => {
+    event?.preventDefault();
+
+    setError('');
+    setSuccess('');
+
+    const trimmedTitle = title.trim();
+
+    if (!trimmedTitle) {
+      setError('Please enter a task title.');
+      return;
+    }
+
+    if (!dueDate) {
+      setError('Please select a due date.');
+      return;
+    }
+
+    if (!assignedBy) {
+      setError('Please select the employee who assigned this task.');
+      return;
+    }
+
+    const token = localStorage.getItem('accessToken');
+
+    if (!token) {
+      setError('Authentication token not found. Please login again.');
+      return;
+    }
+
+    try {
+      setCreatingTask(true);
+
+      const payload = {
+        title: trimmedTitle,
+        dueDate,
+        client: client || null,
+        assignedBy,
+      };
+
+      const response = await axios.post(
+        'http://localhost:5000/api/admin/tasks/my',
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('MY TASK CREATED:', response.data);
+
       setTitle('');
       setDueDate('');
       setClient('');
+      setAssignedBy('');
+      setAssignedBySearch('');
+      setShowAssignedByDropdown(false);
 
-      //setSuccess('Task added successfully');
+      setSuccess('Task added successfully.');
+
+      await fetchMyTasks();
     } catch (error) {
-      console.error('CREATE TASK ERROR:', error);
+      console.error('CREATE MY TASK ERROR:', error);
       console.error('STATUS:', error.response?.status);
       console.error('DATA:', error.response?.data);
 
-      setError(error.response?.data?.message || 'Failed to create task');
+      setError(
+        error.response?.data?.message ||
+          'Failed to create task. Please try again.',
+      );
     } finally {
       setCreatingTask(false);
     }
@@ -445,6 +704,106 @@ const MyTasks = ({ admin }) => {
             </div>
           </div>
 
+          {/* ASSIGNED BY */}
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="task-assigned-by"
+              className="text-sm font-semibold text-slate-700"
+            >
+              Assigned By
+            </label>
+
+            <div className="relative">
+              <input
+                id="task-assigned-by"
+                type="text"
+                autoComplete="off"
+                placeholder="Search employee..."
+                value={assignedBySearch}
+                onFocus={() => {
+                  setShowAssignedByDropdown(true);
+                }}
+                onChange={(e) => {
+                  setAssignedBySearch(e.target.value);
+                  setShowAssignedByDropdown(true);
+                }}
+                className="
+        w-full
+        rounded-lg
+        border border-slate-300
+        bg-white
+        px-3.5 py-2.5
+        text-sm text-slate-800
+        outline-none
+        transition-all
+        focus:border-blue-400
+        focus:ring-2
+        focus:ring-blue-100
+      "
+              />
+
+              {showAssignedByDropdown && (
+                <div
+                  className="
+          absolute
+          left-0
+          right-0
+          z-50
+          mt-1
+          max-h-60
+          overflow-y-auto
+          rounded-lg
+          border
+          border-slate-200
+          bg-white
+          shadow-xl
+        "
+                >
+                  {employees
+                    .filter((employee) =>
+                      (employee.name || '')
+                        .toLowerCase()
+                        .includes(assignedBySearch.toLowerCase().trim()),
+                    )
+                    .map((employee) => (
+                      <button
+                        key={employee._id}
+                        type="button"
+                        onClick={() => {
+                          setAssignedBy(employee._id);
+                          setAssignedBySearch(employee.name);
+                          setShowAssignedByDropdown(false);
+                        }}
+                        className="
+                block
+                w-full
+                px-4
+                py-3
+                text-left
+                text-sm
+                text-slate-700
+                hover:bg-blue-50
+                hover:text-blue-700
+              "
+                      >
+                        {employee.name}
+                      </button>
+                    ))}
+
+                  {employees.filter((employee) =>
+                    (employee.name || '')
+                      .toLowerCase()
+                      .includes(assignedBySearch.toLowerCase().trim()),
+                  ).length === 0 && (
+                    <div className="px-4 py-3 text-sm text-slate-500">
+                      No employees found
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* ADD TASK BUTTON */}
 
           <div className="mt-5 flex justify-end">
@@ -485,7 +844,7 @@ const MyTasks = ({ admin }) => {
         </h1>
 
         <p className="mt-1 text-sm text-slate-500">
-          View tasks created by you.
+          View tasks assigned to you.
         </p>
       </div>
 
@@ -576,7 +935,7 @@ const MyTasks = ({ admin }) => {
           <h2 className="text-lg font-semibold text-slate-800">My Tasks</h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Tasks created by {admin?.name || 'you'}.
+            Tasks assigned to {admin?.name || 'you'}.
           </p>
         </div>
 
@@ -589,6 +948,10 @@ const MyTasks = ({ admin }) => {
                 </th>
 
                 <th className="px-5 py-4 text-left font-semibold text-slate-600">
+                  Issue Date
+                </th>
+
+                <th className="px-5 py-4 text-left font-semibold text-slate-600">
                   Due Date
                 </th>
 
@@ -597,11 +960,15 @@ const MyTasks = ({ admin }) => {
                 </th>
 
                 <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                  Priority
+                  Client
                 </th>
 
                 <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                  Client
+                  Assigned By
+                </th>
+
+                <th className="px-5 py-4 text-left font-semibold text-slate-600">
+                  Remarks
                 </th>
               </tr>
             </thead>
@@ -612,7 +979,7 @@ const MyTasks = ({ admin }) => {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={7}
                     className="px-6 py-12 text-center text-slate-500"
                   >
                     Loading my tasks...
@@ -623,7 +990,7 @@ const MyTasks = ({ admin }) => {
 
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={7}
                     className="px-6 py-12 text-center text-slate-500"
                   >
                     <div className="flex flex-col items-center">
@@ -638,18 +1005,114 @@ const MyTasks = ({ admin }) => {
 
                 myTasks.map((task) => (
                   <tr key={task._id} className="transition hover:bg-slate-50">
-                    {/* TITLE */}
+                    {/* =========================================
+        TITLE
+    ========================================= */}
+                    <td className="px-5 py-4">
+                      {editingTitleId === task._id ? (
+                        <div className="flex min-w-56 items-center gap-2">
+                          <input
+                            type="text"
+                            value={editingTitleValue}
+                            onChange={(e) =>
+                              setEditingTitleValue(e.target.value)
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleTitleChange(task._id);
+                              }
 
-                    <td className="px-5 py-4 font-medium text-slate-800">
-                      {task.title || 'No title'}
+                              if (e.key === 'Escape') {
+                                setEditingTitleId(null);
+                                setEditingTitleValue('');
+                              }
+                            }}
+                            autoFocus
+                            className="
+              w-full
+              rounded-md
+              border border-blue-400
+              px-3 py-2
+              text-sm
+              outline-none
+              focus:ring-2
+              focus:ring-blue-100
+            "
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => handleTitleChange(task._id)}
+                            className="
+              rounded-md
+              bg-blue-600
+              px-3 py-2
+              text-xs
+              font-medium
+              text-white
+              hover:bg-blue-700
+            "
+                          >
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTitleId(task._id);
+                            setEditingTitleValue(task.title || '');
+                          }}
+                          className="
+            min-w-56
+            text-left
+            font-medium
+            text-slate-800
+            hover:text-blue-600
+          "
+                          title="Click to edit title"
+                        >
+                          {task.title || 'No title'}
+                        </button>
+                      )}
                     </td>
 
-                    {/* DUE DATE */}
+                    {/* =========================================
+        ISSUE DATE
+    ========================================= */}
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                      {task.issueDate
+                        ? new Date(task.issueDate).toLocaleDateString('en-GB')
+                        : task.createdAt
+                          ? new Date(task.createdAt).toLocaleDateString('en-GB')
+                          : 'N/A'}
+                    </td>
 
-                    <td className="px-5 py-4 text-slate-600">
-                      {task.dueDate
-                        ? new Date(task.dueDate).toLocaleDateString('en-GB')
-                        : 'N/A'}
+                    <td className="px-5 py-4">
+                      <input
+                        type="date"
+                        value={
+                          task.dueDate
+                            ? new Date(task.dueDate).toISOString().split('T')[0]
+                            : ''
+                        }
+                        onChange={(e) =>
+                          handleDueDateChange(task._id, e.target.value)
+                        }
+                        className="
+          rounded-lg
+          border border-slate-300
+          bg-white
+          px-3
+          py-2
+          text-sm
+          text-slate-700
+          outline-none
+          focus:border-blue-400
+          focus:ring-2
+          focus:ring-blue-100
+        "
+                      />
                     </td>
 
                     {/* STATUS */}
@@ -660,32 +1123,214 @@ const MyTasks = ({ admin }) => {
                         onChange={(e) =>
                           handleStatusChange(task._id, e.target.value)
                         }
-                        className={`rounded-full border-0 px-3 py-1 text-xs font-semibold outline-none cursor-pointer ${getStatusClass(
-                          task.status,
-                        )}`}
+                        className={`
+          cursor-pointer
+          rounded-full
+          border-0
+          px-3
+          py-1
+          text-xs
+          font-semibold
+          outline-none
+          ${getStatusClass(task.status)}
+        `}
                       >
                         <option value="Not Started">Not Started</option>
+
                         <option value="In Progress">In Progress</option>
+
                         <option value="Completed">Completed</option>
                       </select>
                     </td>
-
-                    {/* PRIORITY */}
-
+                    {/* =========================================
+        CLIENT
+    ========================================= */}
                     <td className="px-5 py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getPriorityClass(
-                          task.priority,
-                        )}`}
+                      <div
+                        ref={clientDropdownRef}
+                        className="relative min-w-52"
                       >
-                        {task.priority || 'Medium'}
-                      </span>
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          placeholder="Search client..."
+                          value={clientSearch}
+                          onFocus={() => {
+                            setShowClientDropdown(true);
+                            setHighlightedClientIndex(-1);
+                          }}
+                          onChange={(e) => {
+                            setClientSearch(e.target.value);
+                            setShowClientDropdown(true);
+                            setHighlightedClientIndex(-1);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'ArrowDown') {
+                              e.preventDefault();
+
+                              if (filteredClients.length === 0) {
+                                return;
+                              }
+
+                              setHighlightedClientIndex((prev) =>
+                                prev < filteredClients.length - 1
+                                  ? prev + 1
+                                  : 0,
+                              );
+                            }
+
+                            if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+
+                              if (filteredClients.length === 0) {
+                                return;
+                              }
+
+                              setHighlightedClientIndex((prev) =>
+                                prev > 0
+                                  ? prev - 1
+                                  : filteredClients.length - 1,
+                              );
+                            }
+
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+
+                              if (
+                                highlightedClientIndex >= 0 &&
+                                filteredClients[highlightedClientIndex]
+                              ) {
+                                const selectedClient =
+                                  filteredClients[highlightedClientIndex];
+
+                                handleClientChange(
+                                  task._id,
+                                  selectedClient._id,
+                                );
+
+                                setClientSearch(
+                                  selectedClient.name ||
+                                    selectedClient.company ||
+                                    '',
+                                );
+                              }
+                            }
+
+                            if (e.key === 'Escape') {
+                              setShowClientDropdown(false);
+                              setHighlightedClientIndex(-1);
+                            }
+                          }}
+                          className="
+            w-full
+            rounded-lg
+            border border-slate-300
+            bg-white
+            px-3
+            py-2
+            text-sm
+            text-slate-700
+            outline-none
+            focus:border-blue-400
+            focus:ring-2
+            focus:ring-blue-100
+          "
+                        />
+
+                        {showClientDropdown && (
+                          <div
+                            className="
+              absolute
+              left-0
+              right-0
+              top-full
+              z-50
+              mt-1
+              max-h-60
+              overflow-y-auto
+              rounded-lg
+              border
+              border-slate-200
+              bg-white
+              shadow-xl
+            "
+                          >
+                            {filteredClients.length > 0 ? (
+                              filteredClients.map((item, index) => {
+                                const clientName =
+                                  item.name || item.company || 'Unnamed Client';
+
+                                return (
+                                  <button
+                                    key={item._id}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onMouseEnter={() =>
+                                      setHighlightedClientIndex(index)
+                                    }
+                                    onClick={() => {
+                                      handleClientChange(task._id, item._id);
+
+                                      setClientSearch(clientName);
+                                    }}
+                                    className={`
+                      block
+                      w-full
+                      px-4
+                      py-3
+                      text-left
+                      text-sm
+                      ${
+                        highlightedClientIndex === index
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }
+                    `}
+                                  >
+                                    {clientName}
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <div className="px-4 py-3 text-sm text-slate-500">
+                                No clients found
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Existing selected client */}
+                      {task.client?.name && !clientSearch && (
+                        <div className="mt-1 text-xs text-slate-500">
+                          Current: {task.client.name}
+                        </div>
+                      )}
                     </td>
 
-                    {/* CLIENT */}
+                    {/* =========================================
+        ASSIGNED BY
+    ========================================= */}
+                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
+                      {task.assignedBy?.name || 'Unknown'}
+                    </td>
 
-                    <td className="px-5 py-4 text-slate-600">
-                      {task.client?.name || task.client?.company || 'No Client'}
+                    {/* =========================================
+        REMARKS
+    ========================================= */}
+                    <td className="px-5 py-4">
+                      <input
+                        type="text"
+                        value={task.remarks || ''}
+                        onChange={(e) =>
+                          handleRemarkChange(task._id, e.target.value)
+                        }
+                        onBlur={(e) =>
+                          handleRemarkUpdate(task._id, e.target.value)
+                        }
+                        placeholder="Enter remarks"
+                        className="w-full min-w-45 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      />
                     </td>
                   </tr>
                 ))

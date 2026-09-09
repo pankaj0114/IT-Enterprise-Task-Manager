@@ -753,7 +753,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    const { title, remarks, priority, dueDate, status } = req.body;
+    const { title, remarks, priority, dueDate, status, client } = req.body;
 
     const updateData = {};
 
@@ -776,6 +776,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     if (status !== undefined) {
       updateData.status = status;
+    }
+
+    if (client !== undefined) {
+      updateData.client = client;
     }
 
     const updatedTask = await Task.findByIdAndUpdate(

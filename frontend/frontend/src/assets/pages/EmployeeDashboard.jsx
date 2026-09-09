@@ -64,6 +64,13 @@ export default function EmployeeDashboard() {
   const [myClients, setMyClients] = useState([]);
   const [loadingMyClients, setLoadingMyClients] = useState(false);
 
+  const [clientSearchTaskId, setClientSearchTaskId] = useState(null);
+  const [clientSearchText, setClientSearchText] = useState('');
+  const [showTaskClientDropdown, setShowTaskClientDropdown] = useState(false);
+  const [highlightedTaskClientIndex, setHighlightedTaskClientIndex] =
+    useState(-1);
+
+  const taskClientDropdownRef = useRef(null);
   const [newTask, setNewTask] = useState({
     title: '',
     dueDate: getTodayDate(),
@@ -456,19 +463,21 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     fetchTasks();
   }, []);
-  /*
+
   const fetchClients = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await axios.get('http://localhost:5000/api/clients', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(
+        'http://localhost:5000/api/clients/my-clients',
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       setClients(res.data);
     } catch (err) {
       console.error('Error fetching clients:', err);
     }
   };
-  */
 
   const handlePriorityChange = async (taskId, priority) => {
     try {
@@ -740,7 +749,7 @@ export default function EmployeeDashboard() {
   };
 
   useEffect(() => {
-    //fetchClients();
+    fetchClients();
     fetchEmployees();
     fetchUser();
   }, [activeTab]);
@@ -802,7 +811,7 @@ export default function EmployeeDashboard() {
         assignedTo: 'me',
         priority: 'Medium',
         dueDate,
-        client: newTask.client || null,
+        client: newTask.client,
       };
 
       console.log('Quick adding task:', payload);
@@ -928,6 +937,79 @@ export default function EmployeeDashboard() {
     } catch (error) {
       console.error(
         'Error adding task:',
+        error.response?.data || error.message,
+      );
+    }
+  };
+
+  // clients
+
+  const filteredTaskClients = clients.filter((client) => {
+    const clientName = client.name || client.company || client.clientName || '';
+
+    return clientName
+      .toString()
+      .trim()
+      .toLowerCase()
+      .includes(clientSearchText.trim().toLowerCase());
+  });
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        taskClientDropdownRef.current &&
+        !taskClientDropdownRef.current.contains(event.target)
+      ) {
+        setShowTaskClientDropdown(false);
+        setClientSearchTaskId(null);
+        setHighlightedTaskClientIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleTaskClientChange = async (taskId, clientId) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      console.log('UPDATING CLIENT:', {
+        taskId,
+        clientId,
+      });
+
+      const response = await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        {
+          client: clientId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('CLIENT UPDATE RESPONSE:', response.data);
+
+      // Update UI using returned task
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task._id === taskId ? response.data.task : task,
+        ),
+      );
+
+      setShowTaskClientDropdown(false);
+      setClientSearchTaskId(null);
+      setHighlightedTaskClientIndex(-1);
+    } catch (error) {
+      console.error(
+        'UPDATE CLIENT ERROR:',
         error.response?.data || error.message,
       );
     }
@@ -1872,8 +1954,218 @@ export default function EmployeeDashboard() {
                         </td>
 
                         {/* Client */}
-                        <td className="px-4 py-3 text-slate-600">
-                          {task.client?.name || ''}
+                        <td className="px-4 py-3">
+                          <div
+                            ref={
+                              clientSearchTaskId === task._id
+                                ? taskClientDropdownRef
+                                : null
+                            }
+                            className="relative min-w-48"
+                          >
+                            {/* Existing client */}
+                            {clientSearchTaskId !== task._id &&
+                            task.client?.name ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setClientSearchTaskId(task._id);
+                                  setClientSearchText(task.client.name);
+                                  setShowTaskClientDropdown(true);
+                                  setHighlightedTaskClientIndex(-1);
+                                }}
+                                className="
+          w-full
+          rounded-md
+          border border-slate-300
+          bg-white
+          px-3 py-2
+          text-left
+          text-sm
+          text-slate-700
+          hover:border-blue-400
+          focus:outline-none
+          focus:ring-2
+          focus:ring-blue-100
+        "
+                              >
+                                {task.client.name}
+                              </button>
+                            ) : (
+                              /* Search client */
+                              <input
+                                type="text"
+                                value={
+                                  clientSearchTaskId === task._id
+                                    ? clientSearchText
+                                    : ''
+                                }
+                                placeholder="Search client..."
+                                autoComplete="off"
+                                onFocus={() => {
+                                  setClientSearchTaskId(task._id);
+                                  setClientSearchText('');
+                                  setShowTaskClientDropdown(true);
+                                  setHighlightedTaskClientIndex(-1);
+                                }}
+                                onChange={(e) => {
+                                  setClientSearchTaskId(task._id);
+                                  setClientSearchText(e.target.value);
+                                  setShowTaskClientDropdown(true);
+                                  setHighlightedTaskClientIndex(-1);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+
+                                    if (filteredTaskClients.length === 0)
+                                      return;
+
+                                    setHighlightedTaskClientIndex((prev) =>
+                                      prev < filteredTaskClients.length - 1
+                                        ? prev + 1
+                                        : 0,
+                                    );
+                                  }
+
+                                  if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+
+                                    if (filteredTaskClients.length === 0)
+                                      return;
+
+                                    setHighlightedTaskClientIndex((prev) =>
+                                      prev > 0
+                                        ? prev - 1
+                                        : filteredTaskClients.length - 1,
+                                    );
+                                  }
+
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+
+                                    if (
+                                      highlightedTaskClientIndex >= 0 &&
+                                      filteredTaskClients[
+                                        highlightedTaskClientIndex
+                                      ]
+                                    ) {
+                                      const selectedClient =
+                                        filteredTaskClients[
+                                          highlightedTaskClientIndex
+                                        ];
+
+                                      handleTaskClientChange(
+                                        task._id,
+                                        selectedClient._id,
+                                      );
+
+                                      setClientSearchText(
+                                        selectedClient.name ||
+                                          selectedClient.company ||
+                                          selectedClient.clientName ||
+                                          '',
+                                      );
+                                    }
+                                  }
+
+                                  if (e.key === 'Escape') {
+                                    setShowTaskClientDropdown(false);
+                                    setClientSearchTaskId(null);
+                                    setHighlightedTaskClientIndex(-1);
+                                  }
+                                }}
+                                className="
+          w-full
+          rounded-md
+          border border-slate-300
+          bg-white
+          px-3 py-2
+          text-sm
+          text-slate-700
+          outline-none
+          focus:border-blue-400
+          focus:ring-2
+          focus:ring-blue-100
+        "
+                              />
+                            )}
+
+                            {/* Dropdown */}
+                            {clientSearchTaskId === task._id &&
+                              showTaskClientDropdown && (
+                                <div
+                                  className="
+            absolute
+            left-0
+            right-0
+            top-full
+            z-50
+            mt-1
+            max-h-60
+            overflow-y-auto
+            rounded-lg
+            border
+            border-slate-200
+            bg-white
+            shadow-xl
+          "
+                                >
+                                  {filteredTaskClients.length > 0 ? (
+                                    filteredTaskClients.map((client, index) => {
+                                      const clientName =
+                                        client.name ||
+                                        client.company ||
+                                        client.clientName ||
+                                        'Unnamed Client';
+
+                                      return (
+                                        <button
+                                          key={client._id}
+                                          type="button"
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                          }}
+                                          onMouseEnter={() => {
+                                            setHighlightedTaskClientIndex(
+                                              index,
+                                            );
+                                          }}
+                                          onClick={() => {
+                                            handleTaskClientChange(
+                                              task._id,
+                                              client._id,
+                                            );
+
+                                            setClientSearchText(clientName);
+                                          }}
+                                          className={`
+                    block
+                    w-full
+                    px-3
+                    py-2.5
+                    text-left
+                    text-sm
+                    transition-colors
+                    ${
+                      highlightedTaskClientIndex === index
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }
+                  `}
+                                        >
+                                          {clientName}
+                                        </button>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="px-3 py-3 text-sm text-slate-500">
+                                      No clients found
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                          </div>
                         </td>
 
                         {/* Assigned By */}

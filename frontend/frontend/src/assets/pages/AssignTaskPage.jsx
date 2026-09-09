@@ -1,17 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import '../css/AssignTaskPage.css';
 //import { useEffect, use } from 'react';
 
 const AssignTaskPage = ({
   user,
-  clients,
+
   employees,
   onTaskCreated,
   setActiveTab,
 }) => {
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [clients, setClients] = useState([]);
+
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [highlightedClientIndex, setHighlightedClientIndex] = useState(-1);
+
+  const clientDropdownRef = useRef(null);
 
   const [task, setTask] = useState({
     title: '',
@@ -23,6 +30,32 @@ const AssignTaskPage = ({
     client: '',
   });
 
+  const filteredClients = clients.filter((client) => {
+    const clientName = client.name || '';
+
+    return clientName
+      .trim()
+      .toLowerCase()
+      .includes(clientSearch.trim().toLowerCase());
+  });
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        clientDropdownRef.current &&
+        !clientDropdownRef.current.contains(event.target)
+      ) {
+        setShowClientDropdown(false);
+        setHighlightedClientIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setTask((prev) => ({ ...prev, [name]: value }));
@@ -32,22 +65,30 @@ const AssignTaskPage = ({
     try {
       const token = localStorage.getItem('accessToken');
 
-      const response = await axios.get('http://localhost:5000/api/clients', {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await axios.get(
+        'http://localhost:5000/api/clients/my-clients',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
-
-      console.log('ALL CLIENTS FOR TASK ASSIGNMENT:', response.data);
-
-      setClients(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error(
-        'Error fetching clients:',
-        error.response?.data || error.message,
       );
 
-      setClients([]);
+      console.log('================ CLIENT DEBUG ================');
+      console.log('Full response:', response);
+      console.log('Response data:', response.data);
+      console.log('Is array:', Array.isArray(response.data));
+      console.log('Number of clients:', response.data?.length);
+      console.log('First client:', response.data?.[0]);
+      console.log(
+        'Client names:',
+        response.data?.map((client) => client.name),
+      );
+      console.log('==============================================');
+
+      setClients(response.data);
+    } catch (error) {
+      console.error('CLIENT FETCH ERROR:', error);
     }
   };
 
@@ -298,42 +339,174 @@ const AssignTaskPage = ({
           <div className="flex flex-col gap-2">
             <label
               htmlFor="task-client"
-              className="
-              text-sm font-semibold
-              text-slate-700
-            "
+              className="text-sm font-semibold text-slate-700"
             >
               Client
             </label>
 
-            <select
-              id="task-client"
-              name="client"
-              value={task.client}
-              onChange={handleChange}
-              className="
-              w-full
-              cursor-pointer
-              rounded-lg
-              border border-slate-300
-              bg-white
-              px-3.5 py-2.5
-              text-sm text-slate-800
-              outline-none
-              transition-all duration-200
-              focus:border-blue-400
-              focus:ring-2
-              focus:ring-blue-100
-            "
-            >
-              <option value="">-- Select Client --</option>
+            <div ref={clientDropdownRef} className="relative">
+              {/* Client Search Input */}
+              <input
+                id="task-client"
+                type="text"
+                autoComplete="off"
+                placeholder="Search client..."
+                value={clientSearch}
+                onChange={(e) => {
+                  const value = e.target.value;
 
-              {clients.map((client) => (
-                <option key={client._id} value={client._id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
+                  setClientSearch(value);
+                  setShowClientDropdown(true);
+                  setHighlightedClientIndex(-1);
+
+                  // Clear previously selected client
+                  setTask((prev) => ({
+                    ...prev,
+                    client: '',
+                  }));
+                }}
+                onFocus={() => {
+                  setShowClientDropdown(true);
+                }}
+                onKeyDown={(e) => {
+                  // Open dropdown if closed
+                  if (!showClientDropdown && e.key !== 'Escape') {
+                    setShowClientDropdown(true);
+                  }
+
+                  // Arrow Down
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+
+                    if (filteredClients.length === 0) return;
+
+                    setHighlightedClientIndex((prev) =>
+                      prev < filteredClients.length - 1 ? prev + 1 : 0,
+                    );
+                  }
+
+                  // Arrow Up
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+
+                    if (filteredClients.length === 0) return;
+
+                    setHighlightedClientIndex((prev) =>
+                      prev > 0 ? prev - 1 : filteredClients.length - 1,
+                    );
+                  }
+
+                  // Enter
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+
+                    if (
+                      highlightedClientIndex >= 0 &&
+                      filteredClients[highlightedClientIndex]
+                    ) {
+                      const selectedClient =
+                        filteredClients[highlightedClientIndex];
+
+                      setTask((prev) => ({
+                        ...prev,
+                        client: selectedClient._id,
+                      }));
+
+                      setClientSearch(selectedClient.name);
+
+                      setShowClientDropdown(false);
+                      setHighlightedClientIndex(-1);
+                    }
+                  }
+
+                  // Escape
+                  if (e.key === 'Escape') {
+                    setShowClientDropdown(false);
+                    setHighlightedClientIndex(-1);
+                  }
+                }}
+                className="
+        w-full
+        rounded-lg
+        border border-slate-300
+        bg-white
+        px-3.5 py-2.5
+        text-sm text-slate-800
+        outline-none
+        transition-all duration-200
+        focus:border-blue-400
+        focus:ring-2
+        focus:ring-blue-100
+      "
+              />
+
+              {/* Dropdown */}
+              {showClientDropdown && clientSearch.trim() !== '' && (
+                <div
+                  className="
+          absolute
+          left-0
+          right-0
+          z-50
+          mt-1
+          max-h-60
+          overflow-y-auto
+          rounded-lg
+          border
+          border-slate-200
+          bg-white
+          shadow-xl
+        "
+                >
+                  {filteredClients.length > 0 ? (
+                    filteredClients.map((client, index) => (
+                      <button
+                        key={client._id}
+                        type="button"
+                        onMouseDown={(e) => {
+                          // Prevent input blur before selection
+                          e.preventDefault();
+                        }}
+                        onClick={() => {
+                          setTask((prev) => ({
+                            ...prev,
+                            client: client._id,
+                          }));
+
+                          setClientSearch(client.name);
+
+                          setShowClientDropdown(false);
+                          setHighlightedClientIndex(-1);
+                        }}
+                        onMouseEnter={() => {
+                          setHighlightedClientIndex(index);
+                        }}
+                        className={`
+                block
+                w-full
+                px-4
+                py-3
+                text-left
+                text-sm
+                transition-colors
+                ${
+                  highlightedClientIndex === index
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }
+              `}
+                      >
+                        {client.name}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-slate-500">
+                      No clients found
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Assign To */}

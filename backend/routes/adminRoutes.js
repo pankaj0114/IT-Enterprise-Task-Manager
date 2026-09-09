@@ -20,6 +20,12 @@ import {
   createMyTask,
   getAllClients,
   updateTaskStatus,
+  getEmployeesForTaskAssignment,
+  updateMyTaskTitle,
+  updateMyTaskDueDate,
+  updateMyTaskClient,
+  updateMyTaskRemarks,
+  updateTask,
 } from '../controllers/adminTaskController.js';
 
 //import authMiddleware from '../middleware/authMiddleware.js';
@@ -97,4 +103,44 @@ router.put(
   resetEmployeePassword,
 );
 
+router.get(
+  '/employees/task-assignment',
+  authMiddleware,
+  adminMiddleware,
+  getEmployeesForTaskAssignment,
+);
+
+router.post('/tasks/my', authMiddleware, adminMiddleware, createMyTask);
+
+router.get('/tasks/my', authMiddleware, adminMiddleware, getMyTasks);
+
+router.put(
+  '/tasks/my/:taskId/title',
+  authMiddleware,
+  adminMiddleware,
+  updateMyTaskTitle,
+);
+
+router.put(
+  '/tasks/my/:taskId/due-date',
+  authMiddleware,
+  adminMiddleware,
+  updateMyTaskDueDate,
+);
+
+router.put(
+  '/tasks/my/:taskId/client',
+  authMiddleware,
+  adminMiddleware,
+  updateMyTaskClient,
+);
+
+router.put(
+  '/tasks/my/:taskId/remarks',
+  authMiddleware,
+  adminMiddleware,
+  updateMyTaskRemarks,
+);
+
+router.put('/tasks/:taskId', authMiddleware, adminMiddleware, updateTask);
 export default router;
