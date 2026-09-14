@@ -696,10 +696,8 @@ export default function EmployeeDashboard() {
   };
 
   useEffect(() => {
-    if (activeTab === 'clients') {
-      fetchMyClients();
-    }
-  }, [activeTab]);
+    fetchMyClients();
+  }, []);
 
   {
     activeTab === 'attendance' && <EmployeeAttendance />;

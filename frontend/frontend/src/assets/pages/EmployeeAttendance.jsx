@@ -650,6 +650,8 @@ export default function EmployeeAttendance() {
 
                   const isPendingWfh = wfhRequest?.status === 'PENDING';
 
+                  const hasPendingRequest = isPendingLeave || isPendingWfh;
+
                   return (
                     <div
                       key={dateKey}
@@ -734,6 +736,12 @@ export default function EmployeeAttendance() {
                           </span>
                         )}
 
+                        {hasPendingRequest && (
+                          <span className="inline-flex rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-600">
+                            Pending
+                          </span>
+                        )}
+
                         {!status && isRejectedLeave && (
                           <span className="inline-flex rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
                             Leave rejected
@@ -760,20 +768,38 @@ export default function EmployeeAttendance() {
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
-                              disabled={isPendingLeave}
-                              onClick={() => openWfhModal(dateKey)}
-                              className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-2 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={isPast || hasPendingRequest}
+                              onClick={() => {
+                                if (hasPendingRequest) return;
+                                openWfhModal(dateKey);
+                              }}
+                              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                                isPast || hasPendingRequest
+                                  ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                                  : 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100'
+                              }`}
                             >
-                              WFH Request
+                              WFH
+                              <br />
+                              Request
                             </button>
 
                             <button
                               type="button"
-                              disabled={isPendingLeave}
-                              onClick={() => openLeaveModal(dateKey)}
-                              className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-2 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={isPast || hasPendingRequest}
+                              onClick={() => {
+                                if (hasPendingRequest) return;
+                                openLeaveModal(dateKey);
+                              }}
+                              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                                isPast || hasPendingRequest
+                                  ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                                  : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100'
+                              }`}
                             >
-                              Leave Request
+                              Leave
+                              <br />
+                              Request
                             </button>
                           </div>
 
