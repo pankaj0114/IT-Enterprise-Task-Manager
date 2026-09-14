@@ -6,6 +6,7 @@ import '../css/EmployeeDashboard.css';
 import '../css/MyTaskform.css';
 import '../css/AssignTaskPage.css';
 import AssignTaskPage from './AssignTaskPage';
+import EmployeeAttendance from './EmployeeAttendance';
 import DatePicker from 'react-datepicker';
 import { useRef } from 'react';
 import socket from '../services/socket.js';
@@ -21,6 +22,8 @@ import {
   MdNotificationsNone,
   MdDelete,
 } from 'react-icons/md';
+
+import { MdCalendarMonth } from 'react-icons/md';
 
 const getTodayDate = () => {
   const today = new Date();
@@ -63,6 +66,8 @@ export default function EmployeeDashboard() {
   const remarkTimeouts = useRef({});
   const [myClients, setMyClients] = useState([]);
   const [loadingMyClients, setLoadingMyClients] = useState(false);
+
+  const [editingRemarks, setEditingRemarks] = useState({});
 
   const [clientSearchTaskId, setClientSearchTaskId] = useState(null);
   const [clientSearchText, setClientSearchText] = useState('');
@@ -327,7 +332,25 @@ export default function EmployeeDashboard() {
 
       console.log('ASSIGNED BY ME:', response.data);
 
-      setAssignedTasks(response.data);
+      const serverTasks = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data.tasks)
+          ? response.data.tasks
+          : [];
+
+      setAssignedTasks((prevTasks) =>
+        serverTasks.map((serverTask) => {
+          const localRemark = editingRemarks[serverTask._id];
+
+          return {
+            ...serverTask,
+            remarks:
+              localRemark !== undefined
+                ? localRemark
+                : serverTask.remarks || '',
+          };
+        }),
+      );
     } catch (error) {
       console.error(
         'Error fetching assigned tasks:',
@@ -439,12 +462,6 @@ export default function EmployeeDashboard() {
       );
     }
   };
-
-  useEffect(() => {
-    if (activeTab === 'assignedTasks') {
-      fetchAssignedTasks();
-    }
-  }, [activeTab]);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -562,12 +579,25 @@ export default function EmployeeDashboard() {
     console.log('Task ID:', taskId);
     console.log('Remark:', value);
 
-    if (!taskId) {
-      console.error('ERROR: taskId is undefined!');
-      return;
-    }
+    // Keep the text being typed independently from server data
+    setEditingRemarks((prev) => ({
+      ...prev,
+      [taskId]: value,
+    }));
 
-    // Immediately update the task in the UI
+    // Immediately update Assigned Tasks UI
+    setAssignedTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        String(task._id) === String(taskId)
+          ? {
+              ...task,
+              remarks: value,
+            }
+          : task,
+      ),
+    );
+
+    // Also update the normal tasks state if needed
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
         String(task._id) === String(taskId)
@@ -579,13 +609,13 @@ export default function EmployeeDashboard() {
       ),
     );
 
-    // Clear previous timeout
-    if (typingTimeouts[taskId]) {
-      clearTimeout(typingTimeouts[taskId]);
+    // Clear previous timer
+    if (remarkTimeouts.current[taskId]) {
+      clearTimeout(remarkTimeouts.current[taskId]);
     }
 
     // Save after user stops typing
-    const timeout = setTimeout(async () => {
+    remarkTimeouts.current[taskId] = setTimeout(async () => {
       try {
         const token = localStorage.getItem('accessToken');
 
@@ -606,20 +636,31 @@ export default function EmployeeDashboard() {
         );
 
         console.log('Remark saved successfully:', response.data);
+
+        // Keep the locally typed value visible
+        setEditingRemarks((prev) => ({
+          ...prev,
+          [taskId]: value,
+        }));
+
+        setAssignedTasks((prevTasks) =>
+          prevTasks.map((task) =>
+            String(task._id) === String(taskId)
+              ? {
+                  ...task,
+                  remarks: value,
+                }
+              : task,
+          ),
+        );
       } catch (error) {
         console.error(
-          'Error automatically saving remark:',
+          'Error saving remark:',
           error.response?.data || error.message,
         );
       }
     }, 1000);
-
-    setTypingTimeouts((prev) => ({
-      ...prev,
-      [taskId]: timeout,
-    }));
   };
-
   const fetchMyClients = async () => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -659,6 +700,10 @@ export default function EmployeeDashboard() {
       fetchMyClients();
     }
   }, [activeTab]);
+
+  {
+    activeTab === 'attendance' && <EmployeeAttendance />;
+  }
 
   const fetchCompletedTasks = async () => {
     try {
@@ -1145,10 +1190,8 @@ export default function EmployeeDashboard() {
     }
   };
 
-  const handleUpdateTask = async (taskId) => {
+  const handleAssignedTaskClientChange = async (taskId, clientId) => {
     try {
-      console.log('TASK ID:', taskId);
-
       if (!taskId) {
         console.error('Task ID is missing');
         return;
@@ -1156,9 +1199,106 @@ export default function EmployeeDashboard() {
 
       const token = localStorage.getItem('accessToken');
 
+      if (!token) {
+        alert('Authentication token not found. Please login again.');
+        return;
+      }
+
+      console.log('UPDATING ASSIGNED TASK CLIENT:', {
+        taskId,
+        clientId,
+      });
+
+      const response = await axios.put(
+        `http://localhost:5000/api/tasks/${taskId}`,
+        {
+          client: clientId || null,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('ASSIGNED TASK CLIENT UPDATED:', response.data);
+
+      const updatedTask = response.data.task || response.data;
+
+      setAssignedTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          String(task._id) === String(taskId)
+            ? {
+                ...task,
+                ...updatedTask,
+                client: updatedTask.client || clientId || null,
+              }
+            : task,
+        ),
+      );
+
+      // Keep main task state synchronized too
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          String(task._id) === String(taskId)
+            ? {
+                ...task,
+                ...updatedTask,
+                client: updatedTask.client || clientId || null,
+              }
+            : task,
+        ),
+      );
+    } catch (error) {
+      console.error(
+        'ASSIGNED TASK CLIENT UPDATE ERROR:',
+        error.response?.data || error.message,
+      );
+
+      alert(error.response?.data?.message || 'Failed to update client.');
+    }
+  };
+  const handleUpdateTask = async (taskId) => {
+    try {
+      if (!taskId) {
+        console.error('Task ID is missing');
+        return;
+      }
+
+      const token = localStorage.getItem('accessToken');
+
+      if (!token) {
+        alert('Authentication token not found. Please login again.');
+        return;
+      }
+
+      const task = assignedTasks.find(
+        (item) => String(item._id) === String(taskId),
+      );
+
+      if (!task) {
+        console.error('Task not found:', taskId);
+        return;
+      }
+
+      const clientId =
+        typeof task.client === 'object'
+          ? task.client?._id
+          : task.client || null;
+
       const payload = {
-        // your values here
+        title: task.title,
+        dueDate: task.dueDate || null,
+        priority: task.priority || 'Medium',
+        remarks: task.remarks || '',
+        client: clientId,
+        status: task.status || 'Not Started',
       };
+
+      console.log('========== UPDATING ASSIGNED TASK ==========');
+      console.log('Task ID:', taskId);
+      console.log('Payload:', payload);
 
       const response = await axios.put(
         `http://localhost:5000/api/tasks/${taskId}`,
@@ -1170,11 +1310,46 @@ export default function EmployeeDashboard() {
           },
         },
       );
+
+      console.log('ASSIGNED TASK UPDATE RESPONSE:', response.data);
+
+      const updatedTask = response.data.task || response.data;
+
+      // Update Assigned Tasks table
+      setAssignedTasks((prevTasks) =>
+        prevTasks.map((item) =>
+          String(item._id) === String(taskId)
+            ? {
+                ...item,
+                ...updatedTask,
+              }
+            : item,
+        ),
+      );
+
+      // Keep main tasks synchronized
+      setTasks((prevTasks) =>
+        prevTasks.map((item) =>
+          String(item._id) === String(taskId)
+            ? {
+                ...item,
+                ...updatedTask,
+              }
+            : item,
+        ),
+      );
+
+      alert('Task updated successfully.');
+
+      // Optional: reload from database
+      await fetchAssignedTasks();
     } catch (error) {
       console.error(
-        'Error updating task:',
+        'ASSIGNED TASK UPDATE ERROR:',
         error.response?.data || error.message,
       );
+
+      alert(error.response?.data?.message || 'Failed to update task.');
     }
   };
   /*
@@ -1356,6 +1531,28 @@ export default function EmployeeDashboard() {
             <span>Completed Tasks</span>
           </li>
 
+          <li
+            onClick={() => setActiveTab('attendance')}
+            className={`
+    flex items-center
+    gap-2
+    px-3 py-3
+    rounded-md
+    cursor-pointer
+    text-sm
+    transition-all
+    duration-200
+    ${
+      activeTab === 'attendance'
+        ? 'bg-white/20 font-semibold shadow-sm'
+        : 'hover:bg-white/10'
+    }
+  `}
+          >
+            <MdCalendarMonth size={20} />
+            <span>Attendance</span>
+          </li>
+
           {/* Clients */}
           <li
             onClick={() => setActiveTab('clients')}
@@ -1448,6 +1645,11 @@ export default function EmployeeDashboard() {
       overflow-x-hidden
     "
       >
+        {activeTab === 'attendance' && (
+          <div className="w-full">
+            <EmployeeAttendance />
+          </div>
+        )}
         {/* =======================================================
         MY TASKS
     ======================================================= */}
@@ -2695,7 +2897,7 @@ export default function EmployeeDashboard() {
                     <tr className="bg-slate-100 border-b">
                       <th className="px-4 py-3 text-left">Title</th>
                       <th className="px-4 py-3 text-left">Due Date</th>
-                      <th className="px-4 py-3 text-left">Priority</th>
+
                       <th className="px-4 py-3 text-left">Remarks</th>
                       <th className="px-4 py-3 text-left">Client</th>
                       <th className="px-4 py-3 text-left">Assigned To</th>
@@ -2707,11 +2909,7 @@ export default function EmployeeDashboard() {
                     {assignedTasks.map((task) => (
                       <tr
                         key={task._id}
-                        className="
-                      border-b
-                      border-slate-100
-                      hover:bg-slate-50
-                    "
+                        className="border-b border-slate-100 hover:bg-slate-50"
                       >
                         {/* Title */}
                         <td className="px-4 py-3 font-medium text-slate-700">
@@ -2725,34 +2923,6 @@ export default function EmployeeDashboard() {
                             : 'No due date'}
                         </td>
 
-                        {/* Priority */}
-                        <td className="px-4 py-3">
-                          <select
-                            value={task.priority || 'Medium'}
-                            onChange={(e) =>
-                              handlePriorityChange(task._id, e.target.value)
-                            }
-                            className="
-                          px-2
-                          py-2
-                          rounded-md
-                          border
-                          border-slate-300
-                          bg-white
-                          text-xs
-                          outline-none
-                          focus:ring-2
-                          focus:ring-blue-400
-                        "
-                          >
-                            <option value="Low">Low</option>
-
-                            <option value="Medium">Medium</option>
-
-                            <option value="High">High</option>
-                          </select>
-                        </td>
-
                         {/* Remarks */}
                         <td className="px-4 py-3">
                           <input
@@ -2764,19 +2934,18 @@ export default function EmployeeDashboard() {
                             }
                             placeholder="Add remarks..."
                             className="
-                          w-full
-                          min-w-45
-                          px-3
-                          py-2
-                          rounded-md
-                          border
-                          border-slate-300
-                          outline-none
-                          text-sm
-                          focus:ring-2
-                          focus:ring-green-300
-                          focus:border-green-300
-                        "
+            w-full
+            min-w-45
+            px-3
+            py-2
+            rounded-md
+            border border-slate-300
+            outline-none
+            text-sm
+            focus:ring-2
+            focus:ring-green-300
+            focus:border-green-300
+          "
                           />
                         </td>
 
@@ -2785,19 +2954,23 @@ export default function EmployeeDashboard() {
                           <select
                             name="client"
                             value={task.client?._id || task.client || ''}
-                            onChange={(e) => Change(e, task._id)}
+                            onChange={(e) =>
+                              handleAssignedTaskClientChange(
+                                task._id,
+                                e.target.value,
+                              )
+                            }
                             className="
-                          px-2
-                          py-2
-                          rounded-md
-                          border
-                          border-slate-300
-                          bg-white
-                          text-xs
-                          outline-none
-                          focus:ring-2
-                          focus:ring-blue-400
-                        "
+            px-2
+            py-2
+            rounded-md
+            border border-slate-300
+            bg-white
+            text-xs
+            outline-none
+            focus:ring-2
+            focus:ring-blue-400
+          "
                           >
                             <option value="">-- Select Client --</option>
 
@@ -2817,18 +2990,19 @@ export default function EmployeeDashboard() {
                         {/* Actions */}
                         <td className="px-4 py-3">
                           <button
+                            type="button"
                             onClick={() => handleUpdateTask(task._id)}
                             className="
-                          px-4
-                          py-2
-                          rounded-md
-                          bg-blue-500
-                          hover:bg-blue-600
-                          text-white
-                          text-xs
-                          font-medium
-                          transition
-                        "
+            px-4
+            py-2
+            rounded-md
+            bg-blue-500
+            hover:bg-blue-600
+            text-white
+            text-xs
+            font-medium
+            transition
+          "
                           >
                             Update
                           </button>

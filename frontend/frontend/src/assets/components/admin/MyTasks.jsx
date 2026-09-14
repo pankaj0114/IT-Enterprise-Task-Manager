@@ -32,6 +32,10 @@ const MyTasks = ({ admin }) => {
   const [editingTitleId, setEditingTitleId] = useState(null);
   const [editingTitleValue, setEditingTitleValue] = useState('');
 
+  const [clientSearchByTask, setClientSearchByTask] = useState({});
+  const [activeClientTaskId, setActiveClientTaskId] = useState(null);
+  //const [highlightedClientIndex, setHighlightedClientIndex] = useState(-1);
+
   const clientDropdownRef = useRef(null);
 
   // ==========================================
@@ -231,9 +235,15 @@ const MyTasks = ({ admin }) => {
       setError(error.response?.data?.message || 'Failed to update due date');
     }
   };
+
   const handleClientChange = async (taskId, clientId) => {
     try {
       const token = localStorage.getItem('accessToken');
+
+      if (!token) {
+        setError('Authentication token not found. Please login again.');
+        return;
+      }
 
       const response = await axios.put(
         `http://localhost:5000/api/admin/tasks/my/${taskId}/client`,
@@ -243,6 +253,7 @@ const MyTasks = ({ admin }) => {
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
         },
       );
@@ -250,30 +261,41 @@ const MyTasks = ({ admin }) => {
       console.log('CLIENT UPDATED:', response.data);
 
       setMyTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task._id === taskId ? response.data.task : task,
+        prevTasks.map((item) =>
+          item._id === taskId
+            ? {
+                ...item,
+                client: response.data.task?.client || {
+                  _id: clientId,
+                  name: clientSearchByTask[taskId] || '',
+                },
+              }
+            : item,
         ),
       );
 
-      setClientSearch('');
-      setShowClientDropdown(false);
-      setHighlightedClientIndex(-1);
+      setSuccess('Client updated successfully.');
 
-      setError('');
+      setTimeout(() => {
+        setSuccess('');
+      }, 2000);
     } catch (error) {
-      console.error(
-        'UPDATE CLIENT ERROR:',
-        error.response?.data || error.message,
-      );
+      console.error('UPDATE CLIENT ERROR:', error);
+      console.error('STATUS:', error.response?.status);
+      console.error('DATA:', error.response?.data);
 
-      setError(error.response?.data?.message || 'Failed to update client');
+      setError(error.response?.data?.message || 'Failed to update client.');
     }
   };
 
-  const filteredClients = clients.filter((item) => {
-    const clientName = item.name || item.company || '';
+  const activeClientSearch = activeClientTaskId
+    ? clientSearchByTask[activeClientTaskId] || ''
+    : '';
 
-    return clientName.toLowerCase().includes(clientSearch.trim().toLowerCase());
+  const filteredClients = clients.filter((item) => {
+    const clientName = (item.name || item.company || '').toLowerCase();
+
+    return clientName.includes(activeClientSearch.toLowerCase());
   });
 
   const handleRemarkChange = (taskId, value) => {
@@ -1146,31 +1168,37 @@ const MyTasks = ({ admin }) => {
         CLIENT
     ========================================= */}
                     <td className="px-5 py-4">
-                      <div
-                        ref={clientDropdownRef}
-                        className="relative min-w-52"
-                      >
+                      <div className="relative min-w-52">
                         <input
                           type="text"
                           autoComplete="off"
                           placeholder="Search client..."
-                          value={clientSearch}
+                          value={
+                            clientSearchByTask?.[task._id] ??
+                            task.client?.name ??
+                            task.client?.company ??
+                            ''
+                          }
                           onFocus={() => {
-                            setShowClientDropdown(true);
+                            setActiveClientTaskId(task._id);
                             setHighlightedClientIndex(-1);
                           }}
                           onChange={(e) => {
-                            setClientSearch(e.target.value);
-                            setShowClientDropdown(true);
+                            const value = e.target.value;
+
+                            setClientSearchByTask((prev) => ({
+                              ...prev,
+                              [task._id]: value,
+                            }));
+
+                            setActiveClientTaskId(task._id);
                             setHighlightedClientIndex(-1);
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'ArrowDown') {
                               e.preventDefault();
 
-                              if (filteredClients.length === 0) {
-                                return;
-                              }
+                              if (filteredClients.length === 0) return;
 
                               setHighlightedClientIndex((prev) =>
                                 prev < filteredClients.length - 1
@@ -1182,9 +1210,7 @@ const MyTasks = ({ admin }) => {
                             if (e.key === 'ArrowUp') {
                               e.preventDefault();
 
-                              if (filteredClients.length === 0) {
-                                return;
-                              }
+                              if (filteredClients.length === 0) return;
 
                               setHighlightedClientIndex((prev) =>
                                 prev > 0
@@ -1203,57 +1229,64 @@ const MyTasks = ({ admin }) => {
                                 const selectedClient =
                                   filteredClients[highlightedClientIndex];
 
+                                const clientName =
+                                  selectedClient.name ||
+                                  selectedClient.company ||
+                                  '';
+
                                 handleClientChange(
                                   task._id,
                                   selectedClient._id,
                                 );
 
-                                setClientSearch(
-                                  selectedClient.name ||
-                                    selectedClient.company ||
-                                    '',
-                                );
+                                setClientSearchByTask((prev) => ({
+                                  ...prev,
+                                  [task._id]: clientName,
+                                }));
+
+                                setActiveClientTaskId(null);
+                                setHighlightedClientIndex(-1);
                               }
                             }
 
                             if (e.key === 'Escape') {
-                              setShowClientDropdown(false);
+                              setActiveClientTaskId(null);
                               setHighlightedClientIndex(-1);
                             }
                           }}
                           className="
-            w-full
-            rounded-lg
-            border border-slate-300
-            bg-white
-            px-3
-            py-2
-            text-sm
-            text-slate-700
-            outline-none
-            focus:border-blue-400
-            focus:ring-2
-            focus:ring-blue-100
-          "
+        w-full
+        rounded-lg
+        border border-slate-300
+        bg-white
+        px-3
+        py-2
+        text-sm
+        text-slate-700
+        outline-none
+        focus:border-blue-400
+        focus:ring-2
+        focus:ring-blue-100
+      "
                         />
 
-                        {showClientDropdown && (
+                        {activeClientTaskId === task._id && (
                           <div
                             className="
-              absolute
-              left-0
-              right-0
-              top-full
-              z-50
-              mt-1
-              max-h-60
-              overflow-y-auto
-              rounded-lg
-              border
-              border-slate-200
-              bg-white
-              shadow-xl
-            "
+          absolute
+          left-0
+          right-0
+          top-full
+          z-50
+          mt-1
+          max-h-60
+          overflow-y-auto
+          rounded-lg
+          border
+          border-slate-200
+          bg-white
+          shadow-xl
+        "
                           >
                             {filteredClients.length > 0 ? (
                               filteredClients.map((item, index) => {
@@ -1271,21 +1304,27 @@ const MyTasks = ({ admin }) => {
                                     onClick={() => {
                                       handleClientChange(task._id, item._id);
 
-                                      setClientSearch(clientName);
+                                      setClientSearchByTask((prev) => ({
+                                        ...prev,
+                                        [task._id]: clientName,
+                                      }));
+
+                                      setActiveClientTaskId(null);
+                                      setHighlightedClientIndex(-1);
                                     }}
                                     className={`
-                      block
-                      w-full
-                      px-4
-                      py-3
-                      text-left
-                      text-sm
-                      ${
-                        highlightedClientIndex === index
-                          ? 'bg-blue-50 text-blue-700'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }
-                    `}
+                  block
+                  w-full
+                  px-4
+                  py-3
+                  text-left
+                  text-sm
+                  ${
+                    highlightedClientIndex === index
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }
+                `}
                                   >
                                     {clientName}
                                   </button>
@@ -1299,13 +1338,6 @@ const MyTasks = ({ admin }) => {
                           </div>
                         )}
                       </div>
-
-                      {/* Existing selected client */}
-                      {task.client?.name && !clientSearch && (
-                        <div className="mt-1 text-xs text-slate-500">
-                          Current: {task.client.name}
-                        </div>
-                      )}
                     </td>
 
                     {/* =========================================

@@ -6,7 +6,9 @@ import '../css/EmployeeDashboard.css';
 import { Eye, EyeOff } from 'lucide-react';
 import MyTasks from '../components/admin/MyTasks';
 import AssignedTasks from '../components/admin/AssignedTasks';
+import AdminAttendance from '../components/admin/AdminAttendance';
 import { io } from 'socket.io-client';
+import { MdCalendarMonth } from 'react-icons/md';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -665,6 +667,7 @@ const AdminDashboard = () => {
       fetchAdminTasks();
     }
   }, [activeTab]);
+
   const handleDeleteTask = async (taskId) => {
     if (!taskId) {
       console.error('Task ID is missing');
@@ -690,7 +693,6 @@ const AdminDashboard = () => {
         },
       });
 
-      // Remove immediately from UI
       setAdminTasks((prevTasks) =>
         prevTasks.filter((task) => String(task._id) !== String(taskId)),
       );
@@ -1092,6 +1094,35 @@ const AdminDashboard = () => {
             <span className="hidden lg:inline">All Tasks</span>
           </button>
 
+          {/* Attendance */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('attendance')}
+            className={`
+    flex
+    w-full
+    items-center
+    justify-center
+    gap-3
+    rounded-lg
+    px-3
+    py-3
+    text-left
+    transition
+    lg:justify-start
+    lg:px-4
+    ${
+      activeTab === 'attendance'
+        ? 'bg-blue-600 text-white'
+        : 'text-slate-300 hover:bg-slate-800'
+    }
+  `}
+          >
+            <MdCalendarMonth size={22} />
+
+            <span className="hidden lg:inline">Attendance</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('employeePerformance')}
@@ -1221,6 +1252,8 @@ const AdminDashboard = () => {
         {activeTab === 'myTasks' && (
           <MyTasks tasks={adminTasks} loading={loadingTasks} admin={admin} />
         )}
+
+        {activeTab === 'attendance' && <AdminAttendance />}
 
         {/* ==========================================
     ASSIGNED TASKS

@@ -16,6 +16,10 @@ import userRoutes from './routes/userRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import clientRoutes from './routes/clientRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import attendanceRoutes from './routes/attendanceRoutes.js';
+
+import adminAttendanceRoutes from './routes/adminAttendanceRoutes.js';
+
 //import adminTaskRoutes from './routes/adminTaskRoutes.js';
 //import notificationRoutes from './routes/notificationRoutes.js';
 
@@ -78,6 +82,8 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/admin/attendance', adminAttendanceRoutes);
 
 // Database connection
 connectDB();

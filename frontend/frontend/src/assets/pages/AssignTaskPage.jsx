@@ -297,44 +297,6 @@ const AssignTaskPage = ({
             />
           </div>
 
-          {/* Priority */}
-          <div className="flex flex-col gap-2">
-            <label
-              htmlFor="task-priority"
-              className="
-              text-sm font-semibold
-              text-slate-700
-            "
-            >
-              Priority
-            </label>
-
-            <select
-              id="task-priority"
-              name="priority"
-              value={task.priority}
-              onChange={handleChange}
-              className="
-              w-full
-              cursor-pointer
-              rounded-lg
-              border border-slate-300
-              bg-white
-              px-3.5 py-2.5
-              text-sm text-slate-800
-              outline-none
-              transition-all duration-200
-              focus:border-blue-400
-              focus:ring-2
-              focus:ring-blue-100
-            "
-            >
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-            </select>
-          </div>
-
           {/* Client */}
           <div className="flex flex-col gap-2">
             <label
@@ -510,7 +472,7 @@ const AssignTaskPage = ({
           </div>
 
           {/* Assign To */}
-          <div className="flex flex-col gap-2 sm:col-span-2">
+          <div className="flex flex-col gap-2 ">
             <label
               htmlFor="task-assigned-to"
               className="
