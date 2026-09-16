@@ -1,3 +1,5 @@
+// this is the signp.js file for the signup page
+
 import { useState } from 'react';
 import axios from 'axios';
 //import '../css/Signup.css'; // import the CSS file
