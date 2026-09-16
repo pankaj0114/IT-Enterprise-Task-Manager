@@ -593,7 +593,7 @@ const AdminDashboard = () => {
         return;
       }
 
-      const deletedNotification = notifications.find(
+      const dNotification = notifications.find(
         (notification) => notification._id === notificationId,
       );
 

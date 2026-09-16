@@ -25,8 +25,8 @@ const MyTasks = ({ admin }) => {
   const [assignedBySearch, setAssignedBySearch] = useState('');
   const [showAssignedByDropdown, setShowAssignedByDropdown] = useState(false);
 
-  const [clientSearch, setClientSearch] = useState('');
-  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  // const [clientSearch, setClientSearch] = useState('');
+  //const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [highlightedClientIndex, setHighlightedClientIndex] = useState(-1);
 
   const [editingTitleId, setEditingTitleId] = useState(null);
@@ -201,41 +201,6 @@ const MyTasks = ({ admin }) => {
     }
   };
 
-  const handleDueDateChange = async (taskId, newDueDate) => {
-    try {
-      const token = localStorage.getItem('accessToken');
-
-      const response = await axios.put(
-        `http://localhost:5000/api/admin/tasks/my/${taskId}/due-date`,
-        {
-          dueDate: newDueDate || null,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      setMyTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task._id === taskId
-            ? {
-                ...task,
-                dueDate: response.data.task.dueDate,
-              }
-            : task,
-        ),
-      );
-
-      setError('');
-    } catch (error) {
-      console.error('UPDATE DUE DATE ERROR:', error);
-
-      setError(error.response?.data?.message || 'Failed to update due date');
-    }
-  };
-
   const handleClientChange = async (taskId, clientId) => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -297,19 +262,6 @@ const MyTasks = ({ admin }) => {
 
     return clientName.includes(activeClientSearch.toLowerCase());
   });
-
-  const handleRemarkChange = (taskId, value) => {
-    setMyTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task._id === taskId
-          ? {
-              ...task,
-              remarks: value,
-            }
-          : task,
-      ),
-    );
-  };
 
   const handleRemarkUpdate = async (taskId, remarks) => {
     try {
@@ -382,81 +334,6 @@ const MyTasks = ({ admin }) => {
     };
   }, []);
 
-  const handleCompleteTask = async () => {
-    if (!selectedTask) return;
-
-    if (hours === '' || minutes === '') {
-      setError('Please enter hours and minutes.');
-      return;
-    }
-
-    const totalHours = Number(hours);
-    const totalMinutes = Number(minutes);
-
-    if (totalHours < 0) {
-      setError('Hours cannot be negative.');
-      return;
-    }
-
-    if (totalMinutes < 0 || totalMinutes > 59) {
-      setError('Minutes must be between 0 and 59.');
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('accessToken');
-
-      if (!token) {
-        setError('Authentication token not found. Please login again.');
-        return;
-      }
-
-      const response = await axios.put(
-        `http://localhost:5000/api/admin/tasks/${selectedTask._id}/status`,
-        {
-          status: 'Completed',
-          totalHours,
-          totalMinutes,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      console.log('COMPLETED TASK:', response.data);
-
-      setMyTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task._id === selectedTask._id
-            ? {
-                ...task,
-                status: 'Completed',
-                totalHours,
-                totalMinutes,
-              }
-            : task,
-        ),
-      );
-
-      // Close popup
-      setShowPopup(false);
-      setSelectedTask(null);
-
-      // Clear values
-      setHours('');
-      setMinutes('');
-
-      //setSuccess('Task completed successfully');
-    } catch (error) {
-      console.error('COMPLETE TASK ERROR:', error);
-      console.error('STATUS:', error.response?.status);
-      console.error('DATA:', error.response?.data);
-
-      setError(error.response?.data?.message || 'Failed to complete task');
-    }
-  };
   // ==========================================
   // FETCH CLIENTS
   // ==========================================
@@ -521,86 +398,6 @@ const MyTasks = ({ admin }) => {
     fetchEmployees();
   }, []);
 
-  // ==========================================
-  // CREATE MY TASK
-  // ==========================================
-
-  const handleAddTask = async (event) => {
-    event?.preventDefault();
-
-    setError('');
-    setSuccess('');
-
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
-      setError('Please enter a task title.');
-      return;
-    }
-
-    if (!dueDate) {
-      setError('Please select a due date.');
-      return;
-    }
-
-    if (!assignedBy) {
-      setError('Please select the employee who assigned this task.');
-      return;
-    }
-
-    const token = localStorage.getItem('accessToken');
-
-    if (!token) {
-      setError('Authentication token not found. Please login again.');
-      return;
-    }
-
-    try {
-      setCreatingTask(true);
-
-      const payload = {
-        title: trimmedTitle,
-        dueDate,
-        client: client || null,
-        assignedBy,
-      };
-
-      const response = await axios.post(
-        'http://localhost:5000/api/admin/tasks/my',
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-
-      console.log('MY TASK CREATED:', response.data);
-
-      setTitle('');
-      setDueDate('');
-      setClient('');
-      setAssignedBy('');
-      setAssignedBySearch('');
-      setShowAssignedByDropdown(false);
-
-      setSuccess('Task added successfully.');
-
-      await fetchMyTasks();
-    } catch (error) {
-      console.error('CREATE MY TASK ERROR:', error);
-      console.error('STATUS:', error.response?.status);
-      console.error('DATA:', error.response?.data);
-
-      setError(
-        error.response?.data?.message ||
-          'Failed to create task. Please try again.',
-      );
-    } finally {
-      setCreatingTask(false);
-    }
-  };
   // ==========================================
   // COUNTS
   // ==========================================

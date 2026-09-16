@@ -371,21 +371,30 @@ export const requestLeave = async (req, res) => {
       });
     }
 
-    const existingAttendance = await Attendance.findOne({
+    // =========================================================
+    // REMOVE EXISTING WFO / WFH ATTENDANCE
+    // =========================================================
+    // If the employee already marked these dates as WFO or WFH,
+    // remove those records because the dates are now pending
+    // leave approval.
+    //
+    // LEAVE records are NOT deleted.
+    // =========================================================
+
+    await Attendance.deleteMany({
       employee: req.user.id,
       dateKey: {
         $gte: startDate,
         $lte: endDate,
       },
+      status: {
+        $in: ['WFO', 'WFH'],
+      },
     });
 
-    if (existingAttendance) {
-      return res.status(409).json({
-        success: false,
-        message:
-          'Attendance already exists for one or more requested leave dates.',
-      });
-    }
+    // =========================================================
+    // CREATE PENDING LEAVE REQUEST
+    // =========================================================
 
     const leaveRequest = await LeaveRequest.create({
       employee: req.user.id,
@@ -904,6 +913,33 @@ export const requestWfh = async (req, res) => {
       });
     }
 
+    /*
+     * IMPORTANT:
+     * Remove any existing WFO/WFH attendance for these dates.
+     *
+     * This makes the date become Pending instead of showing
+     * WFO + Pending or WFH + Pending.
+     *
+     * WFH count will also decrease immediately because the
+     * attendance record is removed.
+     */
+    await Attendance.deleteMany({
+      employee: employeeId,
+      dateKey: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+      status: {
+        $in: ['WFO', 'WFH'],
+      },
+    });
+
+    /*
+     * Create the WFH request as PENDING.
+     *
+     * Do NOT create WFH attendance here.
+     * Attendance should only be created when admin approves.
+     */
     const request = await WfhRequest.create({
       employee: employeeId,
       startDate,
@@ -1153,6 +1189,36 @@ export const handleLeaveRequest = async (req, res) => {
         success: false,
         message:
           'Employee already has attendance marked during this leave period.',
+      });
+    }
+
+    const conflictingWfh = await WfhRequest.findOne({
+      employee: req.user.id,
+      status: { $in: ['PENDING', 'APPROVED'] },
+      startDate: { $lte: endDate },
+      endDate: { $gte: startDate },
+    });
+
+    if (conflictingWfh) {
+      return res.status(409).json({
+        success: false,
+        message:
+          'You already have a WFH request for one or more of these dates.',
+      });
+    }
+
+    const conflictingLeave = await LeaveRequest.findOne({
+      employee: req.user.id,
+      status: { $in: ['PENDING', 'APPROVED'] },
+      startDate: { $lte: endDate },
+      endDate: { $gte: startDate },
+    });
+
+    if (conflictingLeave) {
+      return res.status(409).json({
+        success: false,
+        message:
+          'You already have a leave request for one or more of these dates.',
       });
     }
 

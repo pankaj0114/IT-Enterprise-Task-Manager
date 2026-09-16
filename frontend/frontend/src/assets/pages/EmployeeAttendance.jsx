@@ -226,9 +226,30 @@ export default function EmployeeAttendance() {
   */
 
   const getWfhRequestForDate = (dateKey) => {
-    return wfhRequests.find(
-      (request) => request.startDate <= dateKey && request.endDate >= dateKey,
+    return wfhRequests.find((request) =>
+      isDateInRange(dateKey, request.startDate, request.endDate),
     );
+  };
+
+  const getActiveRequestForDate = (dateKey) => {
+    const leaveRequest = getLeaveRequestForDate(dateKey);
+    const wfhRequest = getWfhRequestForDate(dateKey);
+
+    if (leaveRequest && ['PENDING', 'APPROVED'].includes(leaveRequest.status)) {
+      return {
+        type: 'LEAVE',
+        request: leaveRequest,
+      };
+    }
+
+    if (wfhRequest && ['PENDING', 'APPROVED'].includes(wfhRequest.status)) {
+      return {
+        type: 'WFH',
+        request: wfhRequest,
+      };
+    }
+
+    return null;
   };
 
   const handleAttendanceChange = async (dateKey, status) => {
@@ -342,21 +363,17 @@ export default function EmployeeAttendance() {
       );
 
       // Remove existing WFO/WFH attendance from the calendar
-      setAttendance((currentAttendance) =>
-        currentAttendance.filter(
-          (item) =>
-            item.dateKey < leaveForm.startDate ||
-            item.dateKey > leaveForm.endDate,
+      setAttendance((prev) =>
+        prev.filter(
+          (item) => !isDateInRange(item.dateKey, leaveStartDate, leaveEndDate),
         ),
       );
 
+      setSuccess(response.data?.message || 'Leave request submitted.');
+
       setShowLeaveModal(false);
 
-      setLeaveForm({
-        startDate: '',
-        endDate: '',
-        reason: '',
-      });
+      setLeaveReason('');
 
       await fetchAttendance();
     } catch (error) {
@@ -371,31 +388,33 @@ export default function EmployeeAttendance() {
   const handleEditAttendance = async (status) => {
     if (!selectedDate) return;
 
-    // Leave → open Leave Request modal
     if (status === 'LEAVE') {
       setShowEditModal(false);
-      openLeaveModal(selectedDate);
+
+      setLeaveStartDate(selectedDate);
+      setLeaveEndDate(selectedDate);
+      setLeaveReason('');
+
+      setShowLeaveModal(true);
       return;
     }
 
-    // WFH → open WFH Request modal
     if (status === 'WFH') {
       setShowEditModal(false);
 
-      // Set the clicked calendar date
       setWfhStartDate(selectedDate);
       setWfhEndDate(selectedDate);
-
-      // Clear old reason
       setWfhReason('');
 
-      // Open WFH request modal
       setShowWfhModal(true);
       return;
     }
 
-    // WFO → directly update attendance
-    await handleAttendanceChange(selectedDate, status);
+    if (status === 'WFO') {
+      await handleAttendanceChange(selectedDate, 'WFO');
+      setShowEditModal(false);
+      return;
+    }
 
     setShowEditModal(false);
   };
@@ -410,21 +429,25 @@ export default function EmployeeAttendance() {
     setShowWfhModal(true);
   };
 
-  const submitWfhRequest = async () => {
+  const submitWfhRequest = async (e) => {
+    e.preventDefault();
+
     if (!wfhStartDate || !wfhEndDate) {
-      alert('Please select the WFH dates.');
+      setError('Please select the WFH dates.');
       return;
     }
 
     if (!wfhReason.trim()) {
-      alert('Please enter a reason for WFH.');
+      setError('Please enter the reason for WFH.');
       return;
     }
 
     try {
-      setSavingDate(wfhStartDate);
+      setSubmittingWfh(true);
+      setError('');
+      setSuccess('');
 
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE}/api/attendance/wfh-requests`,
         {
           startDate: wfhStartDate,
@@ -434,27 +457,28 @@ export default function EmployeeAttendance() {
         authConfig(),
       );
 
-      // Remove existing WFO/WFH attendance
-      // so the calendar becomes white while request is pending
-      setAttendance((currentAttendance) =>
-        currentAttendance.filter(
-          (item) => item.dateKey < wfhStartDate || item.dateKey > wfhEndDate,
+      // ------------------------------------------
+      // REMOVE OLD WFO/WFH FROM FRONTEND IMMEDIATELY
+      // ------------------------------------------
+      setAttendance((prev) =>
+        prev.filter(
+          (item) => !isDateInRange(item.dateKey, wfhStartDate, wfhEndDate),
         ),
       );
 
-      setShowWfhModal(false);
-
-      setWfhStartDate('');
-      setWfhEndDate('');
-      setWfhReason('');
-
+      // Refresh requests so Pending appears
       await fetchAttendance();
-    } catch (error) {
-      console.error('WFH request error:', error);
 
-      alert(error.response?.data?.message || 'Failed to submit WFH request');
+      setSuccess(response.data?.message || 'Work From Home request submitted.');
+
+      setShowWfhModal(false);
+      setWfhReason('');
+    } catch (err) {
+      console.error('WFH REQUEST ERROR:', err);
+
+      setError(err.response?.data?.message || 'Unable to submit WFH request.');
     } finally {
-      setSavingDate('');
+      setSubmittingWfh(false);
     }
   };
   /*
@@ -644,7 +668,7 @@ export default function EmployeeAttendance() {
 
                   const isToday = dateKey === getTodayKey();
                   const isPast = dateKey < getTodayKey();
-
+                  const activeRequest = getActiveRequestForDate(dateKey);
                   const isPendingLeave = leaveRequest?.status === 'PENDING';
                   const isRejectedLeave = leaveRequest?.status === 'REJECTED';
 
@@ -660,7 +684,7 @@ export default function EmployeeAttendance() {
                           ? 'border-slate-400 ring-2 ring-slate-100'
                           : 'border-slate-200'
                       } ${
-                        isPendingLeave || isPendingWfh
+                        hasPendingRequest
                           ? 'border-slate-200 bg-white'
                           : status === 'WFO'
                             ? 'border-emerald-300 bg-emerald-50'
@@ -736,12 +760,31 @@ export default function EmployeeAttendance() {
                           </span>
                         )}
 
-                        {hasPendingRequest && (
+                        {hasPendingRequest ? (
                           <span className="inline-flex rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-600">
                             Pending
                           </span>
-                        )}
+                        ) : (
+                          <>
+                            {status === 'WFO' && (
+                              <span className="inline-flex rounded-lg border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                WFO
+                              </span>
+                            )}
 
+                            {status === 'WFH' && (
+                              <span className="inline-flex rounded-lg border border-blue-200 bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                                WFH
+                              </span>
+                            )}
+
+                            {status === 'LEAVE' && (
+                              <span className="inline-flex rounded-lg border border-rose-200 bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">
+                                Leave
+                              </span>
+                            )}
+                          </>
+                        )}
                         {!status && isRejectedLeave && (
                           <span className="inline-flex rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
                             Leave rejected
@@ -762,57 +805,60 @@ export default function EmployeeAttendance() {
                       </div>
 
                       {/* Controls */}
-                      {!isPast && (
-                        <div className="mt-4 space-y-2">
-                          {/* Request buttons */}
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              disabled={isPast || hasPendingRequest}
-                              onClick={() => {
-                                if (hasPendingRequest) return;
-                                openWfhModal(dateKey);
-                              }}
-                              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                                isPast || hasPendingRequest
-                                  ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                                  : 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100'
-                              }`}
-                            >
-                              WFH
-                              <br />
-                              Request
-                            </button>
+                      {!isPast &&
+                        !status &&
+                        !isPendingLeave &&
+                        !isPendingWfh && (
+                          <div className="mt-4 space-y-2">
+                            {/* Request buttons */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                disabled={isPast || hasPendingRequest}
+                                onClick={() => {
+                                  if (hasPendingRequest) return;
+                                  openWfhModal(dateKey);
+                                }}
+                                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                                  isPast || hasPendingRequest
+                                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                                    : 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                }`}
+                              >
+                                WFH
+                                <br />
+                                Request
+                              </button>
 
+                              <button
+                                type="button"
+                                disabled={isPast || hasPendingRequest}
+                                onClick={() => {
+                                  if (hasPendingRequest) return;
+                                  openLeaveModal(dateKey);
+                                }}
+                                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                                  isPast || hasPendingRequest
+                                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                                    : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100'
+                                }`}
+                              >
+                                Leave
+                                <br />
+                                Request
+                              </button>
+                            </div>
+
+                            {/* Edit */}
                             <button
                               type="button"
-                              disabled={isPast || hasPendingRequest}
-                              onClick={() => {
-                                if (hasPendingRequest) return;
-                                openLeaveModal(dateKey);
-                              }}
-                              className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                                isPast || hasPendingRequest
-                                  ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                                  : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100'
-                              }`}
+                              onClick={() => openEditModal(dateKey)}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
                             >
-                              Leave
-                              <br />
-                              Request
+                              ✎ Edit Attendance
                             </button>
                           </div>
-
-                          {/* Edit */}
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(dateKey)}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                          >
-                            ✎ Edit Attendance
-                          </button>
-                        </div>
-                      )}
+                        )}
 
                       {/* Approved leave */}
                       {status === 'LEAVE' && (
@@ -972,7 +1018,7 @@ export default function EmployeeAttendance() {
         </div>
       )}
 
-      {/* Edit Attendance Modal */}
+      {/* Attendance Modal */}
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">

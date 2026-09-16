@@ -5,9 +5,61 @@ import mongoose from 'mongoose';
 import Notification from '../models/Notification.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 
+import {
+  updateAssignedTaskTitle,
+  updateAssignedTaskDueDate,
+  updateAssignedTaskStatus,
+  updateAssignedTaskRemarks,
+  updateAssignedTaskClient,
+  deleteAssignedTask,
+} from '../controllers/taskController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+console.log('TASK ROUTES LOADED');
+
+router.put(
+  '/:taskId/assigned-task/title',
+  authMiddleware,
+  (req, res, next) => {
+    console.log('HIT ASSIGNED TASK TITLE ROUTE:', req.params.taskId);
+    next();
+  },
+  updateAssignedTaskTitle,
+);
+
+router.put(
+  '/:taskId/assigned-task/title',
+  authMiddleware,
+  updateAssignedTaskTitle,
+);
+
+router.put(
+  '/:taskId/assigned-task/due-date',
+  authMiddleware,
+  updateAssignedTaskDueDate,
+);
+
+router.put(
+  '/:taskId/assigned-task/status',
+  authMiddleware,
+  updateAssignedTaskStatus,
+);
+
+router.put(
+  '/:taskId/assigned-task/remarks',
+  authMiddleware,
+  updateAssignedTaskRemarks,
+);
+
+router.put(
+  '/:taskId/assigned-task/client',
+  authMiddleware,
+  updateAssignedTaskClient,
+);
+
+router.delete('/:taskId/assigned-task', authMiddleware, deleteAssignedTask);
 
 // ✅ Get all tasks (for admin/debug)
 router.get('/', async (req, res) => {
