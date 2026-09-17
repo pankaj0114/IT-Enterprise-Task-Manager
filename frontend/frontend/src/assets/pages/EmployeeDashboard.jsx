@@ -121,34 +121,27 @@ export default function EmployeeDashboard() {
 
   const fetchNotifications = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-
       const response = await axios.get(
-        'http://localhost:5000/api/notifications',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+        `${API_BASE}/api/notifications`,
+        authConfig(),
       );
 
-      console.log('Notifications from API:', response.data);
+      console.log('Notifications API response:', response.data);
 
-      // Remove duplicate notifications
-      const uniqueNotifications = response.data.filter(
-        (notification, index, self) =>
-          index === self.findIndex((item) => item._id === notification._id),
-      );
+      const notifications = Array.isArray(response.data)
+        ? response.data
+        : response.data.notifications || [];
 
-      setNotifications(uniqueNotifications);
+      setNotifications(notifications);
     } catch (error) {
       console.error(
         'Error fetching notifications:',
         error.response?.data || error.message,
       );
+
+      setNotifications([]);
     }
   };
-
   // ==========================================
   // LOAD NOTIFICATIONS WHEN USER IS AVAILABLE
   // ==========================================
@@ -275,6 +268,31 @@ export default function EmployeeDashboard() {
   const openPopup = (taskId) => {
     setSelectedTaskId(taskId);
     setShowPopup(true);
+  };
+
+  const handleUpdateAssignedTaskRemarks = async (taskId, remarks) => {
+    try {
+      if (!taskId) {
+        console.error('No task ID provided');
+        return;
+      }
+
+      const response = await axios.put(
+        `${API_BASE}/api/tasks/${taskId}/assigned-task/remarks`,
+        {
+          remarks,
+        },
+        authConfig(),
+      );
+
+      console.log('Remarks update response:', response.data);
+
+      await fetchTasks();
+    } catch (error) {
+      console.error('Failed to update assigned task remarks:', error);
+
+      console.error('Remarks error response:', error.response?.data);
+    }
   };
 
   const handleUpdateTaskTitle = async (taskId) => {
@@ -635,7 +653,7 @@ export default function EmployeeDashboard() {
       );
 
       await axios.put(
-        `http://localhost:5000/api/tasks/${taskId}`,
+        `http://localhost:5000/api/tasks/${taskId}/due-date`,
         {
           dueDate,
         },

@@ -35,13 +35,16 @@ export default function MyTasks({ user }) {
 
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [editingRemarks, setEditingRemarks] = useState({});
+  //const [typingTimeouts, setTypingTimeouts] = useState({});
+
+  const typingTimeouts = useRef({});
   const [clientSearchTaskId, setClientSearchTaskId] = useState(null);
   const [clientSearchText, setClientSearchText] = useState('');
   const [showTaskClientDropdown, setShowTaskClientDropdown] = useState(false);
   const [highlightedTaskClientIndex, setHighlightedTaskClientIndex] =
     useState(-1);
   const taskClientDropdownRef = useRef(null);
-  const [typingTimeouts, setTypingTimeouts] = useState({});
 
   const [showPopup, setShowPopup] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
@@ -230,7 +233,7 @@ export default function MyTasks({ user }) {
         prev.map((t) => (t._id === taskId ? { ...t, dueDate } : t)),
       );
       await axios.put(
-        `${API_BASE}/api/tasks/${taskId}`,
+        `${API_BASE}/api/tasks/${taskId}/due-date`,
         { dueDate },
         authConfig(),
       );
@@ -244,23 +247,51 @@ export default function MyTasks({ user }) {
   };
 
   const handleRemarkChange = (taskId, value) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        String(task._id) === String(taskId)
-          ? { ...task, remarks: value }
-          : task,
-      ),
-    );
+    // Update ONLY the local typing state.
+    // This keeps the textarea focused while typing.
+    setEditingRemarks((prev) => ({
+      ...prev,
+      [taskId]: value,
+    }));
 
-    if (typingTimeouts[taskId]) clearTimeout(typingTimeouts[taskId]);
+    // Clear previous timer for this task
+    if (typingTimeouts.current[taskId]) {
+      clearTimeout(typingTimeouts.current[taskId]);
+    }
 
-    const timeout = setTimeout(async () => {
+    // Save after user stops typing for 1 second
+    typingTimeouts.current[taskId] = setTimeout(async () => {
       try {
         await axios.put(
           `${API_BASE}/api/tasks/${taskId}/remarks`,
-          { remarks: value },
+          {
+            remarks: value,
+          },
           authConfig(),
         );
+
+        console.log('Remark saved successfully:', value);
+
+        // Update the task state without refetching the entire table.
+        setTasks((prev) =>
+          prev.map((task) =>
+            String(task._id) === String(taskId)
+              ? {
+                  ...task,
+                  remarks: value,
+                }
+              : task,
+          ),
+        );
+
+        // Remove temporary editing state
+        setEditingRemarks((prev) => {
+          const updated = { ...prev };
+          delete updated[taskId];
+          return updated;
+        });
+
+        delete typingTimeouts.current[taskId];
       } catch (err) {
         console.error(
           'Error saving remark:',
@@ -268,8 +299,6 @@ export default function MyTasks({ user }) {
         );
       }
     }, 1000);
-
-    setTypingTimeouts((prev) => ({ ...prev, [taskId]: timeout }));
   };
 
   const filteredTaskClients = useMemo(() => {
@@ -477,7 +506,11 @@ export default function MyTasks({ user }) {
 
             <td className="px-4 py-3">
               <textarea
-                value={task.remarks || ''}
+                value={
+                  editingRemarks[task._id] !== undefined
+                    ? editingRemarks[task._id]
+                    : task.remarks || ''
+                }
                 onChange={(e) => handleRemarkChange(task._id, e.target.value)}
                 placeholder="Add your remarks..."
                 rows={2}
@@ -678,7 +711,11 @@ export default function MyTasks({ user }) {
 
             <td className="px-4 py-3">
               <textarea
-                value={task.remarks || ''}
+                value={
+                  editingRemarks[task._id] !== undefined
+                    ? editingRemarks[task._id]
+                    : task.remarks || ''
+                }
                 onChange={(e) => handleRemarkChange(task._id, e.target.value)}
                 placeholder="Add your remarks..."
                 rows={2}
@@ -731,7 +768,7 @@ export default function MyTasks({ user }) {
                 </td>
               </tr>
             ) : (
-              taskList.map((task) => <Row key={task._id} task={task} />)
+              taskList.map((task) => Row({ task }))
             )}
           </tbody>
         </table>

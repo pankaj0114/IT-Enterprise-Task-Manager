@@ -1,5 +1,6 @@
 // controllers/taskController.js
 import Task from '../models/Task.js';
+import { createTaskChangeNotification } from './taskNotificationHelper.js';
 //const Task = require('../models/Task');
 
 export const updateAssignedTaskTitle = async (req, res) => {
@@ -14,15 +15,12 @@ export const updateAssignedTaskTitle = async (req, res) => {
       });
     }
 
-    const task = await Task.findOne({
-      _id: taskId,
-      assignedTo: req.user.id,
-    });
+    const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Assigned task not found.',
+        message: 'Task not found.',
       });
     }
 
@@ -30,17 +28,24 @@ export const updateAssignedTaskTitle = async (req, res) => {
 
     await task.save();
 
+    await createTaskChangeNotification({
+      req,
+      task,
+      fieldName: 'Title changed',
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Task title updated successfully.',
       task,
     });
   } catch (error) {
-    console.error('updateAssignedTaskTitle:', error);
+    console.error('UPDATE TITLE ERROR:', error);
 
     return res.status(500).json({
       success: false,
       message: 'Failed to update task title.',
+      error: error.message,
     });
   }
 };
@@ -57,21 +62,24 @@ export const updateAssignedTaskDueDate = async (req, res) => {
       });
     }
 
-    const task = await Task.findOne({
-      _id: taskId,
-      assignedTo: req.user.id,
-    });
+    const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Assigned task not found.',
+        message: 'Task not found.',
       });
     }
 
-    task.dueDate = dueDate;
+    task.dueDate = new Date(dueDate);
 
     await task.save();
+
+    await createTaskChangeNotification({
+      req,
+      task,
+      fieldName: 'Due date changed',
+    });
 
     return res.status(200).json({
       success: true,
@@ -79,11 +87,12 @@ export const updateAssignedTaskDueDate = async (req, res) => {
       task,
     });
   } catch (error) {
-    console.error('updateAssignedTaskDueDate:', error);
+    console.error('UPDATE DUE DATE ERROR:', error);
 
     return res.status(500).json({
       success: false,
       message: 'Failed to update due date.',
+      error: error.message,
     });
   }
 };
@@ -93,24 +102,21 @@ export const updateAssignedTaskStatus = async (req, res) => {
     const { taskId } = req.params;
     const { status } = req.body;
 
-    const allowedStatuses = ['Not Started', 'In Progress'];
+    const allowedStatuses = ['Not Started', 'In Progress', 'Completed'];
 
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Employee can only set status to Not Started or In Progress.',
+        message: 'Invalid task status.',
       });
     }
 
-    const task = await Task.findOne({
-      _id: taskId,
-      assignedTo: req.user.id,
-    });
+    const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Assigned task not found.',
+        message: 'Task not found.',
       });
     }
 
@@ -118,17 +124,24 @@ export const updateAssignedTaskStatus = async (req, res) => {
 
     await task.save();
 
+    await createTaskChangeNotification({
+      req,
+      task,
+      fieldName: `Status changed to ${status}`,
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Task status updated successfully.',
       task,
     });
   } catch (error) {
-    console.error('updateAssignedTaskStatus:', error);
+    console.error('UPDATE STATUS ERROR:', error);
 
     return res.status(500).json({
       success: false,
       message: 'Failed to update task status.',
+      error: error.message,
     });
   }
 };
@@ -138,15 +151,17 @@ export const updateAssignedTaskRemarks = async (req, res) => {
     const { taskId } = req.params;
     const { remarks } = req.body;
 
-    const task = await Task.findOne({
-      _id: taskId,
-      assignedTo: req.user.id,
-    });
+    console.log('========== UPDATE REMARKS ==========');
+    console.log('Task ID:', taskId);
+    console.log('User ID:', req.user.id);
+    console.log('Remarks:', remarks);
+
+    const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Assigned task not found.',
+        message: 'Task not found.',
       });
     }
 
@@ -154,17 +169,26 @@ export const updateAssignedTaskRemarks = async (req, res) => {
 
     await task.save();
 
+    console.log('Remarks updated successfully:', task._id);
+
+    await createTaskChangeNotification({
+      req,
+      task,
+      fieldName: 'Remarks changed',
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Remarks updated successfully.',
       task,
     });
   } catch (error) {
-    console.error('updateAssignedTaskRemarks:', error);
+    console.error('UPDATE REMARKS ERROR:', error);
 
     return res.status(500).json({
       success: false,
       message: 'Failed to update remarks.',
+      error: error.message,
     });
   }
 };
@@ -174,15 +198,12 @@ export const updateAssignedTaskClient = async (req, res) => {
     const { taskId } = req.params;
     const { client } = req.body;
 
-    const task = await Task.findOne({
-      _id: taskId,
-      assignedTo: req.user.id,
-    });
+    const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Assigned task not found.',
+        message: 'Task not found.',
       });
     }
 
@@ -190,17 +211,24 @@ export const updateAssignedTaskClient = async (req, res) => {
 
     await task.save();
 
+    await createTaskChangeNotification({
+      req,
+      task,
+      fieldName: 'Client changed',
+    });
+
     return res.status(200).json({
       success: true,
       message: 'Client updated successfully.',
       task,
     });
   } catch (error) {
-    console.error('updateAssignedTaskClient:', error);
+    console.error('UPDATE CLIENT ERROR:', error);
 
     return res.status(500).json({
       success: false,
       message: 'Failed to update client.',
+      error: error.message,
     });
   }
 };

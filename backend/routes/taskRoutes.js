@@ -3,6 +3,7 @@ import Task from '../models/Task.js';
 import Client from '../models/Client.js';
 import mongoose from 'mongoose';
 import Notification from '../models/Notification.js';
+import { createTaskChangeNotification } from '../controllers/taskNotificationHelper.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 
 import {
@@ -13,33 +14,28 @@ import {
   updateAssignedTaskClient,
   deleteAssignedTask,
 } from '../controllers/taskController.js';
+
 import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 console.log('TASK ROUTES LOADED');
 
+// =====================================================
+// ASSIGNED TASK UPDATE ROUTES
+// =====================================================
+
 router.put(
-  '/:taskId/assigned-task/title',
+  '/tasks/:id',
   authMiddleware,
   (req, res, next) => {
-    console.log('HIT ASSIGNED TASK TITLE ROUTE:', req.params.taskId);
+    console.log('HIT ASSIGNED TASK TITLE ROUTE:', req.params.id);
     next();
   },
   updateAssignedTaskTitle,
 );
 
-router.put(
-  '/:taskId/assigned-task/title',
-  authMiddleware,
-  updateAssignedTaskTitle,
-);
-
-router.put(
-  '/:taskId/assigned-task/due-date',
-  authMiddleware,
-  updateAssignedTaskDueDate,
-);
+router.put('/tasks/:id', authMiddleware, updateAssignedTaskDueDate);
 
 router.put(
   '/:taskId/assigned-task/status',
@@ -58,6 +54,10 @@ router.put(
   authMiddleware,
   updateAssignedTaskClient,
 );
+
+// =====================================================
+// DELETE ASSIGNED TASK
+// =====================================================
 
 router.delete('/:taskId/assigned-task', authMiddleware, deleteAssignedTask);
 
@@ -372,34 +372,151 @@ router.get('/notifications', authMiddleware, async (req, res) => {
 router.put('/:id/remarks', authMiddleware, async (req, res) => {
   try {
     const { remarks } = req.body;
+    const taskId = req.params.id;
+    const userId = String(req.user.id);
 
-    const task = await Task.findByIdAndUpdate(
-      req.params.id,
-      {
-        $set: {
-          remarks: remarks,
-        },
-      },
-      {
-        returnDocument: 'after',
-        runValidators: true,
-      },
-    );
+    // Find the task first
+    const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
+        success: false,
         message: 'Task not found',
       });
     }
 
-    res.status(200).json({
+    // Check whether the logged-in user is allowed to update this task
+    const assignedToId = task.assignedTo
+      ? String(task.assignedTo._id || task.assignedTo)
+      : '';
+
+    const assignedById = task.assignedBy
+      ? String(task.assignedBy._id || task.assignedBy)
+      : '';
+
+    const canUpdate = userId === assignedToId || userId === assignedById;
+
+    if (!canUpdate) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update this task',
+      });
+    }
+
+    // Update remarks
+    task.remarks = remarks || '';
+
+    await task.save();
+
+    // Create notification for the other person
+    await createTaskChangeNotification({
+      req,
+      task,
+      fieldName: 'Remarks changed',
+    });
+
+    return res.status(200).json({
+      success: true,
       message: 'Remark saved successfully',
       task,
     });
   } catch (error) {
     console.error('Error updating remarks:', error);
 
-    res.status(500).json({
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+router.put('/:id/due-date', authMiddleware, async (req, res) => {
+  try {
+    console.log('========== DUE DATE UPDATE ==========');
+    console.log('Task ID:', req.params.id);
+    console.log('Logged in user:', req.user?.id);
+    console.log('New due date:', req.body.dueDate);
+
+    const { dueDate } = req.body;
+    const taskId = req.params.id;
+    const userId = String(req.user.id);
+
+    const task = await Task.findById(taskId);
+
+    if (!task) {
+      console.log('TASK NOT FOUND');
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
+    }
+
+    console.log('Task found:', task._id);
+    console.log('Assigned To:', task.assignedTo);
+    console.log('Assigned By:', task.assignedBy);
+
+    const assignedToId = task.assignedTo
+      ? String(task.assignedTo._id || task.assignedTo)
+      : '';
+
+    const assignedById = task.assignedBy
+      ? String(task.assignedBy._id || task.assignedBy)
+      : '';
+
+    console.log('Assigned To ID:', assignedToId);
+    console.log('Assigned By ID:', assignedById);
+    console.log('Current User ID:', userId);
+
+    const canUpdate = userId === assignedToId || userId === assignedById;
+
+    if (!canUpdate) {
+      console.log('USER NOT AUTHORIZED');
+
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update this task',
+      });
+    }
+
+    if (!dueDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Due date is required',
+      });
+    }
+
+    // Save due date
+    task.dueDate = new Date(dueDate);
+
+    await task.save();
+
+    console.log('DUE DATE SAVED:', task.dueDate);
+
+    // Send notification
+    const notification = await createTaskChangeNotification({
+      req,
+      task,
+      fieldName: 'Due date changed',
+    });
+
+    console.log(
+      'DUE DATE NOTIFICATION RESULT:',
+      notification?._id || 'NO NOTIFICATION CREATED',
+    );
+
+    console.log('====================================');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Due date updated successfully',
+      task,
+      notification,
+    });
+  } catch (error) {
+    console.error('ERROR UPDATING DUE DATE:', error);
+
+    return res.status(500).json({
+      success: false,
       message: error.message,
     });
   }
