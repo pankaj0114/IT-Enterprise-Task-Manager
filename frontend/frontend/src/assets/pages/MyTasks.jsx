@@ -50,6 +50,9 @@ export default function MyTasks({ user }) {
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [hours, setHours] = useState('');
   const [minutes, setMinutes] = useState('');
+  const [taskStatusFilter, setTaskStatusFilter] = useState('all');
+  const [assignedTaskStatusFilter, setAssignedTaskStatusFilter] =
+    useState('all');
 
   const fetchTasks = async () => {
     try {
@@ -606,7 +609,7 @@ export default function MyTasks({ user }) {
                 ref={
                   clientSearchTaskId === task._id ? taskClientDropdownRef : null
                 }
-                className="relative min-w-47.5"
+                className="relative z-40 w-48 min-w-48"
               >
                 {clientSearchTaskId !== task._id && task.client?.name ? (
                   <button
@@ -644,23 +647,31 @@ export default function MyTasks({ user }) {
                     onKeyDown={(e) => {
                       if (e.key === 'ArrowDown' && filteredTaskClients.length) {
                         e.preventDefault();
+
                         setHighlightedTaskClientIndex((i) =>
                           i < filteredTaskClients.length - 1 ? i + 1 : 0,
                         );
                       }
+
                       if (e.key === 'ArrowUp' && filteredTaskClients.length) {
                         e.preventDefault();
+
                         setHighlightedTaskClientIndex((i) =>
                           i > 0 ? i - 1 : filteredTaskClients.length - 1,
                         );
                       }
+
                       if (e.key === 'Enter') {
                         e.preventDefault();
+
                         const selected =
                           filteredTaskClients[highlightedTaskClientIndex];
-                        if (selected)
+
+                        if (selected) {
                           handleTaskClientChange(task._id, selected._id);
+                        }
                       }
+
                       if (e.key === 'Escape') {
                         setShowTaskClientDropdown(false);
                         setClientSearchTaskId(null);
@@ -672,7 +683,13 @@ export default function MyTasks({ user }) {
                 )}
 
                 {clientSearchTaskId === task._id && showTaskClientDropdown && (
-                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                  <div
+                    className={`absolute left-0 right-0 z-100 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl ${
+                      taskList.indexOf(task) >= taskList.length - 2
+                        ? 'bottom-full mb-1'
+                        : 'top-full mt-1'
+                    }`}
+                  >
                     {filteredTaskClients.length ? (
                       filteredTaskClients.map((client, index) => {
                         const name =
@@ -680,6 +697,7 @@ export default function MyTasks({ user }) {
                           client.company ||
                           client.clientName ||
                           'Unnamed Client';
+
                         return (
                           <button
                             key={client._id}
@@ -691,7 +709,11 @@ export default function MyTasks({ user }) {
                             onClick={() =>
                               handleTaskClientChange(task._id, client._id)
                             }
-                            className={`block w-full px-3 py-2.5 text-left text-sm ${highlightedTaskClientIndex === index ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                            className={`block w-full px-3 py-2.5 text-left text-sm ${
+                              highlightedTaskClientIndex === index
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-slate-700 hover:bg-slate-50'
+                            }`}
                           >
                             {name}
                           </button>
@@ -726,52 +748,54 @@ export default function MyTasks({ user }) {
         );
 
     return (
-      <div className="w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full min-w-225 border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-100">
-              {[
-                'Title',
-                'Issue Date',
-                'Due Date',
-                'Status',
-                'Client',
-                'Assigned By',
-                'Remarks',
-              ].map((heading) => (
-                <th
-                  key={heading}
-                  className="px-4 py-3 text-left font-semibold text-slate-700"
-                >
-                  {heading}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-4 py-10 text-center text-slate-500"
-                >
-                  Loading your tasks...
-                </td>
+      <div className="relative w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="w-full overflox-x-auto">
+          <table className="w-full min-w-225 border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-100">
+                {[
+                  'Title',
+                  'Issue Date',
+                  'Due Date',
+                  'Status',
+                  'Client',
+                  'Assigned By',
+                  'Remarks',
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    className="px-4 py-3 text-left font-semibold text-slate-700"
+                  >
+                    {heading}
+                  </th>
+                ))}
               </tr>
-            ) : taskList.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-4 py-10 text-center text-slate-500"
-                >
-                  {emptyMessage}
-                </td>
-              </tr>
-            ) : (
-              taskList.map((task) => Row({ task }))
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-10 text-center text-slate-500"
+                  >
+                    Loading your tasks...
+                  </td>
+                </tr>
+              ) : taskList.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-10 text-center text-slate-500"
+                  >
+                    {emptyMessage}
+                  </td>
+                </tr>
+              ) : (
+                taskList.map((task) => Row({ task }))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
@@ -882,29 +906,69 @@ export default function MyTasks({ user }) {
 
       {(() => {
         const currentUserId = String(user?._id || user?.id || '');
-
-        const getId = (value) => value?._id || value?.id || value || '';
-
+        const getId = (value) => {
+          if (!value) return '';
+          return value._id || value.id || value;
+        };
         const selfCreatedTasks = tasks.filter((task) => {
           const assignedToId = getId(task.assignedTo);
           const assignedById = getId(task.assignedBy);
 
           return (
             String(assignedToId) === currentUserId &&
-            String(assignedById) === currentUserId &&
-            task.status !== 'Completed'
+            String(assignedById) === currentUserId
           );
         });
 
+        const filteredSelfCreatedTasks = selfCreatedTasks.filter((task) => {
+          if (taskStatusFilter === 'pending') {
+            return task.status === 'Not Started' || task.status === 'Pending';
+          }
+
+          if (taskStatusFilter === 'in-progress') {
+            return (
+              task.status === 'In Progress' || task.status === 'in-progress'
+            );
+          }
+
+          if (taskStatusFilter === 'completed') {
+            return task.status === 'Completed';
+          }
+
+          return true;
+        });
+
+        // =========================
+        // ASSIGNED TO ME
+        // =========================
         const assignedToMeTasks = tasks.filter((task) => {
           const assignedToId = getId(task.assignedTo);
           const assignedById = getId(task.assignedBy);
 
           return (
             String(assignedToId) === currentUserId &&
-            String(assignedById) !== currentUserId &&
-            task.status !== 'Completed'
+            String(assignedById) !== currentUserId
           );
+        });
+
+        // IMPORTANT:
+        // This MUST come AFTER assignedToMeTasks
+        const filteredAssignedToMeTasks = assignedToMeTasks.filter((task) => {
+          if (assignedTaskStatusFilter === 'pending') {
+            return task.status === 'Not Started' || task.status === 'Pending';
+          }
+
+          if (assignedTaskStatusFilter === 'in-progress') {
+            return (
+              task.status === 'In Progress' || task.status === 'in-progress'
+            );
+          }
+
+          if (assignedTaskStatusFilter === 'completed') {
+            return task.status === 'Completed';
+          }
+
+          return true;
         });
 
         return (
@@ -919,8 +983,89 @@ export default function MyTasks({ user }) {
                 </p>
               </div>
 
+              <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {/* Pending */}
+                <button
+                  type="button"
+                  onClick={() => setTaskStatusFilter('pending')}
+                  className={`rounded-xl border p-5 text-center shadow-sm transition ${
+                    taskStatusFilter === 'pending'
+                      ? 'border-orange-300 bg-orange-100'
+                      : 'border-orange-100 bg-orange-50 hover:bg-orange-100'
+                  }`}
+                >
+                  <h4 className="text-sm font-semibold text-orange-700">
+                    Pending
+                  </h4>
+
+                  <strong className="mt-1 block text-3xl font-bold text-slate-800">
+                    {
+                      selfCreatedTasks.filter(
+                        (task) =>
+                          task.status === 'Not Started' ||
+                          task.status === 'Pending',
+                      ).length
+                    }
+                  </strong>
+
+                  <span className="text-xs text-slate-500">Tasks</span>
+                </button>
+
+                {/* In Progress */}
+                <button
+                  type="button"
+                  onClick={() => setTaskStatusFilter('in-progress')}
+                  className={`rounded-xl border p-5 text-center shadow-sm transition ${
+                    taskStatusFilter === 'in-progress'
+                      ? 'border-blue-300 bg-blue-100'
+                      : 'border-blue-100 bg-blue-50 hover:bg-blue-100'
+                  }`}
+                >
+                  <h4 className="text-sm font-semibold text-blue-700">
+                    In Progress
+                  </h4>
+
+                  <strong className="mt-1 block text-3xl font-bold text-slate-800">
+                    {
+                      selfCreatedTasks.filter(
+                        (task) =>
+                          task.status === 'In Progress' ||
+                          task.status === 'in-progress',
+                      ).length
+                    }
+                  </strong>
+
+                  <span className="text-xs text-slate-500">Tasks</span>
+                </button>
+
+                {/* Completed */}
+                <button
+                  type="button"
+                  onClick={() => setTaskStatusFilter('completed')}
+                  className={`rounded-xl border p-5 text-center shadow-sm transition ${
+                    taskStatusFilter === 'completed'
+                      ? 'border-green-300 bg-green-100'
+                      : 'border-green-100 bg-green-50 hover:bg-green-100'
+                  }`}
+                >
+                  <h4 className="text-sm font-semibold text-green-700">
+                    Completed
+                  </h4>
+
+                  <strong className="mt-1 block text-3xl font-bold text-slate-800">
+                    {
+                      selfCreatedTasks.filter(
+                        (task) => task.status === 'Completed',
+                      ).length
+                    }
+                  </strong>
+
+                  <span className="text-xs text-slate-500">Tasks</span>
+                </button>
+              </div>
+
               {renderTaskTable(
-                selfCreatedTasks,
+                filteredSelfCreatedTasks,
                 'No self-created tasks found.',
                 false,
               )}
@@ -934,6 +1079,87 @@ export default function MyTasks({ user }) {
                 <p className="mt-1 text-sm text-slate-500">
                   Tasks assigned to you by another employee.
                 </p>
+              </div>
+
+              <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {/* Pending */}
+                <button
+                  type="button"
+                  onClick={() => setAssignedTaskStatusFilter('pending')}
+                  className={`rounded-xl border p-5 text-center shadow-sm transition ${
+                    assignedTaskStatusFilter === 'pending'
+                      ? 'border-orange-300 bg-orange-100'
+                      : 'border-orange-100 bg-orange-50 hover:bg-orange-100'
+                  }`}
+                >
+                  <h4 className="text-sm font-semibold text-orange-700">
+                    Pending
+                  </h4>
+
+                  <strong className="mt-1 block text-3xl font-bold text-slate-800">
+                    {
+                      assignedToMeTasks.filter(
+                        (task) =>
+                          task.status === 'Not Started' ||
+                          task.status === 'Pending',
+                      ).length
+                    }
+                  </strong>
+
+                  <span className="text-xs text-slate-500">Tasks</span>
+                </button>
+
+                {/* In Progress */}
+                <button
+                  type="button"
+                  onClick={() => setAssignedTaskStatusFilter('in-progress')}
+                  className={`rounded-xl border p-5 text-center shadow-sm transition ${
+                    assignedTaskStatusFilter === 'in-progress'
+                      ? 'border-blue-300 bg-blue-100'
+                      : 'border-blue-100 bg-blue-50 hover:bg-blue-100'
+                  }`}
+                >
+                  <h4 className="text-sm font-semibold text-blue-700">
+                    In Progress
+                  </h4>
+
+                  <strong className="mt-1 block text-3xl font-bold text-slate-800">
+                    {
+                      assignedToMeTasks.filter(
+                        (task) =>
+                          task.status === 'In Progress' ||
+                          task.status === 'in-progress',
+                      ).length
+                    }
+                  </strong>
+
+                  <span className="text-xs text-slate-500">Tasks</span>
+                </button>
+
+                {/* Completed */}
+                <button
+                  type="button"
+                  onClick={() => setAssignedTaskStatusFilter('completed')}
+                  className={`rounded-xl border p-5 text-center shadow-sm transition ${
+                    assignedTaskStatusFilter === 'completed'
+                      ? 'border-green-300 bg-green-100'
+                      : 'border-green-100 bg-green-50 hover:bg-green-100'
+                  }`}
+                >
+                  <h4 className="text-sm font-semibold text-green-700">
+                    Completed
+                  </h4>
+
+                  <strong className="mt-1 block text-3xl font-bold text-slate-800">
+                    {
+                      assignedToMeTasks.filter(
+                        (task) => task.status === 'Completed',
+                      ).length
+                    }
+                  </strong>
+
+                  <span className="text-xs text-slate-500">Tasks</span>
+                </button>
               </div>
 
               {renderTaskTable(
