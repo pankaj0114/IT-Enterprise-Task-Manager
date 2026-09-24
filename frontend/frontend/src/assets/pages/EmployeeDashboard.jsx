@@ -9,7 +9,7 @@ import '../css/AssignTaskPage.css';
 import AssignTaskPage from './AssignTaskPage';
 import MyTasks from './MyTasks.jsx';
 import EmployeeAttendance from './EmployeeAttendance';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
 import DatePicker from 'react-datepicker';
 //import { useRef } from 'react';
@@ -76,6 +76,7 @@ export default function EmployeeDashboard() {
   const [completedTasks, setCompletedTasks] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
   const [assignedTasks, setAssignedTasks] = useState([]);
+  const [refreshingAssignedTasks, setRefreshingAssignedTasks] = useState(false);
   const remarkTimeouts = useRef({});
   const [myClients, setMyClients] = useState([]);
   const [loadingMyClients, setLoadingMyClients] = useState(false);
@@ -112,7 +113,7 @@ export default function EmployeeDashboard() {
   // ==========================================
 
   const unreadCount = notifications.filter(
-    (notification) => !notification.read,
+    (notification) => notification.isRead !== true,
   ).length;
 
   // ==========================================
@@ -121,18 +122,34 @@ export default function EmployeeDashboard() {
 
   const fetchNotifications = async () => {
     try {
+      const token = localStorage.getItem('accessToken');
+
       const response = await axios.get(
-        `${API_BASE}/api/notifications`,
-        authConfig(),
+        'http://localhost:5000/api/notifications',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
       );
 
       console.log('Notifications API response:', response.data);
 
       const notifications = Array.isArray(response.data)
         ? response.data
-        : response.data.notifications || [];
+        : Array.isArray(response.data.notifications)
+          ? response.data.notifications
+          : [];
 
-      setNotifications(notifications);
+      console.log('Notifications array:', notifications);
+
+      // Remove duplicates
+      const uniqueNotifications = notifications.filter(
+        (notification, index, self) =>
+          index === self.findIndex((item) => item._id === notification._id),
+      );
+
+      setNotifications(uniqueNotifications);
     } catch (error) {
       console.error(
         'Error fetching notifications:',
@@ -145,11 +162,6 @@ export default function EmployeeDashboard() {
   // ==========================================
   // LOAD NOTIFICATIONS WHEN USER IS AVAILABLE
   // ==========================================
-  useEffect(() => {
-    if (!user?._id) return;
-
-    fetchNotifications();
-  }, [user?._id]);
 
   useEffect(() => {
     localStorage.setItem('activeTab', activeTab);
@@ -163,7 +175,7 @@ export default function EmployeeDashboard() {
     try {
       const token = localStorage.getItem('accessToken');
 
-      await axios.put(
+      const response = await axios.put(
         'http://localhost:5000/api/notifications/read-all',
         {},
         {
@@ -173,30 +185,52 @@ export default function EmployeeDashboard() {
         },
       );
 
-      // Immediately update UI
+      console.log('MARK READ RESPONSE:', response.data);
+
       setNotifications((prev) =>
         prev.map((notification) => ({
           ...notification,
-          read: true,
+          isRead: true,
         })),
       );
+
+      return response.data;
     } catch (error) {
       console.error(
         'Error marking notifications as read:',
         error.response?.data || error.message,
       );
+
+      throw error;
     }
   };
 
   // ==========================================
   // MARK READ WHEN NOTIFICATION TAB OPENS
   // ==========================================
-
   useEffect(() => {
-    if (activeTab === 'notifications') {
-      markNotificationsAsRead();
-    }
-  }, [activeTab]);
+    if (!user?._id) return;
+
+    const loadNotifications = async () => {
+      try {
+        // If Notifications tab is open,
+        // mark them read FIRST.
+        if (activeTab === 'notifications') {
+          await markNotificationsAsRead();
+        }
+
+        // Then fetch from database.
+        await fetchNotifications();
+      } catch (error) {
+        console.error(
+          'Notification loading error:',
+          error.response?.data || error.message,
+        );
+      }
+    };
+
+    loadNotifications();
+  }, [user?._id, activeTab]);
   // ==========================================
   // SOCKET.IO
   // ==========================================
@@ -387,6 +421,65 @@ export default function EmployeeDashboard() {
       );
     }
   };
+  const handleRefreshAssignedTasks = async () => {
+    const token = localStorage.getItem('accessToken');
+
+    if (!token) {
+      alert('Authentication token not found. Please login again.');
+      return;
+    }
+
+    try {
+      setRefreshingAssignedTasks(true);
+
+      // Always fetch the Assigned Tasks endpoint again.
+      // This updates assignedTasks directly, which is the state used
+      // by the Assigned Tasks table and its counters.
+      const response = await axios.get(`${API_BASE}/api/tasks/assigned-by-me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        params: {
+          _refresh: Date.now(),
+        },
+      });
+
+      const serverTasks = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data.tasks)
+          ? response.data.tasks
+          : [];
+
+      setAssignedTasks(
+        serverTasks.map((serverTask) => {
+          const localRemark = editingRemarks[serverTask._id];
+
+          return {
+            ...serverTask,
+            remarks:
+              localRemark !== undefined
+                ? localRemark
+                : serverTask.remarks || '',
+          };
+        }),
+      );
+
+      console.log('Assigned Tasks refreshed successfully:', serverTasks.length);
+    } catch (error) {
+      console.error(
+        'Failed to refresh Assigned Tasks:',
+        error.response?.data || error.message,
+      );
+
+      alert(
+        error.response?.data?.message ||
+          'Failed to refresh Assigned Tasks. Please try again.',
+      );
+    } finally {
+      setRefreshingAssignedTasks(false);
+    }
+  };
+
   const handleUpdateCompletedTime = async (taskId) => {
     try {
       const totalHours = Number(editHours);
@@ -498,7 +591,7 @@ export default function EmployeeDashboard() {
       );
 
       await axios.put(
-        `${API_BASE}/api/tasks/${taskId}`,
+        `${API_BASE}/api/tasks/${taskId}/assigned-task/due-date`,
         {
           dueDate,
         },
@@ -596,53 +689,6 @@ export default function EmployeeDashboard() {
     }
   };
 
-  const handlePriorityChange = async (taskId, priority) => {
-    try {
-      console.log('Updating priority');
-      console.log('Task ID:', taskId);
-      console.log('Priority:', priority);
-
-      if (!taskId) {
-        console.error('Task ID is undefined');
-        return;
-      }
-
-      const token = localStorage.getItem('accessToken');
-
-      // Update UI immediately
-      setTasks((prev) =>
-        prev.map((task) =>
-          task._id === taskId
-            ? {
-                ...task,
-                priority,
-              }
-            : task,
-        ),
-      );
-
-      const response = await axios.put(
-        `http://localhost:5000/api/tasks/${taskId}`,
-        {
-          priority,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-
-      console.log('Priority updated:', response.data);
-    } catch (error) {
-      console.error(
-        'Error updating priority:',
-        error.response?.data || error.message,
-      );
-    }
-  };
-
   const handleDueDateChange = async (taskId, dueDate) => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -696,11 +742,9 @@ export default function EmployeeDashboard() {
 
       await fetchTasks();
 
-      // Success message
       setSuccessMessage('Task deleted successfully.');
       setShowSuccessMessage(true);
 
-      // Automatically close message after 3 seconds
       setTimeout(() => {
         setShowSuccessMessage(false);
       }, 3000);
@@ -1565,7 +1609,6 @@ export default function EmployeeDashboard() {
           <li
             onClick={() => {
               setActiveTab('notifications');
-              markNotificationsAsRead();
             }}
             className={`
           flex items-center
@@ -1901,10 +1944,24 @@ export default function EmployeeDashboard() {
     overflow-hidden
   "
             >
-              <div className="p-4 border-b border-slate-200">
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold text-slate-800">
                   Assigned Tasks
                 </h3>
+
+                <button
+                  type="button"
+                  onClick={handleRefreshAssignedTasks}
+                  disabled={refreshingAssignedTasks}
+                  className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Refresh assigned tasks"
+                >
+                  <RefreshCw
+                    size={16}
+                    className={refreshingAssignedTasks ? 'animate-spin' : ''}
+                  />
+                  {refreshingAssignedTasks ? 'Refreshing...' : 'Refresh'}
+                </button>
               </div>
 
               <div className="overflow-x-auto">

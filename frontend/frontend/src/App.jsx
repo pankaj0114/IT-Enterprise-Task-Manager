@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Signup from './assets/pages/Signup';
+//import Signup from './assets/pages/Signup';
 import Login from './assets/pages/Login';
 import HRDashboard from './assets/pages/HRDashboard';
 import EmployeeDashboard from './assets/pages/EmployeeDashboard';

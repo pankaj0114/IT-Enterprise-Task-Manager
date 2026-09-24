@@ -1,1287 +1,921 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
+//import '../css/MyTaskform.css';
 
-import {
-  ClipboardList,
-  Clock3,
-  CheckCircle2,
-  CircleDot,
-  AlertCircle,
-  Plus,
-} from 'lucide-react';
+const API_BASE = 'http://localhost:5000';
 
-const MyTasks = ({ admin }) => {
-  // ==========================================
-  // FORM
-  // ==========================================
+const getTodayDate = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
-  const [title, setTitle] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [client, setClient] = useState('');
-  const [assignedBy, setAssignedBy] = useState('');
+const authConfig = () => ({
+  headers: {
+    Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+    'Content-Type': 'application/json',
+  },
+});
 
-  const [employees, setEmployees] = useState([]);
-
-  const [assignedBySearch, setAssignedBySearch] = useState('');
-  const [showAssignedByDropdown, setShowAssignedByDropdown] = useState(false);
-
-  // const [clientSearch, setClientSearch] = useState('');
-  //const [showClientDropdown, setShowClientDropdown] = useState(false);
-  const [highlightedClientIndex, setHighlightedClientIndex] = useState(-1);
-
-  const [editingTitleId, setEditingTitleId] = useState(null);
-  const [editingTitleValue, setEditingTitleValue] = useState('');
-
-  const [clientSearchByTask, setClientSearchByTask] = useState({});
-  const [activeClientTaskId, setActiveClientTaskId] = useState(null);
-  //const [highlightedClientIndex, setHighlightedClientIndex] = useState(-1);
-
-  const clientDropdownRef = useRef(null);
-
-  // ==========================================
-  // DATA
-  // ==========================================
-
-  const [myTasks, setMyTasks] = useState([]);
-  //const [clients, setClients] = useState([]);
-
-  const [loading, setLoading] = useState(true);
-  // const [loadingClients, setLoadingClients] = useState(true);
-  const [creatingTask, setCreatingTask] = useState(false);
-
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
+export default function MyTasks({ user, admin }) {
+  const currentAdmin =
+    admin ||
+    user ||
+    (() => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        return storedUser ? JSON.parse(storedUser) : null;
+      } catch {
+        return null;
+      }
+    })();
+  const [tasks, setTasks] = useState([]);
   const [clients, setClients] = useState([]);
-  const [loadingClients, setLoadingClients] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [newTask, setNewTask] = useState({
+    title: '',
+    dueDate: getTodayDate(),
+    assignedTo: '',
+    assignedBy: '',
+    priority: 'Medium',
+    remarks: '',
+    client: '',
+  });
+
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [clientSearchTaskId, setClientSearchTaskId] = useState(null);
+  const [clientSearchText, setClientSearchText] = useState('');
+  const [showTaskClientDropdown, setShowTaskClientDropdown] = useState(false);
+  const [highlightedTaskClientIndex, setHighlightedTaskClientIndex] =
+    useState(-1);
+  const taskClientDropdownRef = useRef(null);
+  const [typingTimeouts, setTypingTimeouts] = useState({});
 
   const [showPopup, setShowPopup] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
-
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [hours, setHours] = useState('');
   const [minutes, setMinutes] = useState('');
 
-  // Form values are kept in title, dueDate, client and assignedBy above.
-
-  // ==========================================
-  // FETCH MY TASKS
-  // ==========================================
-  const fetchMyTasks = async () => {
+  const fetchTasks = async () => {
     try {
       setLoading(true);
-      setError('');
-
-      const token = localStorage.getItem('accessToken');
-
-      if (!token) {
-        setError('Authentication token not found. Please login again.');
-        return;
-      }
-
       const response = await axios.get(
-        'http://localhost:5000/api/admin/tasks/my',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+        `${API_BASE}/api/admin/tasks/my`,
+        authConfig(),
       );
-
-      console.log('MY TASKS API RESPONSE:', response.data);
-
-      setMyTasks(
-        Array.isArray(response.data)
-          ? response.data
-          : Array.isArray(response.data.tasks)
-            ? response.data.tasks
-            : [],
+      const data = response.data;
+      const taskList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.tasks)
+          ? data.tasks
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+      setTasks(taskList);
+    } catch (err) {
+      console.error(
+        'Error fetching my tasks:',
+        err.response?.data || err.message,
       );
-    } catch (error) {
-      console.error('FETCH MY TASKS ERROR:', error);
-      console.error('STATUS:', error.response?.status);
-      console.error('DATA:', error.response?.data);
-
-      setMyTasks([]);
-      setError(error.response?.data?.message || 'Failed to fetch your tasks.');
+      setError(err.response?.data?.message || 'Failed to load your tasks.');
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchClients = async () => {
+    try {
+      const response = await axios.get(
+        `${API_BASE}/api/admin/clients`,
+        authConfig(),
+      );
+
+      console.log('ADMIN CLIENTS FROM API:', response.data);
+
+      const responseData = response.data;
+      const adminClients = Array.isArray(responseData)
+        ? responseData
+        : Array.isArray(responseData?.clients)
+          ? responseData.clients
+          : Array.isArray(responseData?.data)
+            ? responseData.data
+            : [];
+
+      setClients(adminClients);
+    } catch (err) {
+      console.error(
+        'Error fetching clients:',
+        err.response?.data || err.message,
+      );
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await axios.get(
+        `${API_BASE}/api/users/employees`,
+        authConfig(),
+      );
+      setEmployees(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error(
+        'Error fetching employees:',
+        err.response?.data || err.message,
+      );
+    }
+  };
+
   useEffect(() => {
-    fetchMyTasks();
+    fetchTasks();
+    fetchClients();
+    fetchEmployees();
   }, []);
 
-  const handleStatusChange = async (taskId, newStatus) => {
-    // If admin selects Completed,
-    // open the time popup first.
-    if (newStatus === 'Completed') {
-      const task = myTasks.find((item) => item._id === taskId);
+  const handleChange = (e) => {
+    setNewTask((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
 
-      setSelectedTask(task);
-      setHours('');
-      setMinutes('');
-      setShowPopup(true);
-
-      return;
+  const handleTitleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleQuickAddTask();
     }
+  };
 
-    // For other statuses, update immediately
+  const handleQuickAddTask = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
+      const title = newTask.title.trim();
+      if (!title) return alert('Please enter a task title.');
 
+      const todayDate = getTodayDate();
+      await axios.post(
+        `${API_BASE}/api/tasks/assign`,
+        {
+          title,
+          quickAdd: true,
+          assignedTo: 'me',
+          priority: 'Medium',
+          dueDate: newTask.dueDate || todayDate,
+          client: newTask.client || null,
+        },
+        authConfig(),
+      );
+
+      setNewTask((prev) => ({
+        ...prev,
+        title: '',
+        dueDate: todayDate,
+        client: '',
+      }));
+      await fetchTasks();
+    } catch (err) {
+      console.error(
+        'Error quick adding task:',
+        err.response?.data || err.message,
+      );
+      setError(err.response?.data?.message || 'Failed to quick add task.');
+    }
+  };
+
+  const handleAddTask = async () => {
+    try {
+      if (!newTask.title.trim()) return setError('Please add a task title.');
+      if (!newTask.dueDate) return setError('Please select a due date.');
+      if (!newTask.client) return setError('Please select a client.');
+      if (!newTask.assignedBy) return setError('Please select Assigned By.');
+
+      const token = localStorage.getItem('accessToken');
       if (!token) {
         setError('Authentication token not found. Please login again.');
         return;
       }
 
-      await axios.put(
-        `http://localhost:5000/api/admin/tasks/${taskId}/status`,
+      console.log('CREATING ADMIN MY TASK:', {
+        adminId: currentAdmin?._id || currentAdmin?.id || null,
+        title: newTask.title.trim(),
+        dueDate: newTask.dueDate,
+        client: newTask.client,
+        assignedBy: newTask.assignedBy,
+      });
+
+      await axios.post(
+        `${API_BASE}/api/admin/tasks/my`,
         {
-          status: newStatus,
+          title: newTask.title.trim(),
+          dueDate: newTask.dueDate,
+          client: newTask.client,
+          assignedBy: newTask.assignedBy,
         },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+        authConfig(),
       );
 
-      setMyTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task._id === taskId ? { ...task, status: newStatus } : task,
-        ),
-      );
-    } catch (error) {
-      console.error('UPDATE STATUS ERROR:', error);
-
-      setError(error.response?.data?.message || 'Failed to update task status');
-    }
-  };
-
-  const handleTitleChange = async (taskId) => {
-    try {
-      const token = localStorage.getItem('accessToken');
-
-      if (!editingTitleValue.trim()) {
-        setError('Task title cannot be empty.');
-        return;
-      }
-
-      const response = await axios.put(
-        `http://localhost:5000/api/admin/tasks/my/${taskId}/title`,
-        {
-          title: editingTitleValue.trim(),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      setMyTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task._id === taskId
-            ? {
-                ...task,
-                title: response.data.task.title,
-              }
-            : task,
-        ),
-      );
-
-      setEditingTitleId(null);
-      setEditingTitleValue('');
+      setNewTask({
+        title: '',
+        dueDate: getTodayDate(),
+        assignedTo: '',
+        assignedBy: '',
+        priority: 'Medium',
+        remarks: '',
+        client: '',
+      });
       setError('');
-    } catch (error) {
-      console.error('UPDATE TITLE ERROR:', error);
-
-      setError(error.response?.data?.message || 'Failed to update title');
+      await fetchTasks();
+    } catch (err) {
+      console.error('Error adding task:', err.response?.data || err.message);
+      setError(err.response?.data?.message || 'Failed to create task.');
     }
   };
 
-  const handleClientChange = async (taskId, clientId) => {
+  const handleUpdateTaskTitle = async (taskId) => {
+    const title = editingTitle.trim();
+    if (!title) return alert('Task title cannot be empty.');
+
     try {
-      const token = localStorage.getItem('accessToken');
-
-      if (!token) {
-        setError('Authentication token not found. Please login again.');
-        return;
-      }
-
-      const response = await axios.put(
-        `http://localhost:5000/api/admin/tasks/my/${taskId}/client`,
-        {
-          client: clientId,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
+      await axios.put(
+        `${API_BASE}/api/tasks/${taskId}`,
+        { title },
+        authConfig(),
       );
-
-      console.log('CLIENT UPDATED:', response.data);
-
-      setMyTasks((prevTasks) =>
-        prevTasks.map((item) =>
-          item._id === taskId
-            ? {
-                ...item,
-                client: response.data.task?.client || {
-                  _id: clientId,
-                  name: clientSearchByTask[taskId] || '',
-                },
-              }
-            : item,
-        ),
-      );
-
-      setSuccess('Client updated successfully.');
-
-      setTimeout(() => {
-        setSuccess('');
-      }, 2000);
-    } catch (error) {
-      console.error('UPDATE CLIENT ERROR:', error);
-      console.error('STATUS:', error.response?.status);
-      console.error('DATA:', error.response?.data);
-
-      setError(error.response?.data?.message || 'Failed to update client.');
+      setEditingTaskId(null);
+      setEditingTitle('');
+      await fetchTasks();
+    } catch (err) {
+      console.error('Error updating title:', err.response?.data || err.message);
+      alert(err.response?.data?.message || 'Failed to update task title.');
     }
   };
 
-  const activeClientSearch = activeClientTaskId
-    ? clientSearchByTask[activeClientTaskId] || ''
-    : '';
-
-  const filteredClients = clients.filter((item) => {
-    const clientName = (item.name || item.company || '').toLowerCase();
-
-    return clientName.includes(activeClientSearch.toLowerCase());
-  });
-
-  const handleRemarkUpdate = async (taskId, remarks) => {
+  const handleDueDateChange = async (taskId, dueDate) => {
     try {
-      const token = localStorage.getItem('accessToken');
+      setTasks((prev) =>
+        prev.map((t) => (t._id === taskId ? { ...t, dueDate } : t)),
+      );
+      await axios.put(
+        `${API_BASE}/api/tasks/${taskId}`,
+        { dueDate },
+        authConfig(),
+      );
+    } catch (err) {
+      console.error(
+        'Error updating due date:',
+        err.response?.data || err.message,
+      );
+      await fetchTasks();
+    }
+  };
 
-      if (!token) {
-        setError('Authentication token not found. Please login again.');
-        return;
+  const handleRemarkChange = (taskId, value) => {
+    setTasks((prev) =>
+      prev.map((task) =>
+        String(task._id) === String(taskId)
+          ? { ...task, remarks: value }
+          : task,
+      ),
+    );
+
+    if (typingTimeouts[taskId]) clearTimeout(typingTimeouts[taskId]);
+
+    const timeout = setTimeout(async () => {
+      try {
+        await axios.put(
+          `${API_BASE}/api/tasks/${taskId}/remarks`,
+          { remarks: value },
+          authConfig(),
+        );
+      } catch (err) {
+        console.error(
+          'Error saving remark:',
+          err.response?.data || err.message,
+        );
       }
+    }, 1000);
 
+    setTypingTimeouts((prev) => ({ ...prev, [taskId]: timeout }));
+  };
+
+  const filteredTaskClients = useMemo(() => {
+    const search = clientSearchText.trim().toLowerCase();
+    return clients.filter((client) => {
+      const name = client.name || client.company || client.clientName || '';
+      return String(name).trim().toLowerCase().includes(search);
+    });
+  }, [clients, clientSearchText]);
+
+  const handleTaskClientChange = async (taskId, clientId) => {
+    try {
       const response = await axios.put(
-        `http://localhost:5000/api/admin/tasks/${taskId}`,
-        {
-          remarks,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
+        `${API_BASE}/api/tasks/${taskId}`,
+        { client: clientId },
+        authConfig(),
       );
 
-      console.log('REMARK UPDATED:', response.data);
+      const returnedTask = response.data?.task || response.data;
+      const selectedClient = clients.find(
+        (c) =>
+          String(c._id) === String(clientId) ||
+          String(c.id) === String(clientId),
+      );
 
-      // Update the UI immediately
-      const updatedTask = response.data.task;
-
-      setMyTasks((prevTasks) =>
-        prevTasks.map((task) =>
+      setTasks((prev) =>
+        prev.map((task) =>
           task._id === taskId
             ? {
                 ...task,
-                ...(updatedTask || {}),
-                remarks: updatedTask?.remarks ?? remarks,
+                ...returnedTask,
+                client: returnedTask?.client || selectedClient || null,
               }
             : task,
         ),
       );
 
-      setSuccess('Remark updated successfully.');
-
-      setTimeout(() => {
-        setSuccess('');
-      }, 2000);
-    } catch (error) {
-      console.error('UPDATE REMARK ERROR:', error);
-      console.error('STATUS:', error.response?.status);
-      console.error('DATA:', error.response?.data);
-
-      setError(error.response?.data?.message || 'Failed to update remark.');
+      setShowTaskClientDropdown(false);
+      setClientSearchTaskId(null);
+      setHighlightedTaskClientIndex(-1);
+    } catch (err) {
+      console.error(
+        'Error updating client:',
+        err.response?.data || err.message,
+      );
+      alert(err.response?.data?.message || 'Failed to update client.');
     }
   };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
-        clientDropdownRef.current &&
-        !clientDropdownRef.current.contains(event.target)
+        taskClientDropdownRef.current &&
+        !taskClientDropdownRef.current.contains(event.target)
       ) {
-        setShowClientDropdown(false);
-        setHighlightedClientIndex(-1);
+        setShowTaskClientDropdown(false);
+        setClientSearchTaskId(null);
+        setHighlightedTaskClientIndex(-1);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ==========================================
-  // FETCH CLIENTS
-  // ==========================================
-
-  const fetchClients = async () => {
-    try {
-      setLoadingClients(true);
-
-      const token = localStorage.getItem('accessToken');
-
-      if (!token) {
-        setError('Please login again.');
-        return;
-      }
-
-      const response = await axios.get(
-        'http://localhost:5000/api/admin/clients',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      setClients(response.data || []);
-    } catch (error) {
-      console.error('FETCH CLIENTS ERROR:', error);
-
-      setError(error.response?.data?.message || 'Failed to load clients');
-    } finally {
-      setLoadingClients(false);
+  const handleTaskChange = async (e, taskId) => {
+    const newStatus = e.target.value;
+    if (newStatus === 'Completed') {
+      setSelectedTaskId(taskId);
+      setHours('');
+      setMinutes('');
+      setShowPopup(true);
+      return;
     }
-  };
 
-  const fetchEmployees = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-
-      const response = await axios.get(
-        'http://localhost:5000/api/admin/employees/task-assignment',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+      const response = await axios.put(
+        `${API_BASE}/api/tasks/${taskId}`,
+        { status: newStatus },
+        authConfig(),
       );
-
-      console.log('EMPLOYEES FOR ASSIGNED BY:', response.data);
-
-      setEmployees(response.data.employees || []);
-    } catch (error) {
+      const updatedTask = response.data?.task || response.data;
+      setTasks((prev) =>
+        prev.map((task) =>
+          task._id === taskId ? { ...task, ...updatedTask } : task,
+        ),
+      );
+    } catch (err) {
       console.error(
-        'FETCH EMPLOYEES ERROR:',
-        error.response?.data || error.message,
+        'Error updating status:',
+        err.response?.data || err.message,
       );
+      alert(err.response?.data?.message || 'Failed to update task status.');
     }
   };
 
-  useEffect(() => {
-    fetchClients();
-    fetchMyTasks();
-    fetchEmployees();
-  }, []);
+  const handleCompleteTask = async () => {
+    const totalHours = Number(hours);
+    const totalMinutes = Number(minutes);
 
-  // ==========================================
-  // COUNTS
-  // ==========================================
+    if (!Number.isInteger(totalHours) || totalHours < 0)
+      return alert('Please enter valid hours.');
+    if (
+      !Number.isInteger(totalMinutes) ||
+      totalMinutes < 0 ||
+      totalMinutes > 59
+    ) {
+      return alert('Minutes must be between 0 and 59.');
+    }
+    if (!selectedTaskId) return;
 
-  const pendingTasks = myTasks.filter((task) => task.status === 'Not Started');
+    try {
+      const response = await axios.put(
+        `${API_BASE}/api/tasks/${selectedTaskId}/complete`,
+        { status: 'Completed', totalHours, totalMinutes },
+        authConfig(),
+      );
 
-  const inProgressTasks = myTasks.filter(
-    (task) => task.status === 'In Progress',
-  );
-
-  const completedTasks = myTasks.filter((task) => task.status === 'Completed');
-
-  // ==========================================
-  // STATUS
-  // ==========================================
-
-  const getStatusClass = (status) => {
-    switch (status) {
-      case 'Completed':
-        return 'bg-green-100 text-green-700';
-
-      case 'In Progress':
-        return 'bg-blue-100 text-blue-700';
-
-      case 'Not Started':
-        return 'bg-orange-100 text-orange-700';
-
-      default:
-        return 'bg-slate-100 text-slate-600';
+      const updatedTask = response.data?.task || response.data;
+      setTasks((prev) =>
+        prev.map((task) =>
+          task._id === selectedTaskId ? { ...task, ...updatedTask } : task,
+        ),
+      );
+      setShowPopup(false);
+      setSelectedTaskId(null);
+      setHours('');
+      setMinutes('');
+      await fetchTasks();
+    } catch (err) {
+      console.error(
+        'Error completing task:',
+        err.response?.data || err.message,
+      );
+      alert(err.response?.data?.message || 'Failed to complete task.');
     }
   };
 
-  // ==========================================
-  // PRIORITY
-  // ==========================================
-
-  const getPriorityClass = (priority) => {
-    switch (priority) {
-      case 'High':
-        return 'bg-red-100 text-red-700';
-
-      case 'Medium':
-        return 'bg-yellow-100 text-yellow-700';
-
-      case 'Low':
-        return 'bg-slate-100 text-slate-600';
-
-      default:
-        return 'bg-slate-100 text-slate-600';
-    }
-  };
+  const myOpenTasks = tasks.filter((task) => {
+    const assignedToId =
+      task.assignedTo?._id || task.assignedTo?.id || task.assignedTo;
+    const isMyTask = user?._id
+      ? String(assignedToId) === String(user._id)
+      : true;
+    return isMyTask && task.status !== 'Completed';
+  });
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
-      {/* =================================================
-          MY TASK FORM
-      ================================================= */}
+    <div className="w-full">
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <form onSubmit={handleAddTask}>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            {/* TITLE */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Title
-              </label>
-
-              <div className="flex">
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter task title"
-                  className="h-12 w-full rounded-l-lg border border-slate-300 px-4 text-sm outline-none focus:border-blue-500"
-                />
-
-                <button
-                  type="submit"
-                  disabled={creatingTask}
-                  className="flex h-12 w-12 items-center justify-center rounded-r-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  <Plus size={20} />
-                </button>
-              </div>
-            </div>
-
-            {/* DUE DATE */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Due Date
-              </label>
-
+      <div className="mb-6 w-full rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="w-full">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Title
+            </label>
+            <div className="flex w-full">
               <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="h-12 w-full rounded-lg border border-slate-300 px-4 text-sm outline-none focus:border-blue-500"
+                name="title"
+                type="text"
+                value={newTask.title}
+                onChange={handleChange}
+                onKeyDown={handleTitleKeyDown}
+                placeholder="Enter task title"
+                className="h-10 min-w-0 flex-1 rounded-l-md border border-slate-300 px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400"
               />
-            </div>
-
-            {/* CLIENT */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Client
-              </label>
-
-              <select
-                value={client}
-                onChange={(e) => setClient(e.target.value)}
-                disabled={loadingClients}
-                className="h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-sm text-slate-700 outline-none focus:border-blue-500"
+              <button
+                type="button"
+                onClick={handleQuickAddTask}
+                title="Quick add task"
+                className="h-10 w-10 rounded-r-md bg-blue-500 text-xl font-semibold text-white hover:bg-blue-600"
               >
-                <option value="">
-                  {loadingClients ? 'Loading clients...' : 'Select a client'}
-                </option>
-
-                {clients.map((item) => (
-                  <option key={item._id} value={item._id}>
-                    {item.name || item.company}
-                  </option>
-                ))}
-              </select>
+                +
+              </button>
             </div>
           </div>
 
-          {/* ASSIGNED BY */}
-          <div className="flex flex-col gap-2">
-            <label
-              htmlFor="task-assigned-by"
-              className="text-sm font-semibold text-slate-700"
+          <div className="w-full">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Due Date
+            </label>
+            <input
+              name="dueDate"
+              type="date"
+              value={newTask.dueDate || getTodayDate()}
+              onChange={handleChange}
+              min={getTodayDate()}
+              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
+
+          <div className="w-full">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Client
+            </label>
+            <select
+              name="client"
+              value={newTask.client}
+              onChange={handleChange}
+              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
+              <option value="">Select an assigned client</option>
+              {clients.map((client) => (
+                <option key={client._id} value={client._id}>
+                  {client.name}
+                  {client.company ? ` - ${client.company}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="w-full">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Assigned By
             </label>
-
-            <div className="relative">
-              <input
-                id="task-assigned-by"
-                type="text"
-                autoComplete="off"
-                placeholder="Search employee..."
-                value={assignedBySearch}
-                onFocus={() => {
-                  setShowAssignedByDropdown(true);
-                }}
-                onChange={(e) => {
-                  setAssignedBySearch(e.target.value);
-                  setShowAssignedByDropdown(true);
-                }}
-                className="
-        w-full
-        rounded-lg
-        border border-slate-300
-        bg-white
-        px-3.5 py-2.5
-        text-sm text-slate-800
-        outline-none
-        transition-all
-        focus:border-blue-400
-        focus:ring-2
-        focus:ring-blue-100
-      "
-              />
-
-              {showAssignedByDropdown && (
-                <div
-                  className="
-          absolute
-          left-0
-          right-0
-          z-50
-          mt-1
-          max-h-60
-          overflow-y-auto
-          rounded-lg
-          border
-          border-slate-200
-          bg-white
-          shadow-xl
-        "
-                >
-                  {employees
-                    .filter((employee) =>
-                      (employee.name || '')
-                        .toLowerCase()
-                        .includes(assignedBySearch.toLowerCase().trim()),
-                    )
-                    .map((employee) => (
-                      <button
-                        key={employee._id}
-                        type="button"
-                        onClick={() => {
-                          setAssignedBy(employee._id);
-                          setAssignedBySearch(employee.name);
-                          setShowAssignedByDropdown(false);
-                        }}
-                        className="
-                block
-                w-full
-                px-4
-                py-3
-                text-left
-                text-sm
-                text-slate-700
-                hover:bg-blue-50
-                hover:text-blue-700
-              "
-                      >
-                        {employee.name}
-                      </button>
-                    ))}
-
-                  {employees.filter((employee) =>
-                    (employee.name || '')
-                      .toLowerCase()
-                      .includes(assignedBySearch.toLowerCase().trim()),
-                  ).length === 0 && (
-                    <div className="px-4 py-3 text-sm text-slate-500">
-                      No employees found
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <select
+              name="assignedBy"
+              value={newTask.assignedBy}
+              onChange={handleChange}
+              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="">Assigned by</option>
+              {employees.map((employee) => (
+                <option key={employee._id} value={employee._id}>
+                  {employee.name}
+                  {employee.email ? ` - ${employee.email}` : ''}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* ADD TASK BUTTON */}
-
-          <div className="mt-5 flex justify-end">
+          <div className="col-span-1 flex justify-end md:col-span-2 xl:col-span-4">
             <button
-              type="submit"
-              disabled={creatingTask}
-              className="rounded-lg bg-blue-600 px-7 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={handleAddTask}
+              className="h-11 rounded-lg bg-blue-600 px-7 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
             >
-              {creatingTask ? 'Adding...' : 'Add Task'}
+              Add Task
             </button>
           </div>
-
-          {/* ERROR */}
-
-          {error && (
-            <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
-              {error}
-            </div>
-          )}
-
-          {/* SUCCESS */}
-
-          {success && (
-            <div className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-600">
-              {success}
-            </div>
-          )}
-        </form>
-      </div>
-
-      {/* =================================================
-          HEADER
-      ================================================= */}
-
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800 sm:text-3xl">
-          My Tasks
-        </h1>
-
-        <p className="mt-1 text-sm text-slate-500">
-          View tasks assigned to you.
-        </p>
-      </div>
-
-      {/* =================================================
-          SUMMARY
-      ================================================= */}
-
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* TOTAL */}
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Total Tasks</p>
-
-              <p className="mt-1 text-3xl font-bold text-slate-800">
-                {myTasks.length}
-              </p>
-            </div>
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              <ClipboardList size={22} />
-            </div>
-          </div>
-        </div>
-
-        {/* PENDING */}
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Pending</p>
-
-              <p className="mt-1 text-3xl font-bold text-slate-800">
-                {pendingTasks.length}
-              </p>
-            </div>
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
-              <Clock3 size={22} />
-            </div>
-          </div>
-        </div>
-
-        {/* IN PROGRESS */}
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">In Progress</p>
-
-              <p className="mt-1 text-3xl font-bold text-slate-800">
-                {inProgressTasks.length}
-              </p>
-            </div>
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              <CircleDot size={22} />
-            </div>
-          </div>
-        </div>
-
-        {/* COMPLETED */}
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Completed</p>
-
-              <p className="mt-1 text-3xl font-bold text-slate-800">
-                {completedTasks.length}
-              </p>
-            </div>
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-50 text-green-600">
-              <CheckCircle2 size={22} />
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* =================================================
-          MY TASKS TABLE
-      ================================================= */}
+      <h3 className="mb-4 text-lg font-semibold text-slate-800 sm:text-xl">
+        My Tasks
+      </h3>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
-          <h2 className="text-lg font-semibold text-slate-800">My Tasks</h2>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Tasks assigned to {admin?.name || 'you'}.
-          </p>
-        </div>
-
-        <div className="w-full overflow-x-auto">
-          <table className="w-full min-w-225 text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50">
+      <div className="w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <table className="w-full min-w-225 border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-100">
+              {[
+                'Title',
+                'Issue Date',
+                'Due Date',
+                'Status',
+                'Client',
+                'Assigned By',
+                'Remarks',
+              ].map((heading) => (
+                <th
+                  key={heading}
+                  className="px-4 py-3 text-left font-semibold text-slate-700"
+                >
+                  {heading}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
               <tr>
-                <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                  Title
-                </th>
-
-                <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                  Issue Date
-                </th>
-
-                <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                  Due Date
-                </th>
-
-                <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                  Status
-                </th>
-
-                <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                  Client
-                </th>
-
-                <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                  Assigned By
-                </th>
-
-                <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                  Remarks
-                </th>
+                <td
+                  colSpan={7}
+                  className="px-4 py-10 text-center text-slate-500"
+                >
+                  Loading your tasks...
+                </td>
               </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {/* LOADING */}
-
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-6 py-12 text-center text-slate-500"
-                  >
-                    Loading my tasks...
+            ) : myOpenTasks.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="px-4 py-10 text-center text-slate-500"
+                >
+                  No active tasks found.
+                </td>
+              </tr>
+            ) : (
+              myOpenTasks.map((task) => (
+                <tr
+                  key={task._id}
+                  className="border-b border-slate-100 hover:bg-slate-50"
+                >
+                  <td className="px-4 py-3 font-medium text-slate-700">
+                    {editingTaskId === task._id ? (
+                      <input
+                        autoFocus
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleUpdateTaskTitle(task._id);
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingTaskId(null);
+                            setEditingTitle('');
+                          }
+                        }}
+                        onBlur={() => handleUpdateTaskTitle(task._id)}
+                        className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    ) : (
+                      <div
+                        onClick={() => {
+                          setEditingTaskId(task._id);
+                          setEditingTitle(task.title || '');
+                        }}
+                        className="cursor-text rounded-md px-2 py-2 hover:bg-slate-100"
+                      >
+                        {task.title}
+                      </div>
+                    )}
                   </td>
-                </tr>
-              ) : myTasks.length === 0 ? (
-                /* EMPTY */
 
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-6 py-12 text-center text-slate-500"
-                  >
-                    <div className="flex flex-col items-center">
-                      <AlertCircle className="mb-2 text-slate-400" size={28} />
+                  <td className="px-4 py-3">
+                    <input
+                      type="date"
+                      readOnly
+                      value={
+                        task.issueDate
+                          ? new Date(task.issueDate).toISOString().split('T')[0]
+                          : ''
+                      }
+                      className="min-w-32.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-600"
+                    />
+                  </td>
 
-                      <p>No tasks created yet.</p>
+                  <td className="px-4 py-3">
+                    <input
+                      type="date"
+                      value={
+                        task.dueDate
+                          ? new Date(task.dueDate).toISOString().split('T')[0]
+                          : ''
+                      }
+                      onChange={(e) =>
+                        handleDueDateChange(task._id, e.target.value)
+                      }
+                      min={getTodayDate()}
+                      className="min-w-32.5 rounded-md border border-slate-300 bg-white px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <select
+                      value={task.status || 'Not Started'}
+                      onChange={(e) => handleTaskChange(e, task._id)}
+                      className={`min-w-31.25 rounded-md border px-2 py-2 text-xs font-medium outline-none ${
+                        task.status === 'Not Started'
+                          ? 'border-orange-200 bg-orange-50 text-orange-700'
+                          : task.status === 'In Progress'
+                            ? 'border-blue-200 bg-blue-50 text-blue-700'
+                            : 'border-slate-300 bg-white'
+                      }`}
+                    >
+                      <option value="Not Started">Not Started</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <div
+                      ref={
+                        clientSearchTaskId === task._id
+                          ? taskClientDropdownRef
+                          : null
+                      }
+                      className="relative min-w-47.5"
+                    >
+                      {(() => {
+                        const taskClientId =
+                          typeof task.client === 'string'
+                            ? task.client
+                            : task.client?._id || task.client?.id || '';
+
+                        const selectedClient =
+                          typeof task.client === 'object' && task.client
+                            ? task.client
+                            : clients.find(
+                                (client) =>
+                                  String(client._id) === String(taskClientId) ||
+                                  String(client.id) === String(taskClientId) ||
+                                  String(client.name || '')
+                                    .trim()
+                                    .toLowerCase() ===
+                                    String(taskClientId || '')
+                                      .trim()
+                                      .toLowerCase() ||
+                                  String(client.clientName || '')
+                                    .trim()
+                                    .toLowerCase() ===
+                                    String(taskClientId || '')
+                                      .trim()
+                                      .toLowerCase(),
+                              );
+
+                        const selectedClientName =
+                          selectedClient?.name ||
+                          selectedClient?.clientName ||
+                          selectedClient?.company ||
+                          (typeof task.client === 'string'
+                            ? task.client
+                            : '') ||
+                          '';
+
+                        const inputValue =
+                          clientSearchTaskId === task._id
+                            ? clientSearchText
+                            : selectedClientName;
+
+                        const visibleClients = filteredTaskClients.filter(
+                          (client) =>
+                            String(client._id) !== String(taskClientId),
+                        );
+
+                        return (
+                          <>
+                            <input
+                              type="text"
+                              value={inputValue}
+                              placeholder="Search client..."
+                              autoComplete="off"
+                              onFocus={(e) => {
+                                setClientSearchTaskId(task._id);
+                                setClientSearchText(selectedClientName);
+                                setShowTaskClientDropdown(true);
+                                setHighlightedTaskClientIndex(-1);
+                                e.target.select();
+                              }}
+                              onChange={(e) => {
+                                setClientSearchTaskId(task._id);
+                                setClientSearchText(e.target.value);
+                                setShowTaskClientDropdown(true);
+                                setHighlightedTaskClientIndex(-1);
+                              }}
+                              onKeyDown={(e) => {
+                                if (
+                                  e.key === 'ArrowDown' &&
+                                  visibleClients.length
+                                ) {
+                                  e.preventDefault();
+                                  setHighlightedTaskClientIndex((i) =>
+                                    i < visibleClients.length - 1 ? i + 1 : 0,
+                                  );
+                                }
+
+                                if (
+                                  e.key === 'ArrowUp' &&
+                                  visibleClients.length
+                                ) {
+                                  e.preventDefault();
+                                  setHighlightedTaskClientIndex((i) =>
+                                    i > 0 ? i - 1 : visibleClients.length - 1,
+                                  );
+                                }
+
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const selected =
+                                    visibleClients[highlightedTaskClientIndex];
+                                  if (selected) {
+                                    handleTaskClientChange(
+                                      task._id,
+                                      selected._id,
+                                    );
+                                  }
+                                }
+
+                                if (e.key === 'Escape') {
+                                  setClientSearchText(selectedClientName);
+                                  setShowTaskClientDropdown(false);
+                                  setClientSearchTaskId(null);
+                                  setHighlightedTaskClientIndex(-1);
+                                }
+                              }}
+                              onBlur={() => {
+                                // Keep the saved client visible in the input if the user
+                                // leaves the field without selecting another client.
+                                if (!showTaskClientDropdown) {
+                                  setClientSearchText(selectedClientName);
+                                }
+                              }}
+                              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                            />
+
+                            {clientSearchTaskId === task._id &&
+                              showTaskClientDropdown && (
+                                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                                  {visibleClients.length ? (
+                                    visibleClients.map((client, index) => {
+                                      const name =
+                                        client.name ||
+                                        client.company ||
+                                        client.clientName ||
+                                        'Unnamed Client';
+
+                                      return (
+                                        <button
+                                          key={client._id}
+                                          type="button"
+                                          onMouseDown={(event) =>
+                                            event.preventDefault()
+                                          }
+                                          onMouseEnter={() =>
+                                            setHighlightedTaskClientIndex(index)
+                                          }
+                                          onClick={() =>
+                                            handleTaskClientChange(
+                                              task._id,
+                                              client._id,
+                                            )
+                                          }
+                                          className={`block w-full px-3 py-2.5 text-left text-sm ${
+                                            highlightedTaskClientIndex === index
+                                              ? 'bg-blue-50 text-blue-700'
+                                              : 'text-slate-700 hover:bg-slate-50'
+                                          }`}
+                                        >
+                                          {name}
+                                        </button>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="px-3 py-3 text-sm text-slate-500">
+                                      No other clients found
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </td>
+
+                  <td className="px-4 py-3 text-slate-600">
+                    {task.assignedBy?.name || ''}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <textarea
+                      value={task.remarks || ''}
+                      onChange={(e) =>
+                        handleRemarkChange(task._id, e.target.value)
+                      }
+                      placeholder="Add your remarks..."
+                      rows={2}
+                      className="min-w-45 resize-y rounded-md border border-slate-300 bg-green-50 px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-green-300"
+                    />
+                  </td>
                 </tr>
-              ) : (
-                /* TASKS */
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
-                myTasks.map((task) => (
-                  <tr key={task._id} className="transition hover:bg-slate-50">
-                    {/* =========================================
-        TITLE
-    ========================================= */}
-                    <td className="px-5 py-4">
-                      {editingTitleId === task._id ? (
-                        <div className="flex min-w-56 items-center gap-2">
-                          <input
-                            type="text"
-                            value={editingTitleValue}
-                            onChange={(e) =>
-                              setEditingTitleValue(e.target.value)
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleTitleChange(task._id);
-                              }
-
-                              if (e.key === 'Escape') {
-                                setEditingTitleId(null);
-                                setEditingTitleValue('');
-                              }
-                            }}
-                            autoFocus
-                            className="
-              w-full
-              rounded-md
-              border border-blue-400
-              px-3 py-2
-              text-sm
-              outline-none
-              focus:ring-2
-              focus:ring-blue-100
-            "
-                          />
-
-                          <button
-                            type="button"
-                            onClick={() => handleTitleChange(task._id)}
-                            className="
-              rounded-md
-              bg-blue-600
-              px-3 py-2
-              text-xs
-              font-medium
-              text-white
-              hover:bg-blue-700
-            "
-                          >
-                            Save
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingTitleId(task._id);
-                            setEditingTitleValue(task.title || '');
-                          }}
-                          className="
-            min-w-56
-            text-left
-            font-medium
-            text-slate-800
-            hover:text-blue-600
-          "
-                          title="Click to edit title"
-                        >
-                          {task.title || 'No title'}
-                        </button>
-                      )}
-                    </td>
-
-                    {/* =========================================
-        ISSUE DATE
-    ========================================= */}
-                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
-                      {task.issueDate
-                        ? new Date(task.issueDate).toLocaleDateString('en-GB')
-                        : task.createdAt
-                          ? new Date(task.createdAt).toLocaleDateString('en-GB')
-                          : 'N/A'}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <input
-                        type="date"
-                        value={
-                          task.dueDate
-                            ? new Date(task.dueDate).toISOString().split('T')[0]
-                            : ''
-                        }
-                        onChange={(e) =>
-                          handleDueDateChange(task._id, e.target.value)
-                        }
-                        className="
-          rounded-lg
-          border border-slate-300
-          bg-white
-          px-3
-          py-2
-          text-sm
-          text-slate-700
-          outline-none
-          focus:border-blue-400
-          focus:ring-2
-          focus:ring-blue-100
-        "
-                      />
-                    </td>
-
-                    {/* STATUS */}
-
-                    <td className="px-5 py-4">
-                      <select
-                        value={task.status || 'Not Started'}
-                        onChange={(e) =>
-                          handleStatusChange(task._id, e.target.value)
-                        }
-                        className={`
-          cursor-pointer
-          rounded-full
-          border-0
-          px-3
-          py-1
-          text-xs
-          font-semibold
-          outline-none
-          ${getStatusClass(task.status)}
-        `}
-                      >
-                        <option value="Not Started">Not Started</option>
-
-                        <option value="In Progress">In Progress</option>
-
-                        <option value="Completed">Completed</option>
-                      </select>
-                    </td>
-                    {/* =========================================
-        CLIENT
-    ========================================= */}
-                    <td className="px-5 py-4">
-                      <div className="relative min-w-52">
-                        <input
-                          type="text"
-                          autoComplete="off"
-                          placeholder="Search client..."
-                          value={
-                            clientSearchByTask?.[task._id] ??
-                            task.client?.name ??
-                            task.client?.company ??
-                            ''
-                          }
-                          onFocus={() => {
-                            setActiveClientTaskId(task._id);
-                            setHighlightedClientIndex(-1);
-                          }}
-                          onChange={(e) => {
-                            const value = e.target.value;
-
-                            setClientSearchByTask((prev) => ({
-                              ...prev,
-                              [task._id]: value,
-                            }));
-
-                            setActiveClientTaskId(task._id);
-                            setHighlightedClientIndex(-1);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'ArrowDown') {
-                              e.preventDefault();
-
-                              if (filteredClients.length === 0) return;
-
-                              setHighlightedClientIndex((prev) =>
-                                prev < filteredClients.length - 1
-                                  ? prev + 1
-                                  : 0,
-                              );
-                            }
-
-                            if (e.key === 'ArrowUp') {
-                              e.preventDefault();
-
-                              if (filteredClients.length === 0) return;
-
-                              setHighlightedClientIndex((prev) =>
-                                prev > 0
-                                  ? prev - 1
-                                  : filteredClients.length - 1,
-                              );
-                            }
-
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-
-                              if (
-                                highlightedClientIndex >= 0 &&
-                                filteredClients[highlightedClientIndex]
-                              ) {
-                                const selectedClient =
-                                  filteredClients[highlightedClientIndex];
-
-                                const clientName =
-                                  selectedClient.name ||
-                                  selectedClient.company ||
-                                  '';
-
-                                handleClientChange(
-                                  task._id,
-                                  selectedClient._id,
-                                );
-
-                                setClientSearchByTask((prev) => ({
-                                  ...prev,
-                                  [task._id]: clientName,
-                                }));
-
-                                setActiveClientTaskId(null);
-                                setHighlightedClientIndex(-1);
-                              }
-                            }
-
-                            if (e.key === 'Escape') {
-                              setActiveClientTaskId(null);
-                              setHighlightedClientIndex(-1);
-                            }
-                          }}
-                          className="
-        w-full
-        rounded-lg
-        border border-slate-300
-        bg-white
-        px-3
-        py-2
-        text-sm
-        text-slate-700
-        outline-none
-        focus:border-blue-400
-        focus:ring-2
-        focus:ring-blue-100
-      "
-                        />
-
-                        {activeClientTaskId === task._id && (
-                          <div
-                            className="
-          absolute
-          left-0
-          right-0
-          top-full
-          z-50
-          mt-1
-          max-h-60
-          overflow-y-auto
-          rounded-lg
-          border
-          border-slate-200
-          bg-white
-          shadow-xl
-        "
-                          >
-                            {filteredClients.length > 0 ? (
-                              filteredClients.map((item, index) => {
-                                const clientName =
-                                  item.name || item.company || 'Unnamed Client';
-
-                                return (
-                                  <button
-                                    key={item._id}
-                                    type="button"
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onMouseEnter={() =>
-                                      setHighlightedClientIndex(index)
-                                    }
-                                    onClick={() => {
-                                      handleClientChange(task._id, item._id);
-
-                                      setClientSearchByTask((prev) => ({
-                                        ...prev,
-                                        [task._id]: clientName,
-                                      }));
-
-                                      setActiveClientTaskId(null);
-                                      setHighlightedClientIndex(-1);
-                                    }}
-                                    className={`
-                  block
-                  w-full
-                  px-4
-                  py-3
-                  text-left
-                  text-sm
-                  ${
-                    highlightedClientIndex === index
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-700 hover:bg-slate-50'
-                  }
-                `}
-                                  >
-                                    {clientName}
-                                  </button>
-                                );
-                              })
-                            ) : (
-                              <div className="px-4 py-3 text-sm text-slate-500">
-                                No clients found
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* =========================================
-        ASSIGNED BY
-    ========================================= */}
-                    <td className="whitespace-nowrap px-5 py-4 text-slate-600">
-                      {task.assignedBy?.name || 'Unknown'}
-                    </td>
-
-                    {/* =========================================
-        REMARKS
-    ========================================= */}
-                    <td className="px-5 py-4">
-                      <input
-                        type="text"
-                        value={task.remarks || ''}
-                        onChange={(e) =>
-                          handleRemarkChange(task._id, e.target.value)
-                        }
-                        onBlur={(e) =>
-                          handleRemarkUpdate(task._id, e.target.value)
-                        }
-                        placeholder="Enter remarks"
-                        className="w-full min-w-45 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                      />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        {showPopup && (
-          <div
-            className="
-      fixed
-      inset-0
-      z-50
-      bg-black/50
-      flex
-      items-center
-      justify-center
-      p-4
-    "
-          >
-            <div
-              className="
-        w-full
-        max-w-md
-        bg-white
-        rounded-xl
-        shadow-2xl
-        p-5
-      "
-            >
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">
-                Upon Completion of your task, Please Log your Time
-              </h3>
-
-              <div className="space-y-3">
-                <input
-                  id="hours"
-                  type="number"
-                  min="0"
-                  placeholder="Hours"
-                  value={hours}
-                  onChange={(e) => setHours(e.target.value)}
-                  className="
-            w-full
-            px-3
-            py-2
-            rounded-md
-            border
-            border-slate-300
-            outline-none
-            focus:ring-2
-            focus:ring-blue-400
-          "
-                />
-
-                <input
-                  id="minutes"
-                  type="number"
-                  min="0"
-                  max="59"
-                  placeholder="Minutes"
-                  value={minutes}
-                  onChange={(e) => setMinutes(e.target.value)}
-                  className="
-            w-full
-            px-3
-            py-2
-            rounded-md
-            border
-            border-slate-300
-            outline-none
-            focus:ring-2
-            focus:ring-blue-400
-          "
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 mt-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPopup(false);
-                    setSelectedTask(null);
-                    setHours('');
-                    setMinutes('');
-                  }}
-                  className="
-            px-4
-            py-2
-            rounded-md
-            bg-slate-200
-            hover:bg-slate-300
-            text-slate-700
-            text-sm
-          "
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCompleteTask}
-                  className="
-            px-4
-            py-2
-            rounded-md
-            bg-green-500
-            hover:bg-green-600
-            text-white
-            text-sm
-            font-medium
-          "
-                >
-                  Save
-                </button>
-              </div>
+      {showPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl">
+            <h3 className="mb-4 text-lg font-semibold text-slate-800">
+              Upon Completion of your task, Please Log your Time
+            </h3>
+            <div className="space-y-3">
+              <input
+                type="number"
+                min="0"
+                placeholder="Hours"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <input
+                type="number"
+                min="0"
+                max="59"
+                placeholder="Minutes"
+                value={minutes}
+                onChange={(e) => setMinutes(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPopup(false);
+                  setSelectedTaskId(null);
+                }}
+                className="rounded-md bg-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCompleteTask}
+                className="rounded-md bg-green-500 px-4 py-2 text-sm font-medium text-white hover:bg-green-600"
+              >
+                Save
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default MyTasks;
+}

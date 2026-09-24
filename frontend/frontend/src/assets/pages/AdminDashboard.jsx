@@ -7,6 +7,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import MyTasks from '../components/admin/MyTasks';
 import AssignedTasks from '../components/admin/AssignedTasks';
 import AdminAttendance from '../components/admin/AdminAttendance';
+
 import { io } from 'socket.io-client';
 import { MdCalendarMonth } from 'react-icons/md';
 
@@ -21,10 +22,35 @@ const AdminDashboard = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
 
-  const [activeTab, setActiveTab] = useState('userRegistration');
+  // Keep the selected Admin Dashboard section after a page refresh.
+  const [activeTab, setActiveTab] = useState(() => {
+    const savedTab = localStorage.getItem('adminActiveTab');
+
+    const validTabs = [
+      'myTasks',
+      'assignedTasks',
+      'completedTasks',
+      'userRegistration',
+      'clients',
+      'allTasks',
+      'attendance',
+      'employeePerformance',
+      'notifications',
+    ];
+
+    return validTabs.includes(savedTab) ? savedTab : 'myTasks';
+  });
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    localStorage.setItem('adminActiveTab', tab);
+  };
 
   const [employees, setEmployees] = useState([]);
-
+  const [showPopup, setShowPopup] = useState(false);
+  const [hours, setHours] = useState('');
+  const [minutes, setMinutes] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [clients, setClients] = useState([]);
   //const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -876,18 +902,20 @@ const AdminDashboard = () => {
       <aside
         className="
         z-40
-        w-20
+        w-16
         bg-slate-900
         text-white
         min-h-screen
         flex
         flex-col
+        overflow-y-auto
         fixed
         left-0
         top-0
         bottom-0
         transition-all
         duration-300
+        sm:w-20
         lg:w-64
       "
       >
@@ -895,10 +923,12 @@ const AdminDashboard = () => {
 
         <div
           className="
-          px-3
-          py-5
+          px-2
+          py-4
           border-b
           border-slate-700
+          sm:px-4
+          sm:py-5
           lg:px-6
           lg:py-6
         "
@@ -955,11 +985,11 @@ const AdminDashboard = () => {
 
         {/* Navigation */}
 
-        <nav className="flex-1 space-y-2 px-2 py-5 lg:px-3">
+        <nav className="flex-1 space-y-1.5 px-1.5 py-4 sm:space-y-2 sm:px-2 sm:py-5 lg:px-3">
           {/* My Tasks */}
           <button
             type="button"
-            onClick={() => setActiveTab('myTasks')}
+            onClick={() => handleTabChange('myTasks')}
             className={`
     flex
     w-full
@@ -988,7 +1018,7 @@ const AdminDashboard = () => {
           {/* Assigned Tasks */}
           <button
             type="button"
-            onClick={() => setActiveTab('assignedTasks')}
+            onClick={() => handleTabChange('assignedTasks')}
             className={`
     flex
     w-full
@@ -1015,7 +1045,7 @@ const AdminDashboard = () => {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('userRegistration')}
+            onClick={() => handleTabChange('userRegistration')}
             className={`
               flex
               w-full
@@ -1042,7 +1072,7 @@ const AdminDashboard = () => {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('clients')}
+            onClick={() => handleTabChange('clients')}
             className={`
               flex
               w-full
@@ -1069,7 +1099,7 @@ const AdminDashboard = () => {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('allTasks')}
+            onClick={() => handleTabChange('allTasks')}
             className={`
     w-full
     flex
@@ -1097,7 +1127,7 @@ const AdminDashboard = () => {
           {/* Attendance */}
           <button
             type="button"
-            onClick={() => setActiveTab('attendance')}
+            onClick={() => handleTabChange('attendance')}
             className={`
     flex
     w-full
@@ -1125,18 +1155,22 @@ const AdminDashboard = () => {
 
           <button
             type="button"
-            onClick={() => setActiveTab('employeePerformance')}
+            onClick={() => handleTabChange('employeePerformance')}
             className={`
     mt-2
     flex
     w-full
     items-center
-    gap-3
+    justify-center
+    gap-2
     rounded-lg
-    px-4
+    px-2
     py-3
     text-left
     transition
+    lg:justify-start
+    lg:gap-3
+    lg:px-4
 
     ${
       activeTab === 'employeePerformance'
@@ -1147,13 +1181,13 @@ const AdminDashboard = () => {
           >
             <span className="text-lg">📊</span>
 
-            <span>Employee Performance</span>
+            <span className="hidden lg:inline">Employee Performance</span>
           </button>
 
           <button
             type="button"
             onClick={() => {
-              setActiveTab('notifications');
+              handleTabChange('notifications');
               markNotificationsAsRead();
               fetchNotifications();
             }}
@@ -1163,12 +1197,13 @@ const AdminDashboard = () => {
     w-full
     items-center
     justify-between
-    gap-3
+    gap-2
     rounded-lg
-    px-4
+    px-2
     py-3
     text-left
     transition
+    lg:px-4
 
     ${
       activeTab === 'notifications'
@@ -1177,10 +1212,10 @@ const AdminDashboard = () => {
     }
   `}
           >
-            <div className="flex items-center gap-3">
-              <span className="text-lg">🔔</span>
+            <div className="flex min-w-0 items-center justify-center gap-2 lg:justify-start lg:gap-3">
+              <span className="shrink-0 text-lg">🔔</span>
 
-              <span>Notifications</span>
+              <span className="hidden lg:inline">Notifications</span>
             </div>
 
             {unreadNotificationCount > 0 && (
@@ -1238,11 +1273,17 @@ const AdminDashboard = () => {
         className="
         min-h-screen
         w-full
-        pl-20
-        p-4
-        sm:p-6
+        min-w-0
+        pl-16
+        pr-3
+        py-4
+        sm:pl-20
+        sm:pr-5
+        sm:py-6
         lg:pl-64
-        lg:p-8
+        lg:pr-8
+        lg:py-8
+        pb-8
       "
       >
         {/* ==========================================
@@ -1267,7 +1308,7 @@ const AdminDashboard = () => {
           />
         )}
         {activeTab === 'userRegistration' && (
-          <div className="max-w-7xl mx-auto">
+          <div className="mx-auto w-full min-w-0 max-w-7xl">
             {/* Header */}
             <div className="mb-6">
               <h1
@@ -1603,17 +1644,22 @@ const AdminDashboard = () => {
                   className="
                   mt-6
                   flex
-                  justify-end
+                  flex-col-reverse
+                  gap-2
+                  sm:flex-row
+                  sm:justify-end
                 "
                 >
                   <button
                     type="submit"
                     disabled={loading}
                     className="
+                      w-full
                       px-6
                       py-2.5
                       rounded-lg
                       bg-blue-600
+                      sm:w-auto
                       text-white
                       font-medium
                       hover:bg-blue-700
@@ -1685,23 +1731,23 @@ const AdminDashboard = () => {
               </div>
 
               {/* Responsive Table */}
-              <div className="w-full overflow-x-auto">
+              <div className="w-full overflow-x-auto overscroll-x-contain">
                 <table className="w-full min-w-200 text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50">
                     <tr>
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Name
                       </th>
 
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Email
                       </th>
 
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Date of Joining
                       </th>
 
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Reset Password
                       </th>
                     </tr>
@@ -1724,17 +1770,17 @@ const AdminDashboard = () => {
                           className="transition hover:bg-slate-50"
                         >
                           {/* Name */}
-                          <td className="px-6 py-4 font-medium text-slate-800">
+                          <td className="px-3 py-3 sm:px-5 sm:py-4 font-medium text-slate-800">
                             {employee.name || 'N/A'}
                           </td>
 
                           {/* Email */}
-                          <td className="px-6 py-4 text-slate-600">
+                          <td className="px-3 py-3 sm:px-5 sm:py-4 text-slate-600">
                             {employee.email || 'N/A'}
                           </td>
 
                           {/* Date of Birth */}
-                          <td className="px-6 py-4 text-slate-600">
+                          <td className="px-3 py-3 sm:px-5 sm:py-4 text-slate-600">
                             {employee.dateOfBirth
                               ? new Date(
                                   employee.dateOfBirth,
@@ -1744,7 +1790,7 @@ const AdminDashboard = () => {
 
                           {/* Password */}
                           {/* Reset Password */}
-                          <td className="px-6 py-4">
+                          <td className="px-3 py-3 sm:px-5 sm:py-4">
                             <button
                               type="button"
                               onClick={() => handleOpenResetPassword(employee)}
@@ -1909,15 +1955,17 @@ const AdminDashboard = () => {
                       )}
 
                       {/* Buttons */}
-                      <div className="flex justify-end gap-3">
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
                         <button
                           type="button"
                           onClick={handleCloseResetPassword}
                           disabled={resetPasswordLoading}
                           className="
+            w-full
             rounded-lg
             bg-slate-100
             px-5
+            sm:w-auto
             py-2.5
             text-sm
             font-medium
@@ -1935,9 +1983,11 @@ const AdminDashboard = () => {
                           onClick={handleResetPassword}
                           disabled={resetPasswordLoading}
                           className="
+            w-full
             rounded-lg
             bg-blue-600
             px-5
+            sm:w-auto
             py-2.5
             text-sm
             font-medium
@@ -1961,7 +2011,7 @@ const AdminDashboard = () => {
         )}
 
         {activeTab === 'clients' && (
-          <div className="mx-auto w-full max-w-7xl">
+          <div className="mx-auto w-full min-w-0 max-w-7xl">
             {/* ==========================================
         PAGE HEADER
     ========================================== */}
@@ -2087,14 +2137,16 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                <div className="mt-5 flex justify-end">
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
                   <button
                     type="submit"
                     disabled={creatingClient}
                     className="
+              w-full
               rounded-lg
               bg-blue-600
               px-6 py-2.5
+              sm:w-auto
               text-sm
               font-semibold
               text-white
@@ -2277,7 +2329,7 @@ const AdminDashboard = () => {
               </div>
 
               {/* Assign button */}
-              <div className="mt-5 flex justify-end">
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={handleAssignClient}
@@ -2354,27 +2406,27 @@ const AdminDashboard = () => {
               </div>
 
               {/* Table */}
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overscroll-x-contain">
                 <table className="w-full min-w-212.5 text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50">
                     <tr>
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Client
                       </th>
 
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Email
                       </th>
 
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Company
                       </th>
 
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Assigned To
                       </th>
 
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Status
                       </th>
                     </tr>
@@ -2402,22 +2454,22 @@ const AdminDashboard = () => {
                           className="transition hover:bg-slate-50"
                         >
                           {/* Client */}
-                          <td className="px-6 py-4 font-medium text-slate-800">
+                          <td className="px-3 py-3 sm:px-5 sm:py-4 font-medium text-slate-800">
                             {client.name || 'N/A'}
                           </td>
 
                           {/* Email */}
-                          <td className="px-6 py-4 text-slate-600">
+                          <td className="px-3 py-3 sm:px-5 sm:py-4 text-slate-600">
                             {client.email || 'N/A'}
                           </td>
 
                           {/* Company */}
-                          <td className="px-6 py-4 text-slate-600">
+                          <td className="px-3 py-3 sm:px-5 sm:py-4 text-slate-600">
                             {client.company || 'N/A'}
                           </td>
 
                           {/* Assigned Employees */}
-                          <td className="px-6 py-4">
+                          <td className="px-3 py-3 sm:px-5 sm:py-4">
                             {Array.isArray(client.assignedTo) &&
                             client.assignedTo.length > 0 ? (
                               <div
@@ -2450,7 +2502,7 @@ const AdminDashboard = () => {
                           </td>
 
                           {/* Status */}
-                          <td className="px-6 py-4">
+                          <td className="px-3 py-3 sm:px-5 sm:py-4">
                             {Array.isArray(client.assignedTo) &&
                             client.assignedTo.length > 0 ? (
                               <span
@@ -2491,7 +2543,7 @@ const AdminDashboard = () => {
         )}
 
         {activeTab === 'allTasks' && (
-          <div className="mx-auto w-full max-w-7xl">
+          <div className="mx-auto w-full min-w-0 max-w-7xl">
             {/* Header */}
             <div className="mb-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2534,7 +2586,7 @@ const AdminDashboard = () => {
         shadow-sm
       "
             >
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overscroll-x-contain">
                 <table className="w-full min-w-350 text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50">
                     <tr>
@@ -2585,7 +2637,7 @@ const AdminDashboard = () => {
                       <tr>
                         <td
                           colSpan={10}
-                          className="px-6 py-12 text-center text-slate-500"
+                          className="px-3 py-10 sm:px-6 sm:py-12 text-center text-slate-500"
                         >
                           Loading tasks...
                         </td>
@@ -2594,7 +2646,7 @@ const AdminDashboard = () => {
                       <tr>
                         <td
                           colSpan={10}
-                          className="px-6 py-12 text-center text-slate-500"
+                          className="px-3 py-10 sm:px-6 sm:py-12 text-center text-slate-500"
                         >
                           No tasks found.
                         </td>
@@ -2679,7 +2731,7 @@ const AdminDashboard = () => {
                           </td>
 
                           {/* REMARKS */}
-                          <td className="max-w-65 px-5 py-4 text-slate-600">
+                          <td className="max-w-65 px-3 py-4 sm:px-5 text-slate-600">
                             <div className="line-clamp-2">
                               {task.remarks || 'No remarks'}
                             </div>
@@ -2730,7 +2782,7 @@ const AdminDashboard = () => {
         )}
 
         {activeTab === 'employeePerformance' && (
-          <div className="mx-auto w-full max-w-7xl">
+          <div className="mx-auto w-full min-w-0 max-w-7xl">
             {/* ==========================================
         HEADER
     ========================================== */}
@@ -3076,7 +3128,7 @@ const AdminDashboard = () => {
 
               {/* Responsive Table */}
 
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overscroll-x-contain">
                 <table
                   className="
           w-full
@@ -3389,7 +3441,7 @@ const AdminDashboard = () => {
         )}
 
         {activeTab === 'notifications' && (
-          <div className="mx-auto w-full max-w-5xl">
+          <div className="mx-auto w-full min-w-0 max-w-5xl">
             {/* Header */}
 
             <div className="mb-6">

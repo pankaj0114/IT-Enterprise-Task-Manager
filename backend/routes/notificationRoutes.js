@@ -59,35 +59,32 @@ router.get('/', authMiddleware, async (req, res) => {
 // =====================================================
 router.put('/read-all', authMiddleware, async (req, res) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-      });
-    }
-
     const result = await Notification.updateMany(
       {
         recipient: req.user.id,
-        read: false,
+        isRead: { $ne: true },
       },
       {
         $set: {
-          read: true,
+          isRead: true,
         },
       },
     );
 
-    console.log('Notifications marked as read:', result.modifiedCount);
+    console.log('========== MARK ALL READ ==========');
+    console.log('User:', req.user.id);
+    console.log('Matched:', result.matchedCount);
+    console.log('Modified:', result.modifiedCount);
+    console.log('===================================');
 
     return res.status(200).json({
       success: true,
-      message: 'Notifications marked as read',
+      message: 'All notifications marked as read',
+      matchedCount: result.matchedCount,
       modifiedCount: result.modifiedCount,
     });
   } catch (error) {
-    console.error('========== MARK NOTIFICATIONS READ ERROR ==========');
-    console.error(error);
+    console.error('MARK ALL READ ERROR:', error);
 
     return res.status(500).json({
       success: false,

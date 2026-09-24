@@ -1,42 +1,59 @@
-// controllers/taskController.js
 import Task from '../models/Task.js';
 import { createTaskChangeNotification } from './taskNotificationHelper.js';
-//const Task = require('../models/Task');
 
+const canUpdateTask = (task, userId) => {
+  if (!task || !userId) return false;
+
+  const loggedInUserId = String(userId);
+
+  const assignedById = task.assignedBy
+    ? String(task.assignedBy._id || task.assignedBy)
+    : '';
+
+  const assignedToId = task.assignedTo
+    ? String(task.assignedTo._id || task.assignedTo)
+    : '';
+
+  return loggedInUserId === assignedById || loggedInUserId === assignedToId;
+};
+
+// ===============================
+// TITLE
+// ===============================
 export const updateAssignedTaskTitle = async (req, res) => {
   try {
     const { taskId } = req.params;
     const { title } = req.body;
-
-    if (!title || !title.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Task title is required.',
-      });
-    }
 
     const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found.',
+        message: 'Task not found',
       });
     }
 
-    task.title = title.trim();
+    if (!canUpdateTask(task, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to update this task',
+      });
+    }
+
+    task.title = title?.trim() || '';
 
     await task.save();
 
     await createTaskChangeNotification({
       req,
       task,
-      fieldName: 'Title changed',
+      message: `Task "${task.title}" title was changed.`,
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Task title updated successfully.',
+      message: 'Title updated successfully',
       task,
     });
   } catch (error) {
@@ -44,46 +61,59 @@ export const updateAssignedTaskTitle = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to update task title.',
+      message: 'Failed to update title',
       error: error.message,
     });
   }
 };
 
+// ===============================
+// DUE DATE
+// ===============================
 export const updateAssignedTaskDueDate = async (req, res) => {
   try {
     const { taskId } = req.params;
     const { dueDate } = req.body;
-
-    if (!dueDate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Due date is required.',
-      });
-    }
 
     const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found.',
+        message: 'Task not found',
       });
     }
 
-    task.dueDate = new Date(dueDate);
+    const actorId = String(req.user.id);
+
+    const assignedById = task.assignedBy
+      ? String(task.assignedBy._id || task.assignedBy)
+      : '';
+
+    const assignedToId = task.assignedTo
+      ? String(task.assignedTo._id || task.assignedTo)
+      : '';
+
+    if (actorId !== assignedById && actorId !== assignedToId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to update this task',
+      });
+    }
+
+    task.dueDate = dueDate ? new Date(dueDate) : null;
 
     await task.save();
 
     await createTaskChangeNotification({
       req,
       task,
-      fieldName: 'Due date changed',
+      message: `Task "${task.title}" due date was changed.`,
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Due date updated successfully.',
+      message: 'Due date updated successfully',
       task,
     });
   } catch (error) {
@@ -91,12 +121,15 @@ export const updateAssignedTaskDueDate = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to update due date.',
+      message: 'Failed to update due date',
       error: error.message,
     });
   }
 };
 
+// ===============================
+// STATUS
+// ===============================
 export const updateAssignedTaskStatus = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -107,7 +140,7 @@ export const updateAssignedTaskStatus = async (req, res) => {
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid task status.',
+        message: 'Invalid status',
       });
     }
 
@@ -116,7 +149,14 @@ export const updateAssignedTaskStatus = async (req, res) => {
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found.',
+        message: 'Task not found',
+      });
+    }
+
+    if (!canUpdateTask(task, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to update this task',
       });
     }
 
@@ -127,12 +167,12 @@ export const updateAssignedTaskStatus = async (req, res) => {
     await createTaskChangeNotification({
       req,
       task,
-      fieldName: `Status changed to ${status}`,
+      message: `Task "${task.title}" status was changed to ${status}.`,
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Task status updated successfully.',
+      message: 'Status updated successfully',
       task,
     });
   } catch (error) {
@@ -140,28 +180,33 @@ export const updateAssignedTaskStatus = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to update task status.',
+      message: 'Failed to update status',
       error: error.message,
     });
   }
 };
 
+// ===============================
+// REMARKS
+// ===============================
 export const updateAssignedTaskRemarks = async (req, res) => {
   try {
     const { taskId } = req.params;
     const { remarks } = req.body;
-
-    console.log('========== UPDATE REMARKS ==========');
-    console.log('Task ID:', taskId);
-    console.log('User ID:', req.user.id);
-    console.log('Remarks:', remarks);
 
     const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found.',
+        message: 'Task not found',
+      });
+    }
+
+    if (!canUpdateTask(task, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to update this task',
       });
     }
 
@@ -169,17 +214,15 @@ export const updateAssignedTaskRemarks = async (req, res) => {
 
     await task.save();
 
-    console.log('Remarks updated successfully:', task._id);
-
     await createTaskChangeNotification({
       req,
       task,
-      fieldName: 'Remarks changed',
+      message: `Task "${task.title}" remarks were changed.`,
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Remarks updated successfully.',
+      message: 'Remarks updated successfully',
       task,
     });
   } catch (error) {
@@ -187,12 +230,15 @@ export const updateAssignedTaskRemarks = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to update remarks.',
+      message: 'Failed to update remarks',
       error: error.message,
     });
   }
 };
 
+// ===============================
+// CLIENT
+// ===============================
 export const updateAssignedTaskClient = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -203,7 +249,14 @@ export const updateAssignedTaskClient = async (req, res) => {
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found.',
+        message: 'Task not found',
+      });
+    }
+
+    if (!canUpdateTask(task, req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to update this task',
       });
     }
 
@@ -214,12 +267,12 @@ export const updateAssignedTaskClient = async (req, res) => {
     await createTaskChangeNotification({
       req,
       task,
-      fieldName: 'Client changed',
+      message: `Task "${task.title}" client was changed.`,
     });
 
     return res.status(200).json({
       success: true,
-      message: 'Client updated successfully.',
+      message: 'Client updated successfully',
       task,
     });
   } catch (error) {
@@ -227,38 +280,81 @@ export const updateAssignedTaskClient = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to update client.',
+      message: 'Failed to update client',
       error: error.message,
     });
   }
 };
 
+// ===============================
+// DELETE
+// ===============================
 export const deleteAssignedTask = async (req, res) => {
   try {
     const { taskId } = req.params;
-
-    console.log('=================================');
-    console.log('DELETE ASSIGNED TASK');
-    console.log('Task ID:', taskId);
-    console.log('Logged-in user:', req.user);
-    console.log('=================================');
 
     const task = await Task.findById(taskId);
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found.',
+        message: 'Task not found',
       });
     }
 
-    console.log('TASK FOUND:', task);
+    const actorId = String(req.user.id);
 
+    const assignedById = task.assignedBy
+      ? String(task.assignedBy._id || task.assignedBy)
+      : '';
+
+    const assignedToId = task.assignedTo
+      ? String(task.assignedTo._id || task.assignedTo)
+      : '';
+
+    // Only assignedBy or assignedTo can delete
+    if (actorId !== assignedById && actorId !== assignedToId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to delete this task',
+      });
+    }
+
+    const taskTitle = task.title;
+
+    // Determine who should receive the notification
+    let recipientId = null;
+
+    if (actorId === assignedToId) {
+      // Assigned employee deleted it
+      // -> notify the person who assigned it
+      recipientId = assignedById;
+    } else if (actorId === assignedById) {
+      // Person who assigned it deleted it
+      // -> notify assigned employee
+      recipientId = assignedToId;
+    }
+
+    // Send DELETE notification BEFORE deleting task
+    if (
+      recipientId &&
+      recipientId !== actorId &&
+      assignedById !== assignedToId
+    ) {
+      await createTaskChangeNotification({
+        req,
+        task,
+        recipientId,
+        message: `Task "${taskTitle}" was deleted.`,
+      });
+    }
+
+    // Now delete task
     await Task.findByIdAndDelete(taskId);
 
     return res.status(200).json({
       success: true,
-      message: 'Assigned task deleted successfully.',
+      message: 'Task deleted successfully',
       deletedTaskId: taskId,
     });
   } catch (error) {
@@ -266,7 +362,7 @@ export const deleteAssignedTask = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to delete assigned task.',
+      message: 'Failed to delete task',
       error: error.message,
     });
   }

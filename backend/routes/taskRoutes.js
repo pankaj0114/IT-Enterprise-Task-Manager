@@ -35,25 +35,13 @@ router.put(
   updateAssignedTaskTitle,
 );
 
-router.put('/tasks/:id', authMiddleware, updateAssignedTaskDueDate);
+router.put('/tasks/:id/due-date', authMiddleware, updateAssignedTaskDueDate);
 
-router.put(
-  '/:taskId/assigned-task/status',
-  authMiddleware,
-  updateAssignedTaskStatus,
-);
+router.put('/tasks/:id', authMiddleware, updateAssignedTaskStatus);
 
-router.put(
-  '/:taskId/assigned-task/remarks',
-  authMiddleware,
-  updateAssignedTaskRemarks,
-);
+router.put('/tasks/:id/remarks', authMiddleware, updateAssignedTaskRemarks);
 
-router.put(
-  '/:taskId/assigned-task/client',
-  authMiddleware,
-  updateAssignedTaskClient,
-);
+router.put('/tasks/:id', authMiddleware, updateAssignedTaskClient);
 
 // =====================================================
 // DELETE ASSIGNED TASK
@@ -149,7 +137,68 @@ router.get('/me', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+
 */
+
+router.put('/:id/remarks', authMiddleware, async (req, res) => {
+  try {
+    const { remarks } = req.body;
+
+    const task = await Task.findById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
+    }
+
+    const actorId = String(req.user.id);
+
+    const assignedById = task.assignedBy
+      ? String(task.assignedBy._id || task.assignedBy)
+      : '';
+
+    const assignedToId = task.assignedTo
+      ? String(task.assignedTo._id || task.assignedTo)
+      : '';
+
+    // Only assignedBy or assignedTo can update remarks
+    if (actorId !== assignedById && actorId !== assignedToId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to update this task',
+      });
+    }
+
+    // Update remarks
+    task.remarks = remarks || '';
+
+    await task.save();
+
+    // Send notification to the OTHER person
+    await createTaskChangeNotification({
+      req,
+      task,
+      message: `Task "${task.title}" remarks were changed.`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Remark saved successfully',
+      task,
+    });
+  } catch (error) {
+    console.error('REMARK UPDATE ERROR:', error);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to save remark',
+      error: error.message,
+    });
+  }
+});
 
 // ✅ Assign Task
 router.post('/assign', authMiddleware, async (req, res) => {
@@ -521,6 +570,109 @@ router.put('/:id/due-date', authMiddleware, async (req, res) => {
     });
   }
 });
+
+router.put(
+  '/:taskId/assigned-task/due-date',
+  authMiddleware,
+  async (req, res) => {
+    try {
+      console.log('========== DUE DATE UPDATE ==========');
+      console.log('Task ID:', req.params.taskId);
+      console.log('User ID:', req.user.id);
+      console.log('New Due Date:', req.body.dueDate);
+
+      const { taskId } = req.params;
+      const { dueDate } = req.body;
+
+      const task = await Task.findById(taskId);
+
+      if (!task) {
+        return res.status(404).json({
+          success: false,
+          message: 'Task not found',
+        });
+      }
+
+      const actorId = String(req.user.id);
+
+      const assignedById = task.assignedBy
+        ? String(task.assignedBy._id || task.assignedBy)
+        : '';
+
+      const assignedToId = task.assignedTo
+        ? String(task.assignedTo._id || task.assignedTo)
+        : '';
+
+      console.log('Assigned By:', assignedById);
+      console.log('Assigned To:', assignedToId);
+      console.log('Actor:', actorId);
+
+      if (actorId !== assignedById && actorId !== assignedToId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not allowed to update this task',
+        });
+      }
+
+      task.dueDate = dueDate ? new Date(dueDate) : null;
+
+      await task.save();
+
+      // Determine the other employee
+      let recipientId = null;
+
+      if (actorId === assignedToId) {
+        recipientId = assignedById;
+      } else if (actorId === assignedById) {
+        recipientId = assignedToId;
+      }
+
+      console.log('Notification recipient:', recipientId);
+
+      // Do not notify for self-assigned tasks
+      if (
+        recipientId &&
+        recipientId !== actorId &&
+        assignedById !== assignedToId
+      ) {
+        const notification = new Notification({
+          recipient: recipientId,
+          sender: req.user.id,
+          task: task._id,
+          message: `Task "${task.title}" due date was changed.`,
+        });
+
+        await notification.save();
+
+        console.log('DUE DATE NOTIFICATION CREATED:', notification._id);
+
+        const io = req.app.get('io');
+
+        if (io) {
+          io.to(String(recipientId)).emit('newNotification', notification);
+
+          console.log('REALTIME NOTIFICATION SENT TO:', recipientId);
+        }
+      }
+
+      console.log('====================================');
+
+      return res.status(200).json({
+        success: true,
+        message: 'Due date updated successfully',
+        task,
+      });
+    } catch (error) {
+      console.error('DUE DATE UPDATE ERROR:', error);
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update due date',
+        error: error.message,
+      });
+    }
+  },
+);
 
 router.get('/completed-tasks', authMiddleware, async (req, res) => {
   try {

@@ -352,7 +352,7 @@ export default function EmployeeAttendance() {
     try {
       setSavingDate(leaveForm.startDate);
 
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE}/api/attendance/leave-requests`,
         {
           startDate: leaveForm.startDate,
@@ -376,12 +376,72 @@ export default function EmployeeAttendance() {
       setLeaveReason('');
 
       await fetchAttendance();
-    } catch (error) {
-      console.error('Leave request error:', error);
+    } catch (err) {
+      console.error('LEAVE REQUEST ERROR:', err.response?.data || err.message);
 
-      alert(error.response?.data?.message || 'Failed to submit leave request');
+      console.error('LEAVE REQUEST STATUS:', err.response?.status);
+
+      setError(
+        err.response?.data?.message || 'Unable to submit leave request.',
+      );
     } finally {
       setSavingDate('');
+    }
+  };
+  const deletePendingRequestsForDate = async (dateKey) => {
+    if (!dateKey) return;
+
+    const pendingLeaveRequests = leaveRequests.filter(
+      (request) =>
+        request.status === 'PENDING' &&
+        isDateInRange(dateKey, request.startDate, request.endDate),
+    );
+
+    const pendingWfhRequests = wfhRequests.filter(
+      (request) =>
+        request.status === 'PENDING' &&
+        isDateInRange(dateKey, request.startDate, request.endDate),
+    );
+
+    // Delete pending Leave request(s)
+    for (const request of pendingLeaveRequests) {
+      if (!request._id) continue;
+
+      await axios.delete(
+        `${API_BASE}/api/attendance/leave-requests/${request._id}`,
+        authConfig(),
+      );
+    }
+
+    // Delete pending WFH request(s)
+    for (const request of pendingWfhRequests) {
+      if (!request._id) continue;
+
+      await axios.delete(
+        `${API_BASE}/api/attendance/wfh-requests/${request._id}`,
+        authConfig(),
+      );
+    }
+
+    // Remove deleted requests from frontend state
+    if (pendingLeaveRequests.length > 0) {
+      const deletedLeaveIds = new Set(
+        pendingLeaveRequests.map((request) => request._id),
+      );
+
+      setLeaveRequests((prev) =>
+        prev.filter((request) => !deletedLeaveIds.has(request._id)),
+      );
+    }
+
+    if (pendingWfhRequests.length > 0) {
+      const deletedWfhIds = new Set(
+        pendingWfhRequests.map((request) => request._id),
+      );
+
+      setWfhRequests((prev) =>
+        prev.filter((request) => !deletedWfhIds.has(request._id)),
+      );
     }
   };
 
@@ -391,9 +451,11 @@ export default function EmployeeAttendance() {
     if (status === 'LEAVE') {
       setShowEditModal(false);
 
-      setLeaveStartDate(selectedDate);
-      setLeaveEndDate(selectedDate);
-      setLeaveReason('');
+      setLeaveForm({
+        startDate: selectedDate,
+        endDate: selectedDate,
+        reason: '',
+      });
 
       setShowLeaveModal(true);
       return;
@@ -411,8 +473,44 @@ export default function EmployeeAttendance() {
     }
 
     if (status === 'WFO') {
-      await handleAttendanceChange(selectedDate, 'WFO');
-      setShowEditModal(false);
+      try {
+        setShowEditModal(false);
+        setSavingDate(selectedDate);
+        setError('');
+        setSuccess('');
+
+        /*
+         * If this date has a pending Leave request and/or
+         * pending WFH request, delete those requests first.
+         */
+        await deletePendingRequestsForDate(selectedDate);
+
+        /*
+         * Now mark the date as WFO.
+         */
+        await handleAttendanceChange(selectedDate, 'WFO');
+
+        /*
+         * Refresh everything so the calendar and request
+         * lists are fully synchronized with the database.
+         */
+        await fetchAttendance();
+
+        setSuccess('Attendance updated to Work From Office.');
+      } catch (error) {
+        console.error(
+          'Failed to change attendance to WFO:',
+          error.response?.data || error.message,
+        );
+
+        setError(
+          error.response?.data?.message ||
+            'Unable to change attendance to Work From Office.',
+        );
+      } finally {
+        setSavingDate(null);
+      }
+
       return;
     }
 
@@ -474,11 +572,17 @@ export default function EmployeeAttendance() {
       setShowWfhModal(false);
       setWfhReason('');
     } catch (err) {
-      console.error('WFH REQUEST ERROR:', err);
+      console.error('WFH REQUEST ERROR:', err.response?.data || err.message);
+
+      console.error('WFH REQUEST STATUS:', err.response?.status);
+
+      console.error('WFH REQUEST PAYLOAD:', {
+        startDate: wfhStartDate,
+        endDate: wfhEndDate,
+        reason: wfhReason.trim(),
+      });
 
       setError(err.response?.data?.message || 'Unable to submit WFH request.');
-    } finally {
-      setSubmittingWfh(false);
     }
   };
   /*
@@ -501,6 +605,76 @@ export default function EmployeeAttendance() {
 
   const goToCurrentMonth = () => {
     setCurrentMonth(new Date());
+  };
+
+  const handleDeleteLeaveRequest = async (requestId) => {
+    if (!requestId) return;
+
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this leave request?',
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setError('');
+      setSuccess('');
+
+      await axios.delete(
+        `${API_BASE}/api/attendance/leave-requests/${requestId}`,
+        authConfig(),
+      );
+
+      // Remove immediately from UI
+      setLeaveRequests((prev) =>
+        prev.filter((request) => request._id !== requestId),
+      );
+
+      setSuccess('Leave request deleted successfully.');
+    } catch (err) {
+      console.error(
+        'DELETE LEAVE REQUEST ERROR:',
+        err.response?.data || err.message,
+      );
+
+      setError(
+        err.response?.data?.message || 'Unable to delete leave request.',
+      );
+    }
+  };
+
+  const handleDeleteWfhRequest = async (requestId) => {
+    if (!requestId) return;
+
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this WFH request?',
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setError('');
+      setSuccess('');
+
+      await axios.delete(
+        `${API_BASE}/api/attendance/wfh-requests/${requestId}`,
+        authConfig(),
+      );
+
+      // Remove immediately from UI
+      setWfhRequests((prev) =>
+        prev.filter((request) => request._id !== requestId),
+      );
+
+      setSuccess('WFH request deleted successfully.');
+    } catch (err) {
+      console.error(
+        'DELETE WFH REQUEST ERROR:',
+        err.response?.data || err.message,
+      );
+
+      setError(err.response?.data?.message || 'Unable to delete WFH request.');
+    }
   };
 
   /*
@@ -561,26 +735,89 @@ export default function EmployeeAttendance() {
           {/* Calendar header */}
 
           <div>
-            <div className="flex min-h-22.5 items-center gap-5 px-1">
-              <button
-                type="button"
-                onClick={previousMonth}
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
-              >
-                ‹
-              </button>
+            <div className="flex min-h-22.5 items-center justify-between gap-5 px-1">
+              {/* Left: Month navigation */}
+              <div className="flex items-center gap-5">
+                <button
+                  type="button"
+                  onClick={previousMonth}
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                >
+                  ‹
+                </button>
 
-              <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                {formatMonth(currentMonth)}
-              </h2>
+                <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                  {formatMonth(currentMonth)}
+                </h2>
 
-              <button
-                type="button"
-                onClick={nextMonth}
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
-              >
-                ›
-              </button>
+                <button
+                  type="button"
+                  onClick={nextMonth}
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                >
+                  ›
+                </button>
+              </div>
+
+              {/* Right: Today's status */}
+              <div className="flex items-center gap-2 pr-2">
+                <span className="text-xl font-extrabold text-slate-900">
+                  Today:
+                </span>
+                {(() => {
+                  const todayStatus = attendanceMap[getTodayKey()];
+                  const todayLeave = getLeaveRequestForDate(getTodayKey());
+                  const todayWfh = getWfhRequestForDate(getTodayKey());
+
+                  if (todayStatus && STATUS_CONFIG[todayStatus]) {
+                    return (
+                      <span
+                        className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${STATUS_CONFIG[todayStatus].className}`}
+                      >
+                        {STATUS_CONFIG[todayStatus].short}
+                      </span>
+                    );
+                  }
+
+                  if (todayLeave?.status === 'PENDING') {
+                    return (
+                      <span className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-700">
+                        Leave Pending
+                      </span>
+                    );
+                  }
+
+                  if (todayLeave?.status === 'APPROVED') {
+                    return (
+                      <span className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-700">
+                        Leave
+                      </span>
+                    );
+                  }
+
+                  if (todayWfh?.status === 'PENDING') {
+                    return (
+                      <span className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700">
+                        WFH Pending
+                      </span>
+                    );
+                  }
+
+                  if (todayWfh?.status === 'APPROVED') {
+                    return (
+                      <span className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700">
+                        WFH
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-500">
+                      No attendance
+                    </span>
+                  );
+                })()}
+              </div>
             </div>{' '}
             {/* Monthly Summary */}
             {/* Attendance Summary */}
@@ -673,6 +910,8 @@ export default function EmployeeAttendance() {
                   const isRejectedLeave = leaveRequest?.status === 'REJECTED';
 
                   const isPendingWfh = wfhRequest?.status === 'PENDING';
+                  const isApprovedLeave = leaveRequest?.status === 'APPROVED';
+                  const isApprovedWfh = wfhRequest?.status === 'APPROVED';
 
                   const hasPendingRequest = isPendingLeave || isPendingWfh;
 
@@ -684,43 +923,17 @@ export default function EmployeeAttendance() {
                           ? 'border-slate-400 ring-2 ring-slate-100'
                           : 'border-slate-200'
                       } ${
-                        hasPendingRequest
-                          ? 'border-slate-200 bg-white'
-                          : status === 'WFO'
-                            ? 'border-emerald-300 bg-emerald-50'
-                            : status === 'WFH'
-                              ? 'border-blue-300 bg-blue-50'
-                              : status === 'LEAVE'
-                                ? 'border-rose-300 bg-rose-50'
+                        status === 'WFO'
+                          ? 'border-emerald-300 bg-emerald-50'
+                          : status === 'WFH'
+                            ? 'border-blue-300 bg-blue-50'
+                            : status === 'LEAVE'
+                              ? 'border-rose-300 bg-rose-50'
+                              : hasPendingRequest
+                                ? 'border-slate-200 bg-white'
                                 : 'bg-white'
                       }`}
                     >
-                      {/* Quick WFO*/}
-                      {/* Quick WFO */}
-                      {!isPast &&
-                        !isPendingLeave &&
-                        !isRejectedLeave &&
-                        !isPendingWfh && (
-                          <button
-                            type="button"
-                            disabled={savingDate === dateKey}
-                            onClick={() =>
-                              handleAttendanceChange(dateKey, 'WFO')
-                            }
-                            className={`absolute right-2 top-2 z-10 rounded-lg px-2.5 py-1 text-[10px] font-bold shadow-sm transition ${
-                              status === 'WFO'
-                                ? 'border border-emerald-300 bg-emerald-100 text-emerald-700'
-                                : 'border border-blue-200 bg-white text-blue-700 hover:bg-blue-50'
-                            }`}
-                          >
-                            {savingDate === dateKey
-                              ? 'Saving...'
-                              : status === 'WFO'
-                                ? 'WFO ✓'
-                                : 'WFO'}
-                          </button>
-                        )}
-
                       {/* Date */}
                       <div className="flex items-start justify-between pr-14">
                         <div>
@@ -734,7 +947,6 @@ export default function EmployeeAttendance() {
                             {day.getDate()}
                           </div>
                         </div>
-
                         {isToday && (
                           <span className="rounded-full bg-slate-900 px-2 py-1 text-[10px] font-medium text-white">
                             Today
@@ -743,129 +955,141 @@ export default function EmployeeAttendance() {
                       </div>
 
                       {/* Current status */}
+                      {/* Current status */}
+                      {/* Current status */}
                       <div className="mt-3">
+                        {/* Pending Leave */}
+                        {/* Pending Leave */}
+                        {!status && isPendingLeave && (
+                          <span className="inline-flex rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                            Leave Pending
+                          </span>
+                        )}
+
+                        {/* Pending WFH */}
+                        {!status && !isPendingLeave && isPendingWfh && (
+                          <span className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                            WFH Pending
+                          </span>
+                        )}
+
+                        {/* Actual attendance status */}
+                        {/* Actual attendance status */}
                         {status && (
                           <span
                             className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-semibold ${
-                              STATUS_CONFIG[status].className
+                              STATUS_CONFIG[status]?.className || ''
                             }`}
                           >
-                            {STATUS_CONFIG[status].short}
+                            {STATUS_CONFIG[status]?.short || status}
                           </span>
                         )}
-
-                        {!status && isPendingLeave && (
-                          <span className="inline-flex rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                            Pending
-                          </span>
+                        {/* Approved Leave */}
+                        {isApprovedLeave && (
+                          <div className="mt-3 text-xs text-rose-600">
+                            Approved leave
+                          </div>
                         )}
 
-                        {hasPendingRequest ? (
-                          <span className="inline-flex rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-600">
-                            Pending
-                          </span>
-                        ) : (
-                          <>
-                            {status === 'WFO' && (
-                              <span className="inline-flex rounded-lg border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                WFO
-                              </span>
-                            )}
-
-                            {status === 'WFH' && (
-                              <span className="inline-flex rounded-lg border border-blue-200 bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                                WFH
-                              </span>
-                            )}
-
-                            {status === 'LEAVE' && (
-                              <span className="inline-flex rounded-lg border border-rose-200 bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">
-                                Leave
-                              </span>
-                            )}
-                          </>
-                        )}
-                        {!status && isRejectedLeave && (
-                          <span className="inline-flex rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                            Leave rejected
-                          </span>
+                        {/* Approved WFH */}
+                        {isApprovedWfh && (
+                          <div className="mt-3 text-xs text-blue-600">
+                            WFH Approved
+                          </div>
                         )}
 
-                        {!status && !leaveRequest && isPast && (
+                        {/* Rejected Leave */}
+                        {!status &&
+                          !isPendingLeave &&
+                          !isPendingWfh &&
+                          isRejectedLeave && (
+                            <span className="inline-flex rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                              Leave rejected
+                            </span>
+                          )}
+
+                        {/* No attendance */}
+                        {!status && !leaveRequest && !wfhRequest && isPast && (
                           <span className="text-xs text-slate-400">
                             No attendance
-                          </span>
-                        )}
-
-                        {!status && isPendingWfh && (
-                          <span className="inline-flex rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                            WFH Pending
                           </span>
                         )}
                       </div>
 
                       {/* Controls */}
+                      {/* Controls */}
+                      {/* Controls */}
                       {!isPast &&
-                        !status &&
-                        !isPendingLeave &&
-                        !isPendingWfh && (
+                        (status ||
+                          isPendingLeave ||
+                          isPendingWfh ||
+                          (!status && !leaveRequest && !wfhRequest)) && (
                           <div className="mt-4 space-y-2">
-                            {/* Request buttons */}
-                            <div className="grid grid-cols-2 gap-2">
+                            {/* =========================================================
+          EMPTY DATE
+          Show WFO + WFH Request + Leave Request
+         ========================================================= */}
+                            {!status && !leaveRequest && !wfhRequest && (
+                              <div className="space-y-2">
+                                {/* WFO */}
+                                <button
+                                  type="button"
+                                  disabled={savingDate === dateKey}
+                                  onClick={() =>
+                                    handleAttendanceChange(dateKey, 'WFO')
+                                  }
+                                  className="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {savingDate === dateKey ? 'Saving...' : 'WFO'}
+                                </button>
+
+                                {/* WFH Request */}
+                                <button
+                                  type="button"
+                                  onClick={() => openWfhModal(dateKey)}
+                                  className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                                >
+                                  WFH Request
+                                </button>
+
+                                {/* Leave Request */}
+                                <button
+                                  type="button"
+                                  onClick={() => openLeaveModal(dateKey)}
+                                  className="w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                                >
+                                  Leave Request
+                                </button>
+                              </div>
+                            )}
+
+                            {/* =========================================================
+          PENDING REQUEST
+         ========================================================= */}
+                            {!status && (isPendingLeave || isPendingWfh) && (
                               <button
                                 type="button"
-                                disabled={isPast || hasPendingRequest}
-                                onClick={() => {
-                                  if (hasPendingRequest) return;
-                                  openWfhModal(dateKey);
-                                }}
-                                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                                  isPast || hasPendingRequest
-                                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                                    : 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100'
-                                }`}
+                                onClick={() => openEditModal(dateKey)}
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
                               >
-                                WFH
-                                <br />
-                                Request
+                                ✎ Edit Attendance
                               </button>
+                            )}
 
+                            {/* =========================================================
+          WFO
+         ========================================================= */}
+                            {status === 'WFO' && (
                               <button
                                 type="button"
-                                disabled={isPast || hasPendingRequest}
-                                onClick={() => {
-                                  if (hasPendingRequest) return;
-                                  openLeaveModal(dateKey);
-                                }}
-                                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                                  isPast || hasPendingRequest
-                                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                                    : 'border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100'
-                                }`}
+                                onClick={() => openEditModal(dateKey)}
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
                               >
-                                Leave
-                                <br />
-                                Request
+                                ✎ Edit Attendance
                               </button>
-                            </div>
-
-                            {/* Edit */}
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(dateKey)}
-                              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                            >
-                              ✎ Edit Attendance
-                            </button>
+                            )}
                           </div>
                         )}
-
-                      {/* Approved leave */}
-                      {status === 'LEAVE' && (
-                        <div className="mt-3 text-xs text-rose-600">
-                          Approved leave
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -1330,6 +1554,7 @@ export default function EmployeeAttendance() {
                   </div>
 
                   {/* Right Side */}
+                  {/* Right Side */}
                   <div className="shrink-0 text-left sm:text-right">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                       Request Status
@@ -1350,6 +1575,15 @@ export default function EmployeeAttendance() {
                           ? 'Rejected by Admin'
                           : 'Waiting for Admin'}
                     </p>
+
+                    {/* Delete */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteLeaveRequest(request._id)}
+                      className="mt-3 inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 hover:text-rose-700"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1433,6 +1667,7 @@ export default function EmployeeAttendance() {
                   </div>
 
                   {/* Right Side */}
+                  {/* Right Side */}
                   <div className="shrink-0 text-left sm:text-right">
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                       Request Status
@@ -1471,6 +1706,15 @@ export default function EmployeeAttendance() {
                         })()}
                       </p>
                     )}
+
+                    {/* Delete */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteWfhRequest(request._id)}
+                      className="mt-3 inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 hover:text-rose-700"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               </div>

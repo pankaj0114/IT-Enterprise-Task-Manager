@@ -21,6 +21,7 @@ export default function MyTasks({ user }) {
   const [clients, setClients] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
   const [newTask, setNewTask] = useState({
@@ -116,6 +117,15 @@ export default function MyTasks({ user }) {
     fetchClients();
     fetchEmployees();
   }, []);
+
+  const handleRefreshTasks = async () => {
+    try {
+      setRefreshing(true);
+      await fetchTasks();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleChange = (e) => {
     setNewTask((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -974,13 +984,40 @@ export default function MyTasks({ user }) {
         return (
           <div className="space-y-8">
             <section>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-slate-800 sm:text-xl">
-                  My Tasks
-                </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Tasks created by you for yourself.
-                </p>
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-800 sm:text-xl">
+                    My Tasks
+                  </h3>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Tasks created by you for yourself. User employees can edit
+                    Due Date, Status and add Remarks directly in the table.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRefreshTasks}
+                  disabled={refreshing}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <svg
+                    className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4"
+                    />
+                  </svg>
+
+                  {refreshing ? 'Refreshing...' : 'Refresh'}
+                </button>
               </div>
 
               <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -1077,7 +1114,8 @@ export default function MyTasks({ user }) {
                   Assigned to Me
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Tasks assigned to you by another employee.
+                  Tasks assigned to you by another employee. User employee can
+                  edit Status and add remarks to assigned tasks.
                 </p>
               </div>
 

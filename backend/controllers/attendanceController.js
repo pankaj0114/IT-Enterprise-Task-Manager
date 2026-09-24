@@ -666,9 +666,24 @@ export const getEmployeeMonthlyAttendance = async (req, res) => {
       });
     }
 
-    const startDate = new Date(Number(year), Number(month) - 1, 1, 0, 0, 0, 0);
+    const monthNumber = Number(month);
+    const yearNumber = Number(year);
 
-    const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999);
+    if (
+      !Number.isInteger(monthNumber) ||
+      monthNumber < 1 ||
+      monthNumber > 12 ||
+      !Number.isInteger(yearNumber)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid month or year',
+      });
+    }
+
+    const startDate = new Date(yearNumber, monthNumber - 1, 1, 0, 0, 0, 0);
+
+    const endDate = new Date(yearNumber, monthNumber, 0, 23, 59, 59, 999);
 
     const employee = await User.findOne({
       _id: employeeId,
@@ -682,15 +697,32 @@ export const getEmployeeMonthlyAttendance = async (req, res) => {
       });
     }
 
+    // Attendance uses YYYY-MM-DD dateKey.
+    const startDateKey = `${yearNumber}-${String(monthNumber).padStart(2, '0')}-01`;
+
+    const lastDay = new Date(yearNumber, monthNumber, 0).getDate();
+
+    const endDateKey = `${yearNumber}-${String(monthNumber).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
     const attendance = await Attendance.find({
       employee: employeeId,
-      date: {
-        $gte: startDate,
-        $lte: endDate,
-      },
+      $or: [
+        {
+          dateKey: {
+            $gte: startDateKey,
+            $lte: endDateKey,
+          },
+        },
+        {
+          date: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      ],
     })
-      .populate('approvedBy', 'name email')
-      .sort({ date: 1 });
+      .sort({ dateKey: 1, date: 1 })
+      .lean();
 
     const summary = {
       WFO: 0,
@@ -775,16 +807,23 @@ export const adminSetAttendance = async (req, res) => {
       });
     }
 
-    const attendanceDate = normalizeDate(date);
+    const dateKey = String(date).slice(0, 10);
+
+    if (!isValidDateKey(dateKey)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid attendance date. Use YYYY-MM-DD.',
+      });
+    }
 
     const attendance = await Attendance.findOneAndUpdate(
       {
         employee: employeeId,
-        date: attendanceDate,
+        dateKey,
       },
       {
         employee: employeeId,
-        date: attendanceDate,
+        dateKey,
         status,
         reason: status === 'LEAVE' ? reason.trim() : '',
         source: 'admin',

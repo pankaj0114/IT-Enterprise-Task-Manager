@@ -3,10 +3,11 @@ import Notification from '../models/Notification.js';
 export const createTaskChangeNotification = async ({
   req,
   task,
-  fieldName,
+  message,
+  recipientId = null,
 }) => {
   try {
-    if (!req?.user?.id || !task) {
+    if (!req?.user?.id || !task || !message) {
       return null;
     }
 
@@ -20,100 +21,51 @@ export const createTaskChangeNotification = async ({
       ? String(task.assignedBy._id || task.assignedBy)
       : '';
 
-    console.log('========== TASK CHANGE NOTIFICATION ==========');
-    console.log('Actor:', actorId);
-    console.log('Assigned By:', assignedById);
-    console.log('Assigned To:', assignedToId);
-    console.log('Field:', fieldName);
-
-    /*
-     * SELF ASSIGNED TASK
-     *
-     * assignedBy === assignedTo
-     *
-     * Example:
-     * A creates task for A
-     *
-     * No notification.
-     */
-    if (!assignedById || !assignedToId || assignedById === assignedToId) {
-      console.log('Self-assigned task - no notification');
+    if (!assignedToId || !assignedById || assignedToId === assignedById) {
       return null;
     }
 
-    let recipientId = null;
+    let finalRecipientId = recipientId;
 
-    /*
-     * Employee B changed the task.
-     *
-     * B = assignedTo
-     * Notify A = assignedBy
-     */
-    if (actorId === assignedToId) {
-      recipientId = assignedById;
-
-      console.log(
-        'Assigned employee changed task. Notify assigning employee:',
-        recipientId,
-      );
-    } else if (actorId === assignedById) {
-      /*
-       * Employee A changed the task.
-       *
-       * A = assignedBy
-       * Notify B = assignedTo
-       */
-      recipientId = assignedToId;
-
-      console.log(
-        'Assigning employee changed task. Notify assigned employee:',
-        recipientId,
-      );
+    if (!finalRecipientId) {
+      if (actorId === assignedToId) {
+        finalRecipientId = assignedById;
+      } else if (actorId === assignedById) {
+        finalRecipientId = assignedToId;
+      }
     }
 
-    /*
-     * The person changing the task is neither
-     * assignedBy nor assignedTo.
-     *
-     * Do not create notification.
-     */
-    if (!recipientId || recipientId === actorId) {
-      console.log(
-        'Actor is not one of the two task employees. No notification.',
-      );
+    if (!finalRecipientId) {
+      return null;
+    }
 
+    if (String(finalRecipientId) === actorId) {
       return null;
     }
 
     const notification = new Notification({
-      recipient: recipientId,
+      recipient: finalRecipientId,
       sender: req.user.id,
       task: task._id,
-      message: `Task "${task.title}" was updated: ${fieldName}.`,
-      read: false,
+      message,
     });
 
     await notification.save();
 
-    console.log('TASK NOTIFICATION CREATED:', notification._id);
-
-    /*
-     * Socket.IO real-time notification
-     */
     const io = req.app.get('io');
 
     if (io) {
-      io.to(String(recipientId)).emit('newNotification', notification);
-
-      console.log('Real-time notification emitted to:', recipientId);
+      io.to(String(finalRecipientId)).emit('newNotification', notification);
     }
+
+    console.log('TASK NOTIFICATION CREATED:', {
+      task: task._id,
+      recipient: finalRecipientId,
+      message,
+    });
 
     return notification;
   } catch (error) {
-    /*
-     * Notification failure should NOT make
-     * the task update itself fail.
-     */
     console.error('TASK CHANGE NOTIFICATION ERROR:', error);
 
     return null;
