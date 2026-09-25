@@ -141,65 +141,6 @@ router.get('/me', authMiddleware, async (req, res) => {
 
 */
 
-router.put('/:id/remarks', authMiddleware, async (req, res) => {
-  try {
-    const { remarks } = req.body;
-
-    const task = await Task.findById(req.params.id);
-
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: 'Task not found',
-      });
-    }
-
-    const actorId = String(req.user.id);
-
-    const assignedById = task.assignedBy
-      ? String(task.assignedBy._id || task.assignedBy)
-      : '';
-
-    const assignedToId = task.assignedTo
-      ? String(task.assignedTo._id || task.assignedTo)
-      : '';
-
-    // Only assignedBy or assignedTo can update remarks
-    if (actorId !== assignedById && actorId !== assignedToId) {
-      return res.status(403).json({
-        success: false,
-        message: 'You are not allowed to update this task',
-      });
-    }
-
-    // Update remarks
-    task.remarks = remarks || '';
-
-    await task.save();
-
-    // Send notification to the OTHER person
-    await createTaskChangeNotification({
-      req,
-      task,
-      message: `Task "${task.title}" remarks were changed.`,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Remark saved successfully',
-      task,
-    });
-  } catch (error) {
-    console.error('REMARK UPDATE ERROR:', error);
-
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to save remark',
-      error: error.message,
-    });
-  }
-});
-
 // ✅ Assign Task
 router.post('/assign', authMiddleware, async (req, res) => {
   try {
@@ -418,62 +359,97 @@ router.get('/notifications', authMiddleware, async (req, res) => {
 });
 
 // Update remarks for a task
+// ==========================================
+// UPDATE TASK REMARKS
+// ==========================================
 router.put('/:id/remarks', authMiddleware, async (req, res) => {
   try {
     const { remarks } = req.body;
-    const taskId = req.params.id;
-    const userId = String(req.user.id);
 
-    // Find the task first
-    const task = await Task.findById(taskId);
+    const task = await Task.findById(req.params.id);
 
     if (!task) {
       return res.status(404).json({
-        success: false,
         message: 'Task not found',
       });
     }
 
-    // Check whether the logged-in user is allowed to update this task
-    const assignedToId = task.assignedTo
-      ? String(task.assignedTo._id || task.assignedTo)
-      : '';
+    const loggedInUserId = String(req.user.id);
+    const assignedToId = task.assignedTo ? String(task.assignedTo) : '';
+    const assignedById = task.assignedBy ? String(task.assignedBy) : '';
 
-    const assignedById = task.assignedBy
-      ? String(task.assignedBy._id || task.assignedBy)
-      : '';
-
-    const canUpdate = userId === assignedToId || userId === assignedById;
-
-    if (!canUpdate) {
-      return res.status(403).json({
-        success: false,
-        message: 'You are not authorized to update this task',
-      });
-    }
-
-    // Update remarks
-    task.remarks = remarks || '';
+    // Save the new remark
+    task.remarks = remarks;
 
     await task.save();
 
-    // Create notification for the other person
-    await createTaskChangeNotification({
-      req,
-      task,
-      fieldName: 'Remarks changed',
-    });
+    console.log('========================================');
+    console.log('TASK REMARK UPDATED');
+    console.log('Task ID:', task._id);
+    console.log('Updated by:', loggedInUserId);
+    console.log('Assigned To:', assignedToId);
+    console.log('Assigned By:', assignedById);
+    console.log('New Remark:', remarks);
+    console.log('========================================');
+
+    let notification = null;
+
+    /*
+     * Notify the person who assigned the task.
+     *
+     * Example:
+     * Admin assigns task → Employee
+     *
+     * Employee changes remark →
+     * Notification goes to Admin.
+     *
+     * We do NOT notify when the task owner updates
+     * their own self-assigned task.
+     */
+    if (
+      assignedById &&
+      assignedById !== loggedInUserId &&
+      assignedToId === loggedInUserId
+    ) {
+      notification = new Notification({
+        recipient: task.assignedBy,
+        sender: req.user.id,
+        task: task._id,
+        message: `Employee updated the remark for task "${task.title}".`,
+      });
+
+      await notification.save();
+
+      console.log('REMARK NOTIFICATION CREATED:', notification._id);
+
+      /*
+       * Send notification immediately through Socket.IO
+       */
+      const io = req.app.get('io');
+
+      if (io) {
+        io.to(assignedById).emit('newNotification', notification);
+
+        console.log('REMARK NOTIFICATION SENT TO ADMIN:', assignedById);
+      } else {
+        console.warn('Socket.IO instance not available on req.app');
+      }
+    } else {
+      console.log(
+        'Remark notification not created:',
+        'self-assigned task or user is not the assigned employee',
+      );
+    }
 
     return res.status(200).json({
-      success: true,
       message: 'Remark saved successfully',
       task,
+      notification,
     });
   } catch (error) {
     console.error('Error updating remarks:', error);
 
     return res.status(500).json({
-      success: false,
       message: error.message,
     });
   }
@@ -1064,8 +1040,12 @@ router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const taskId = req.params.id;
 
-    console.log('Updating task ID:', taskId);
-    console.log('Received data:', req.body);
+    console.log('========================================');
+    console.log('UPDATE TASK');
+    console.log('Task ID:', taskId);
+    console.log('Logged-in User:', req.user.id);
+    console.log('Request body:', req.body);
+    console.log('========================================');
 
     if (!taskId) {
       return res.status(400).json({
@@ -1074,11 +1054,40 @@ router.put('/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    const { title, remarks, priority, dueDate, status, client } = req.body;
+    const { title, remarks, priority, dueDate, status, client, issueDate } =
+      req.body;
+
+    // --------------------------------------------------
+    // GET ORIGINAL TASK BEFORE UPDATE
+    // --------------------------------------------------
+
+    const existingTask = await Task.findById(taskId);
+
+    if (!existingTask) {
+      return res.status(404).json({
+        success: false,
+        message: 'Task not found',
+      });
+    }
+
+    const loggedInUserId = String(req.user.id);
+
+    const assignedToId = existingTask.assignedTo
+      ? String(existingTask.assignedTo)
+      : '';
+
+    const assignedById = existingTask.assignedBy
+      ? String(existingTask.assignedBy)
+      : '';
+
+    const oldStatus = existingTask.status;
+
+    // --------------------------------------------------
+    // BUILD UPDATE
+    // --------------------------------------------------
 
     const updateData = {};
 
-    // Only update fields that were actually sent
     if (title !== undefined) {
       updateData.title = title;
     }
@@ -1103,9 +1112,19 @@ router.put('/:id', authMiddleware, async (req, res) => {
       updateData.client = client;
     }
 
+    if (issueDate !== undefined) {
+      updateData.issueDate = issueDate;
+    }
+
+    // --------------------------------------------------
+    // UPDATE TASK
+    // --------------------------------------------------
+
     const updatedTask = await Task.findByIdAndUpdate(
       taskId,
-      { $set: updateData },
+      {
+        $set: updateData,
+      },
       {
         returnDocument: 'after',
         runValidators: true,
@@ -1124,13 +1143,95 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     console.log('Task updated successfully:', updatedTask._id);
 
+    // --------------------------------------------------
+    // EMPLOYEE STATUS CHANGE NOTIFICATION
+    // --------------------------------------------------
+    //
+    // Notify ONLY when:
+    //
+    // 1. Status was actually changed
+    // 2. Logged-in user is the employee assigned to task
+    // 3. Task was assigned by another user/admin
+    // 4. New status is Not Started or In Progress
+    //
+    // Completed is handled by /:id/complete because
+    // that route also receives totalHours + totalMinutes.
+    // --------------------------------------------------
+
+    let notification = null;
+
+    const statusChanged =
+      status !== undefined && String(oldStatus) !== String(status);
+
+    const employeeChangedOwnAssignedTask =
+      assignedToId &&
+      assignedToId === loggedInUserId &&
+      assignedById &&
+      assignedById !== loggedInUserId;
+
+    const statusNeedsNotification =
+      status === 'Not Started' || status === 'In Progress';
+
+    if (
+      statusChanged &&
+      employeeChangedOwnAssignedTask &&
+      statusNeedsNotification
+    ) {
+      let statusMessage = '';
+
+      if (status === 'Not Started') {
+        statusMessage =
+          `Employee changed the task "${updatedTask.title}" ` +
+          `status to Not Started.`;
+      }
+
+      if (status === 'In Progress') {
+        statusMessage =
+          `Employee changed the task "${updatedTask.title}" ` +
+          `status to In Progress.`;
+      }
+
+      notification = new Notification({
+        recipient: existingTask.assignedBy,
+        sender: req.user.id,
+        task: existingTask._id,
+        message: statusMessage,
+      });
+
+      await notification.save();
+
+      console.log('STATUS NOTIFICATION CREATED:', notification._id);
+
+      // --------------------------------------------------
+      // SOCKET.IO - SEND TO ADMIN IMMEDIATELY
+      // --------------------------------------------------
+
+      const io = req.app.get('io');
+
+      if (io) {
+        io.to(assignedById).emit('newNotification', notification);
+
+        console.log('STATUS NOTIFICATION SENT TO ADMIN:', assignedById);
+      } else {
+        console.warn('Socket.IO instance not available on req.app');
+      }
+    }
+
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
+
     return res.status(200).json({
       success: true,
       message: 'Task updated successfully',
       task: updatedTask,
+      notification,
     });
   } catch (error) {
-    console.error('Error updating task:', error);
+    console.error('========================================');
+    console.error('ERROR UPDATING TASK');
+    console.error(error);
+    console.error('========================================');
 
     return res.status(500).json({
       success: false,
