@@ -16,7 +16,7 @@ const authConfig = () => ({
   },
 });
 
-export default function MyTasks({ user }) {
+export default function MyTasks({ user, searchValue = '' }) {
   const [tasks, setTasks] = useState([]);
   const [clients, setClients] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -54,6 +54,19 @@ export default function MyTasks({ user }) {
   const [taskStatusFilter, setTaskStatusFilter] = useState('all');
   const [assignedTaskStatusFilter, setAssignedTaskStatusFilter] =
     useState('all');
+
+  // Table filters for My Tasks
+  const [myTaskSearch, setMyTaskSearch] = useState('');
+  const [myTaskClientFilter, setMyTaskClientFilter] = useState('all');
+  const [myTaskDueFilter, setMyTaskDueFilter] = useState('all');
+  const [myTaskSort, setMyTaskSort] = useState('due-asc');
+
+  // Table filters for Assigned to Me
+  const [assignedTaskSearch, setAssignedTaskSearch] = useState('');
+  const [assignedTaskClientFilter, setAssignedTaskClientFilter] =
+    useState('all');
+  const [assignedTaskDueFilter, setAssignedTaskDueFilter] = useState('all');
+  const [assignedTaskSort, setAssignedTaskSort] = useState('due-asc');
 
   const fetchTasks = async () => {
     try {
@@ -448,11 +461,310 @@ export default function MyTasks({ user }) {
     }
   };
 
+  const getTaskClientName = (task) => {
+    const client = task?.client;
+
+    if (!client) return '';
+
+    if (typeof client === 'string') {
+      const matchedClient = clients.find(
+        (item) => String(item?._id) === String(client),
+      );
+
+      return (
+        matchedClient?.name ||
+        matchedClient?.company ||
+        matchedClient?.clientName ||
+        client
+      );
+    }
+
+    return client.name || client.company || client.clientName || '';
+  };
+
+  const getTaskDueDateKey = (task) => {
+    if (!task?.dueDate) return '';
+
+    if (typeof task.dueDate === 'string') {
+      return task.dueDate.slice(0, 10);
+    }
+
+    const date = new Date(task.dueDate);
+
+    if (Number.isNaN(date.getTime())) return '';
+
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const getTaskIssueDateKey = (task) => {
+    if (!task?.issueDate) return '';
+
+    if (typeof task.issueDate === 'string') {
+      return task.issueDate.slice(0, 10);
+    }
+
+    const date = new Date(task.issueDate);
+
+    if (Number.isNaN(date.getTime())) return '';
+
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const formatDateForInput = (value) => {
+    if (!value) return '';
+
+    if (typeof value === 'string') return value.slice(0, 10);
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return '';
+
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const filterAndSortTasks = (taskList, filters) => {
+    const today = getTodayDate();
+
+    const search = String(searchValue || filters.search || '')
+      .trim()
+      .toLowerCase();
+
+    const filtered = taskList.filter((task) => {
+      const title = String(task?.title || '').toLowerCase();
+      const clientName = String(getTaskClientName(task) || '').toLowerCase();
+      const remarks = String(task?.remarks || '').toLowerCase();
+      const status = String(task?.status || 'Not Started').toLowerCase();
+      const priority = String(task?.priority || '').toLowerCase();
+      const assignedByName = String(task?.assignedBy?.name || '').toLowerCase();
+      const assignedByEmail = String(
+        task?.assignedBy?.email || '',
+      ).toLowerCase();
+
+      if (
+        search &&
+        !title.includes(search) &&
+        !clientName.includes(search) &&
+        !remarks.includes(search) &&
+        !status.includes(search) &&
+        !priority.includes(search) &&
+        !assignedByName.includes(search) &&
+        !assignedByEmail.includes(search)
+      ) {
+        return false;
+      }
+
+      if (filters.status === 'pending') {
+        if (status !== 'Not Started' && status !== 'Pending') return false;
+      }
+
+      if (filters.status === 'in-progress') {
+        if (status !== 'In Progress' && status !== 'in-progress') return false;
+      }
+
+      if (filters.status === 'completed') {
+        if (status !== 'Completed') return false;
+      }
+
+      if (filters.client !== 'all') {
+        if (
+          String(getTaskClientName(task)).toLowerCase() !==
+          String(filters.client).toLowerCase()
+        ) {
+          return false;
+        }
+      }
+
+      if (filters.due === 'overdue') {
+        if (!dueDate || dueDate >= today) return false;
+      }
+
+      if (filters.due === 'upcoming') {
+        if (!dueDate || dueDate < today) return false;
+      }
+
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (filters.sort === 'title-asc') {
+        return String(a?.title || '').localeCompare(
+          String(b?.title || ''),
+          undefined,
+          {
+            sensitivity: 'base',
+          },
+        );
+      }
+
+      const aDue = getTaskDueDateKey(a);
+      const bDue = getTaskDueDateKey(b);
+
+      // Tasks without a due date stay at the bottom for both date sorts.
+      if (!aDue && !bDue) return 0;
+      if (!aDue) return 1;
+      if (!bDue) return -1;
+
+      if (filters.sort === 'due-desc') {
+        return bDue.localeCompare(aDue);
+      }
+
+      return aDue.localeCompare(bDue);
+    });
+  };
+
+  const getUniqueClientNames = (taskList) => {
+    const names = taskList
+      .map((task) => getTaskClientName(task).trim())
+      .filter(Boolean);
+
+    return [...new Set(names)].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' }),
+    );
+  };
+
+  const renderTableFilters = ({
+    taskList,
+    search,
+    setSearch,
+    statusFilter,
+    setStatusFilter,
+    clientFilter,
+    setClientFilter,
+    dueFilter,
+    setDueFilter,
+    sort,
+    setSort,
+  }) => {
+    const clientNames = getUniqueClientNames(taskList);
+
+    return (
+      <div className="mb-0 rounded-t-xl border-b border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <svg
+              className="h-4 w-4 text-blue-600"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 6h16M7 12h10M10 18h4"
+              />
+            </svg>
+            <span>Table Filters:</span>
+          </div>
+
+          <span className="text-xs text-slate-500 sm:text-sm">
+            Showing{' '}
+            {
+              filterAndSortTasks(taskList, {
+                search,
+                status: statusFilter,
+                client: clientFilter,
+                due: dueFilter,
+                sort,
+              }).length
+            }{' '}
+            of {taskList.length} tasks
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="relative md:col-span-2 xl:col-span-1">
+            <svg
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter by title, client or remarks..."
+              aria-label="Search tasks by title, client or remarks"
+              className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            aria-label="Filter tasks by status"
+            className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="in-progress">In Progress</option>
+            <option value="completed">Completed</option>
+          </select>
+
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            aria-label="Filter tasks by client"
+            className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="all">All Clients</option>
+            {clientNames.map((clientName) => (
+              <option key={clientName} value={clientName}>
+                {clientName}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={dueFilter}
+            onChange={(e) => setDueFilter(e.target.value)}
+            aria-label="Filter tasks by due date"
+            className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="all">All Due Dates</option>
+            <option value="overdue">Overdue</option>
+            <option value="upcoming">Upcoming</option>
+          </select>
+
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            aria-label="Sort tasks"
+            className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="due-asc">Due: Earliest First</option>
+            <option value="due-desc">Due: Latest First</option>
+            <option value="title-asc">Title A to Z</option>
+          </select>
+        </div>
+      </div>
+    );
+  };
+
   const renderTaskTable = (
     taskList,
     emptyMessage,
     readOnlyAssignmentFields = false,
+    filterProps,
   ) => {
+    const visibleTasks = filterAndSortTasks(taskList, filterProps);
+
     const Row = readOnlyAssignmentFields
       ? ({ task }) => (
           <tr
@@ -467,11 +779,7 @@ export default function MyTasks({ user }) {
               <input
                 type="date"
                 readOnly
-                value={
-                  task.issueDate
-                    ? new Date(task.issueDate).toISOString().split('T')[0]
-                    : ''
-                }
+                value={formatDateForInput(task.issueDate)}
                 className="min-w-32.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-600"
               />
             </td>
@@ -480,11 +788,7 @@ export default function MyTasks({ user }) {
               <input
                 type="date"
                 readOnly
-                value={
-                  task.dueDate
-                    ? new Date(task.dueDate).toISOString().split('T')[0]
-                    : ''
-                }
+                value={formatDateForInput(task.dueDate)}
                 className="min-w-32.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-600"
               />
             </td>
@@ -509,7 +813,7 @@ export default function MyTasks({ user }) {
 
             <td className="px-4 py-3">
               <span className="text-slate-700">
-                {task.client?.name || task.client?.company || 'No client'}
+                {getTaskClientName(task) || 'No client'}
               </span>
             </td>
 
@@ -573,11 +877,7 @@ export default function MyTasks({ user }) {
               <input
                 type="date"
                 readOnly
-                value={
-                  task.issueDate
-                    ? new Date(task.issueDate).toISOString().split('T')[0]
-                    : ''
-                }
+                value={formatDateForInput(task.issueDate)}
                 className="min-w-32.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-600"
               />
             </td>
@@ -585,14 +885,10 @@ export default function MyTasks({ user }) {
             <td className="px-4 py-3">
               <input
                 type="date"
-                value={
-                  task.dueDate
-                    ? new Date(task.dueDate).toISOString().split('T')[0]
-                    : ''
-                }
+                value={formatDateForInput(task.dueDate)}
                 onChange={(e) => handleDueDateChange(task._id, e.target.value)}
                 min={getTodayDate()}
-                className="min-w-32.5rounded-md border border-slate-300 bg-white px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-400"
+                className="min-w-32.5 rounded-md border border-slate-300 bg-white px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-400"
               />
             </td>
 
@@ -758,11 +1054,13 @@ export default function MyTasks({ user }) {
         );
 
     return (
-      <div className="relative w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="w-full overflox-x-auto">
-          <table className="w-full min-w-225 border-collapse text-sm">
+      <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        {renderTableFilters({ ...filterProps, taskList })}
+
+        <div className="w-full overflow-x-auto overscroll-x-contain">
+          <table className="w-full min-w-237.5 border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-100">
+              <tr className="border-b border-slate-200 bg-white">
                 {[
                   'Title',
                   'Issue Date',
@@ -791,17 +1089,19 @@ export default function MyTasks({ user }) {
                     Loading your tasks...
                   </td>
                 </tr>
-              ) : taskList.length === 0 ? (
+              ) : visibleTasks.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
                     className="px-4 py-10 text-center text-slate-500"
                   >
-                    {emptyMessage}
+                    {taskList.length === 0
+                      ? emptyMessage
+                      : 'No tasks match the selected filters.'}
                   </td>
                 </tr>
               ) : (
-                taskList.map((task) => Row({ task }))
+                visibleTasks.map((task) => Row({ task }))
               )}
             </tbody>
           </table>
@@ -930,24 +1230,6 @@ export default function MyTasks({ user }) {
           );
         });
 
-        const filteredSelfCreatedTasks = selfCreatedTasks.filter((task) => {
-          if (taskStatusFilter === 'pending') {
-            return task.status === 'Not Started' || task.status === 'Pending';
-          }
-
-          if (taskStatusFilter === 'in-progress') {
-            return (
-              task.status === 'In Progress' || task.status === 'in-progress'
-            );
-          }
-
-          if (taskStatusFilter === 'completed') {
-            return task.status === 'Completed';
-          }
-
-          return true;
-        });
-
         // =========================
         // ASSIGNED TO ME
         // =========================
@@ -959,26 +1241,6 @@ export default function MyTasks({ user }) {
             String(assignedToId) === currentUserId &&
             String(assignedById) !== currentUserId
           );
-        });
-
-        // IMPORTANT:
-        // This MUST come AFTER assignedToMeTasks
-        const filteredAssignedToMeTasks = assignedToMeTasks.filter((task) => {
-          if (assignedTaskStatusFilter === 'pending') {
-            return task.status === 'Not Started' || task.status === 'Pending';
-          }
-
-          if (assignedTaskStatusFilter === 'in-progress') {
-            return (
-              task.status === 'In Progress' || task.status === 'in-progress'
-            );
-          }
-
-          if (assignedTaskStatusFilter === 'completed') {
-            return task.status === 'Completed';
-          }
-
-          return true;
         });
 
         return (
@@ -1024,7 +1286,9 @@ export default function MyTasks({ user }) {
                 {/* Pending */}
                 <button
                   type="button"
-                  onClick={() => setTaskStatusFilter('pending')}
+                  onClick={() => {
+                    setTaskStatusFilter('pending');
+                  }}
                   className={`rounded-xl border p-5 text-center shadow-sm transition ${
                     taskStatusFilter === 'pending'
                       ? 'border-orange-300 bg-orange-100'
@@ -1051,7 +1315,9 @@ export default function MyTasks({ user }) {
                 {/* In Progress */}
                 <button
                   type="button"
-                  onClick={() => setTaskStatusFilter('in-progress')}
+                  onClick={() => {
+                    setTaskStatusFilter('in-progress');
+                  }}
                   className={`rounded-xl border p-5 text-center shadow-sm transition ${
                     taskStatusFilter === 'in-progress'
                       ? 'border-blue-300 bg-blue-100'
@@ -1078,7 +1344,9 @@ export default function MyTasks({ user }) {
                 {/* Completed */}
                 <button
                   type="button"
-                  onClick={() => setTaskStatusFilter('completed')}
+                  onClick={() => {
+                    setTaskStatusFilter('completed');
+                  }}
                   className={`rounded-xl border p-5 text-center shadow-sm transition ${
                     taskStatusFilter === 'completed'
                       ? 'border-green-300 bg-green-100'
@@ -1102,9 +1370,21 @@ export default function MyTasks({ user }) {
               </div>
 
               {renderTaskTable(
-                filteredSelfCreatedTasks,
+                selfCreatedTasks,
                 'No self-created tasks found.',
                 false,
+                {
+                  search: myTaskSearch,
+                  status: taskStatusFilter,
+                  client: myTaskClientFilter,
+                  due: myTaskDueFilter,
+                  sort: myTaskSort,
+                  setSearch: setMyTaskSearch,
+                  setStatusFilter: setTaskStatusFilter,
+                  setClientFilter: setMyTaskClientFilter,
+                  setDueFilter: setMyTaskDueFilter,
+                  setSort: setMyTaskSort,
+                },
               )}
             </section>
 
@@ -1123,7 +1403,9 @@ export default function MyTasks({ user }) {
                 {/* Pending */}
                 <button
                   type="button"
-                  onClick={() => setAssignedTaskStatusFilter('pending')}
+                  onClick={() => {
+                    setAssignedTaskStatusFilter('pending');
+                  }}
                   className={`rounded-xl border p-5 text-center shadow-sm transition ${
                     assignedTaskStatusFilter === 'pending'
                       ? 'border-orange-300 bg-orange-100'
@@ -1150,7 +1432,9 @@ export default function MyTasks({ user }) {
                 {/* In Progress */}
                 <button
                   type="button"
-                  onClick={() => setAssignedTaskStatusFilter('in-progress')}
+                  onClick={() => {
+                    setAssignedTaskStatusFilter('in-progress');
+                  }}
                   className={`rounded-xl border p-5 text-center shadow-sm transition ${
                     assignedTaskStatusFilter === 'in-progress'
                       ? 'border-blue-300 bg-blue-100'
@@ -1177,7 +1461,9 @@ export default function MyTasks({ user }) {
                 {/* Completed */}
                 <button
                   type="button"
-                  onClick={() => setAssignedTaskStatusFilter('completed')}
+                  onClick={() => {
+                    setAssignedTaskStatusFilter('completed');
+                  }}
                   className={`rounded-xl border p-5 text-center shadow-sm transition ${
                     assignedTaskStatusFilter === 'completed'
                       ? 'border-green-300 bg-green-100'
@@ -1204,6 +1490,18 @@ export default function MyTasks({ user }) {
                 assignedToMeTasks,
                 'No tasks have been assigned to you.',
                 true,
+                {
+                  search: assignedTaskSearch,
+                  status: assignedTaskStatusFilter,
+                  client: assignedTaskClientFilter,
+                  due: assignedTaskDueFilter,
+                  sort: assignedTaskSort,
+                  setSearch: setAssignedTaskSearch,
+                  setStatusFilter: setAssignedTaskStatusFilter,
+                  setClientFilter: setAssignedTaskClientFilter,
+                  setDueFilter: setAssignedTaskDueFilter,
+                  setSort: setAssignedTaskSort,
+                },
               )}
             </section>
           </div>

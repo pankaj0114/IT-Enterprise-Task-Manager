@@ -211,7 +211,7 @@ const AssignTaskPage = ({
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Create and assign a task to yourself or another employee.
+            Create and assign a task to another employee.
           </p>
         </div>
 

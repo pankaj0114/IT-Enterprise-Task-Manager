@@ -9,6 +9,7 @@ import '../css/AssignTaskPage.css';
 import AssignTaskPage from './AssignTaskPage';
 import MyTasks from './MyTasks.jsx';
 import EmployeeAttendance from './EmployeeAttendance';
+import EmployeeNavbar from './EmployeeNavbar';
 import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
 import DatePicker from 'react-datepicker';
@@ -53,6 +54,7 @@ export default function EmployeeDashboard() {
     return localStorage.getItem('activeTab') || 'myTasks';
   });
   const [notifications, setNotifications] = useState([]);
+  const [searchValue, setSearchValue] = useState('');
 
   const [tasks, setTasks] = useState([]);
   const [clients, setClients] = useState([]);
@@ -934,6 +936,50 @@ export default function EmployeeDashboard() {
     }
   };
 
+  const handleUpdateDateOfBirth = async (dateOfBirth) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
+      // IMPORTANT:
+      // Replace the API call below with your existing backend
+      // employee/profile update endpoint.
+
+      const response = await axios.put(
+        `http://localhost:5000/api/users/${user._id}`,
+        {
+          dateOfBirth,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      console.log('Date of birth updated:', response.data);
+
+      // Update the employee in Dashboard immediately
+      setUser((previousUser) => ({
+        ...previousUser,
+        ...(response.data.user || response.data),
+        dateOfBirth,
+      }));
+
+      return response.data;
+    } catch (error) {
+      console.error(
+        'Error updating date of birth:',
+        error.response?.data || error.message,
+      );
+
+      throw error;
+    }
+  };
   const fetchUser = async () => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -1438,12 +1484,32 @@ export default function EmployeeDashboard() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 flex flex-col lg:flex-row">
+    <div className="min-h-screen w-full bg-slate-50">
       {/* =========================================================
+        EMPLOYEE NAVBAR
+    ========================================================= */}
+      <EmployeeNavbar
+        user={user}
+        searchValue={searchValue}
+        onSearchChange={setSearchValue}
+        notifications={notifications}
+        onViewAllNotifications={() => {
+          setActiveTab('notifications');
+        }}
+        onLogout={handleLogout}
+        onUpdateDateOfBirth={handleUpdateDateOfBirth}
+      />
+
+      <div className="flex w-full flex-col lg:flex-row">
+        {/* =========================================================
       SIDEBAR
   ========================================================= */}
-      <div
-        className="
+
+        <div
+          className="
+          fixed
+      left-0
+     top-16
       w-full lg:w-64
       lg:min-h-screen
       bg-linear-to-b from-blue-500 to-blue-600
@@ -1454,19 +1520,19 @@ export default function EmployeeDashboard() {
       lg:h-screen
       overflow-y-auto
     "
-      >
-        {/* Employee Info */}
-        <div className="px-3 py-4 mb-4">
-          {user ? (
-            <h3 className="text-lg font-semibold truncate">{user.name}</h3>
-          ) : (
-            <h3 className="text-lg font-semibold">Loading...</h3>
-          )}
-        </div>
+        >
+          {/* Employee Info 
+          <div className="px-3 py-4 mb-4">
+            {user ? (
+              <h3 className="text-lg font-semibold truncate">{user.name}</h3>
+            ) : (
+              <h3 className="text-lg font-semibold">Loading...</h3>
+            )}
+          </div>
 
-        {/* Logout */}
-        <button
-          className="
+          {/* Logout 
+          <button
+            className="
         w-full
         px-4 py-2
         mb-5
@@ -1481,17 +1547,19 @@ export default function EmployeeDashboard() {
         duration-200
         shadow-sm
       "
-          onClick={handleLogout}
-        >
-          Logout
-        </button>
+            onClick={handleLogout}
+          >
+            Logout
+          </button>
 
-        {/* Navigation */}
-        <ul className="space-y-1">
-          {/* My Tasks */}
-          <li
-            onClick={() => setActiveTab('myTasks')}
-            className={`
+          */}
+
+          {/* Navigation */}
+          <ul className="space-y-1">
+            {/* My Tasks */}
+            <li
+              onClick={() => setActiveTab('myTasks')}
+              className={`
           flex items-center
           gap-2
           px-3 py-3
@@ -1506,15 +1574,15 @@ export default function EmployeeDashboard() {
               : 'hover:bg-white/10'
           }
         `}
-          >
-            <MdListAlt size={20} />
-            <span>My Tasks</span>
-          </li>
+            >
+              <MdListAlt size={20} />
+              <span>My Tasks</span>
+            </li>
 
-          {/* Assigned Tasks */}
-          <li
-            onClick={() => setActiveTab('assignedTasks')}
-            className={`
+            {/* Assigned Tasks */}
+            <li
+              onClick={() => setActiveTab('assignedTasks')}
+              className={`
           flex items-center
           gap-2
           px-3 py-3
@@ -1529,18 +1597,18 @@ export default function EmployeeDashboard() {
               : 'hover:bg-white/10'
           }
         `}
-          >
-            <MdOutlineNearMe size={20} />
-            <span>Assigned Task</span>
-          </li>
+            >
+              <MdOutlineNearMe size={20} />
+              <span>Assigned Task</span>
+            </li>
 
-          {/* Completed Tasks */}
-          <li
-            onClick={() => {
-              setActiveTab('completedTasks');
-              fetchCompletedTasks();
-            }}
-            className={`
+            {/* Completed Tasks */}
+            <li
+              onClick={() => {
+                setActiveTab('completedTasks');
+                fetchCompletedTasks();
+              }}
+              className={`
           flex items-center
           gap-2
           px-3 py-3
@@ -1555,14 +1623,14 @@ export default function EmployeeDashboard() {
               : 'hover:bg-white/10'
           }
         `}
-          >
-            <MdOutlineChecklist size={20} />
-            <span>Completed Tasks</span>
-          </li>
+            >
+              <MdOutlineChecklist size={20} />
+              <span>Completed Tasks</span>
+            </li>
 
-          <li
-            onClick={() => setActiveTab('attendance')}
-            className={`
+            <li
+              onClick={() => setActiveTab('attendance')}
+              className={`
     flex items-center
     gap-2
     px-3 py-3
@@ -1577,15 +1645,15 @@ export default function EmployeeDashboard() {
         : 'hover:bg-white/10'
     }
   `}
-          >
-            <MdCalendarMonth size={20} />
-            <span>Attendance</span>
-          </li>
+            >
+              <MdCalendarMonth size={20} />
+              <span>Attendance</span>
+            </li>
 
-          {/* Clients */}
-          <li
-            onClick={() => setActiveTab('clients')}
-            className={`
+            {/* Clients */}
+            <li
+              onClick={() => setActiveTab('clients')}
+              className={`
           flex items-center
           gap-2
           px-3 py-3
@@ -1600,71 +1668,18 @@ export default function EmployeeDashboard() {
               : 'hover:bg-white/10'
           }
         `}
-          >
-            <span className="w-5 text-center">◉</span>
-            <span>Clients</span>
-          </li>
+            >
+              <span className="w-5 text-center">◉</span>
+              <span>Clients</span>
+            </li>
+          </ul>
+        </div>
 
-          {/* Notifications */}
-          <li
-            onClick={() => {
-              setActiveTab('notifications');
-            }}
-            className={`
-          flex items-center
-          gap-2
-          px-3 py-3
-          rounded-md
-          cursor-pointer
-          text-sm
-          transition-all
-          duration-200
-          ${
-            activeTab === 'notifications'
-              ? 'bg-white/20 font-semibold shadow-sm'
-              : 'hover:bg-white/10'
-          }
-        `}
-          >
-            <div className="relative flex items-center justify-center">
-              <MdNotificationsNone size={24} />
-
-              {unreadCount > 0 && (
-                <span
-                  className="
-                absolute
-                -top-2
-                -right-2
-                min-w-4.5
-                h-4.5
-                px-1
-                rounded-full
-                bg-red-500
-                text-white
-                text-[10px]
-                font-bold
-                flex
-                items-center
-                justify-center
-                border-2
-                border-blue-500
-              "
-                >
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </div>
-
-            <span>Notifications</span>
-          </li>
-        </ul>
-      </div>
-
-      {/* =========================================================
+        {/* =========================================================
       MAIN PANEL
   ========================================================= */}
-      <div
-        className="
+        <div
+          className="
       flex-1
       min-w-0
       p-3
@@ -1672,94 +1687,96 @@ export default function EmployeeDashboard() {
       lg:p-6
       overflow-x-hidden
     "
-      >
-        {activeTab === 'attendance' && (
-          <div className="w-full">
-            <EmployeeAttendance />
-          </div>
-        )}
-        {activeTab === 'myTasks' && <MyTasks user={user} />}
-        {/* =======================================================
+        >
+          {activeTab === 'attendance' && (
+            <div className="w-full">
+              <EmployeeAttendance />
+            </div>
+          )}
+          {activeTab === 'myTasks' && (
+            <MyTasks user={user} searchValue={searchValue} />
+          )}
+          {/* =======================================================
         ASSIGNED TASKS
     ======================================================= */}
 
-        {showSuccessMessage && (
-          <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40">
-            <div className="w-[90%] max-w-md rounded-xl bg-white p-6 shadow-2xl">
-              <div className="flex flex-col items-center text-center">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
-                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+          {showSuccessMessage && (
+            <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40">
+              <div className="w-[90%] max-w-md rounded-xl bg-white p-6 shadow-2xl">
+                <div className="flex flex-col items-center text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+                    <CheckCircle2 className="h-8 w-8 text-green-600" />
+                  </div>
+
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Task Deleted
+                  </h2>
+
+                  <p className="mt-2 text-sm text-gray-600">{successMessage}</p>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSuccessMessage(false)}
+                    className="mt-5 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    OK
+                  </button>
                 </div>
-
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Task Deleted
-                </h2>
-
-                <p className="mt-2 text-sm text-gray-600">{successMessage}</p>
-
-                <button
-                  type="button"
-                  onClick={() => setShowSuccessMessage(false)}
-                  className="mt-5 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                >
-                  OK
-                </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {showErrorMessage && (
-          <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40">
-            <div className="w-[90%] max-w-md rounded-xl bg-white p-6 shadow-2xl">
-              <div className="flex flex-col items-center text-center">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
-                  <AlertCircle className="h-8 w-8 text-red-600" />
+          {showErrorMessage && (
+            <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40">
+              <div className="w-[90%] max-w-md rounded-xl bg-white p-6 shadow-2xl">
+                <div className="flex flex-col items-center text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+                    <AlertCircle className="h-8 w-8 text-red-600" />
+                  </div>
+
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Unable to Delete Task
+                  </h2>
+
+                  <p className="mt-2 text-sm text-gray-600">{errorMessage}</p>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowErrorMessage(false)}
+                    className="mt-5 rounded-lg bg-red-600 px-6 py-2 text-sm font-medium text-white hover:bg-red-700"
+                  >
+                    OK
+                  </button>
                 </div>
-
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Unable to Delete Task
-                </h2>
-
-                <p className="mt-2 text-sm text-gray-600">{errorMessage}</p>
-
-                <button
-                  type="button"
-                  onClick={() => setShowErrorMessage(false)}
-                  className="mt-5 rounded-lg bg-red-600 px-6 py-2 text-sm font-medium text-white hover:bg-red-700"
-                >
-                  OK
-                </button>
               </div>
             </div>
-          </div>
-        )}
-        {activeTab === 'assignedTasks' && (
-          <div className="w-full">
-            {/* Assign Task Form */}
-            <AssignTaskPage
-              onTaskCreated={fetchTasks}
-              user={user}
-              clients={clients}
-              employees={employees}
-              setActiveTab={setActiveTab}
-            />
+          )}
+          {activeTab === 'assignedTasks' && (
+            <div className="w-full">
+              {/* Assign Task Form */}
+              <AssignTaskPage
+                onTaskCreated={fetchTasks}
+                user={user}
+                clients={clients}
+                employees={employees}
+                setActiveTab={setActiveTab}
+              />
 
-            <h3
-              className="
+              <h3
+                className="
             mt-6
             mb-5
             text-xl
             font-semibold
             text-slate-800
           "
-            >
-              Assigned Tasks
-            </h3>
+              >
+                Assigned Tasks
+              </h3>
 
-            {/* ================= STATUS SUMMARY ================= */}
-            <div
-              className="
+              {/* ================= STATUS SUMMARY ================= */}
+              <div
+                className="
             grid
             grid-cols-1
             sm:grid-cols-2
@@ -1767,10 +1784,10 @@ export default function EmployeeDashboard() {
             gap-4
             mb-6
           "
-            >
-              {/* Pending */}
-              <div
-                className="
+              >
+                {/* Pending */}
+                <div
+                  className="
               rounded-xl
               border
               border-orange-100
@@ -1781,34 +1798,34 @@ export default function EmployeeDashboard() {
               items-center
               gap-4
             "
-              >
-                <div
-                  className="
+                >
+                  <div
+                    className="
                 w-11 h-11
                 rounded-full
                 bg-orange-100
                 flex items-center justify-center
                 text-xl
               "
-                >
-                  🕐
-                </div>
+                  >
+                    🕐
+                  </div>
 
-                <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-orange-700">
-                    Pending
-                  </h4>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-orange-700">
+                      Pending
+                    </h4>
 
-                  <strong className="block text-2xl font-bold text-slate-800">
-                    {pendingAssignedTasks.length}
-                  </strong>
+                    <strong className="block text-2xl font-bold text-slate-800">
+                      {pendingAssignedTasks.length}
+                    </strong>
 
-                  <span className="text-xs text-slate-500">Tasks</span>
-                </div>
+                    <span className="text-xs text-slate-500">Tasks</span>
+                  </div>
 
-                <button
-                  onClick={() => navigate('/assigned-tasks/pending')}
-                  className="
+                  <button
+                    onClick={() => navigate('/assigned-tasks/pending')}
+                    className="
                 px-3 py-2
                 rounded-md
                 bg-orange-500
@@ -1817,14 +1834,14 @@ export default function EmployeeDashboard() {
                 text-xs
                 font-medium
               "
-                >
-                  View All
-                </button>
-              </div>
+                  >
+                    View All
+                  </button>
+                </div>
 
-              {/* In Progress */}
-              <div
-                className="
+                {/* In Progress */}
+                <div
+                  className="
               rounded-xl
               border
               border-blue-100
@@ -1835,34 +1852,34 @@ export default function EmployeeDashboard() {
               items-center
               gap-4
             "
-              >
-                <div
-                  className="
+                >
+                  <div
+                    className="
                 w-11 h-11
                 rounded-full
                 bg-blue-100
                 flex items-center justify-center
                 text-xl
               "
-                >
-                  ↻
-                </div>
+                  >
+                    ↻
+                  </div>
 
-                <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-blue-700">
-                    In Progress
-                  </h4>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-blue-700">
+                      In Progress
+                    </h4>
 
-                  <strong className="block text-2xl font-bold text-slate-800">
-                    {inprogressAssignedTasks.length}
-                  </strong>
+                    <strong className="block text-2xl font-bold text-slate-800">
+                      {inprogressAssignedTasks.length}
+                    </strong>
 
-                  <span className="text-xs text-slate-500">Tasks</span>
-                </div>
+                    <span className="text-xs text-slate-500">Tasks</span>
+                  </div>
 
-                <button
-                  onClick={() => navigate('/assigned-tasks/in-progress')}
-                  className="
+                  <button
+                    onClick={() => navigate('/assigned-tasks/in-progress')}
+                    className="
                 px-3 py-2
                 rounded-md
                 bg-blue-500
@@ -1871,14 +1888,14 @@ export default function EmployeeDashboard() {
                 text-xs
                 font-medium
               "
-                >
-                  View All
-                </button>
-              </div>
+                  >
+                    View All
+                  </button>
+                </div>
 
-              {/* Completed */}
-              <div
-                className="
+                {/* Completed */}
+                <div
+                  className="
               rounded-xl
               border
               border-green-100
@@ -1889,34 +1906,34 @@ export default function EmployeeDashboard() {
               items-center
               gap-4
             "
-              >
-                <div
-                  className="
+                >
+                  <div
+                    className="
                 w-11 h-11
                 rounded-full
                 bg-green-100
                 flex items-center justify-center
                 text-xl
               "
-                >
-                  ✓
-                </div>
+                  >
+                    ✓
+                  </div>
 
-                <div className="flex-1">
-                  <h4 className="text-sm font-semibold text-green-700">
-                    Completed
-                  </h4>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-green-700">
+                      Completed
+                    </h4>
 
-                  <strong className="block text-2xl font-bold text-slate-800">
-                    {completedAssignedTasks.length}
-                  </strong>
+                    <strong className="block text-2xl font-bold text-slate-800">
+                      {completedAssignedTasks.length}
+                    </strong>
 
-                  <span className="text-xs text-slate-500">Tasks</span>
-                </div>
+                    <span className="text-xs text-slate-500">Tasks</span>
+                  </div>
 
-                <button
-                  onClick={() => navigate('/assigned-tasks/completed')}
-                  className="
+                  <button
+                    onClick={() => navigate('/assigned-tasks/completed')}
+                    className="
                 px-3 py-2
                 rounded-md
                 bg-green-500
@@ -1925,17 +1942,17 @@ export default function EmployeeDashboard() {
                 text-xs
                 font-medium
               "
-                >
-                  View All
-                </button>
+                  >
+                    View All
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* ================= THREE TASK SECTIONS ================= */}
+              {/* ================= THREE TASK SECTIONS ================= */}
 
-            {/* ================= FULL ASSIGNED TASK TABLE ================= */}
-            <div
-              className="
+              {/* ================= FULL ASSIGNED TASK TABLE ================= */}
+              <div
+                className="
     bg-white
     rounded-xl
     border
@@ -1943,59 +1960,59 @@ export default function EmployeeDashboard() {
     shadow-sm
     overflow-hidden
   "
-            >
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3">
-                <h3 className="text-lg font-semibold text-slate-800">
-                  Assigned Tasks
-                </h3>
+              >
+                <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-slate-800">
+                    Assigned Tasks
+                  </h3>
 
-                <button
-                  type="button"
-                  onClick={handleRefreshAssignedTasks}
-                  disabled={refreshingAssignedTasks}
-                  className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
-                  title="Refresh assigned tasks"
-                >
-                  <RefreshCw
-                    size={16}
-                    className={refreshingAssignedTasks ? 'animate-spin' : ''}
-                  />
-                  {refreshingAssignedTasks ? 'Refreshing...' : 'Refresh'}
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={handleRefreshAssignedTasks}
+                    disabled={refreshingAssignedTasks}
+                    className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Refresh assigned tasks"
+                  >
+                    <RefreshCw
+                      size={16}
+                      className={refreshingAssignedTasks ? 'animate-spin' : ''}
+                    />
+                    {refreshingAssignedTasks ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-250 text-sm">
-                  <thead>
-                    <tr className="bg-slate-100 border-b">
-                      <th className="px-4 py-3 text-left">Title</th>
-                      <th className="px-4 py-3 text-left">Due Date</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Remarks</th>
-                      <th className="px-4 py-3 text-left">Client</th>
-                      <th className="px-4 py-3 text-left">Assigned To</th>
-                      <th className="px-4 py-3 text-left">Actions</th>
-                    </tr>
-                  </thead>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-250 text-sm">
+                    <thead>
+                      <tr className="bg-slate-100 border-b">
+                        <th className="px-4 py-3 text-left">Title</th>
+                        <th className="px-4 py-3 text-left">Due Date</th>
+                        <th className="px-4 py-3 text-left">Status</th>
+                        <th className="px-4 py-3 text-left">Remarks</th>
+                        <th className="px-4 py-3 text-left">Client</th>
+                        <th className="px-4 py-3 text-left">Assigned To</th>
+                        <th className="px-4 py-3 text-left">Actions</th>
+                      </tr>
+                    </thead>
 
-                  <tbody>
-                    {assignedTasks.map((task) => (
-                      <tr
-                        key={task._id}
-                        className="border-b border-slate-100 hover:bg-slate-50"
-                      >
-                        {/* Title */}
-                        <td className="px-4 py-3">
-                          <input
-                            type="text"
-                            value={task.title || ''}
-                            onChange={(e) =>
-                              handleAssignedTaskTitleChange(
-                                task._id,
-                                e.target.value,
-                              )
-                            }
-                            className="
+                    <tbody>
+                      {assignedTasks.map((task) => (
+                        <tr
+                          key={task._id}
+                          className="border-b border-slate-100 hover:bg-slate-50"
+                        >
+                          {/* Title */}
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={task.title || ''}
+                              onChange={(e) =>
+                                handleAssignedTaskTitleChange(
+                                  task._id,
+                                  e.target.value,
+                                )
+                              }
+                              className="
                   w-full
                   min-w-40
                   px-3
@@ -2008,27 +2025,27 @@ export default function EmployeeDashboard() {
                   focus:ring-blue-300
                   focus:border-blue-300
                 "
-                          />
-                        </td>
+                            />
+                          </td>
 
-                        {/* Due Date */}
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <input
-                            type="date"
-                            value={
-                              task.dueDate
-                                ? new Date(task.dueDate)
-                                    .toISOString()
-                                    .split('T')[0]
-                                : ''
-                            }
-                            onChange={(e) =>
-                              handleAssignedTaskDueDateChange(
-                                task._id,
-                                e.target.value,
-                              )
-                            }
-                            className="
+                          {/* Due Date */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <input
+                              type="date"
+                              value={
+                                task.dueDate
+                                  ? new Date(task.dueDate)
+                                      .toISOString()
+                                      .split('T')[0]
+                                  : ''
+                              }
+                              onChange={(e) =>
+                                handleAssignedTaskDueDateChange(
+                                  task._id,
+                                  e.target.value,
+                                )
+                              }
+                              className="
                   px-3
                   py-2
                   rounded-md
@@ -2040,20 +2057,20 @@ export default function EmployeeDashboard() {
                   focus:ring-blue-300
                   focus:border-blue-300
                 "
-                          />
-                        </td>
+                            />
+                          </td>
 
-                        {/* Status */}
-                        <td className="px-4 py-3">
-                          <select
-                            value={task.status || 'Not Started'}
-                            onChange={(e) =>
-                              handleAssignedTaskStatusChange(
-                                task._id,
-                                e.target.value,
-                              )
-                            }
-                            className="
+                          {/* Status */}
+                          <td className="px-4 py-3">
+                            <select
+                              value={task.status || 'Not Started'}
+                              onChange={(e) =>
+                                handleAssignedTaskStatusChange(
+                                  task._id,
+                                  e.target.value,
+                                )
+                              }
+                              className="
                   px-3
                   py-2
                   rounded-md
@@ -2065,23 +2082,23 @@ export default function EmployeeDashboard() {
                   focus:ring-blue-300
                   focus:border-blue-300
                 "
-                          >
-                            <option value="Not Started">Not Started</option>
+                            >
+                              <option value="Not Started">Not Started</option>
 
-                            <option value="In Progress">In Progress</option>
-                          </select>
-                        </td>
+                              <option value="In Progress">In Progress</option>
+                            </select>
+                          </td>
 
-                        {/* Remarks */}
-                        <td className="px-4 py-3">
-                          <input
-                            type="text"
-                            value={task.remarks || ''}
-                            onChange={(e) =>
-                              handleRemarkChange(task._id, e.target.value)
-                            }
-                            placeholder="Add remarks..."
-                            className="
+                          {/* Remarks */}
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              value={task.remarks || ''}
+                              onChange={(e) =>
+                                handleRemarkChange(task._id, e.target.value)
+                              }
+                              placeholder="Add remarks..."
+                              className="
                   w-full
                   min-w-45
                   px-3
@@ -2094,20 +2111,20 @@ export default function EmployeeDashboard() {
                   focus:ring-green-300
                   focus:border-green-300
                 "
-                          />
-                        </td>
+                            />
+                          </td>
 
-                        {/* Client */}
-                        <td className="px-4 py-3">
-                          <select
-                            value={task.client?._id || task.client || ''}
-                            onChange={(e) =>
-                              handleAssignedTaskClientChange(
-                                task._id,
-                                e.target.value,
-                              )
-                            }
-                            className="
+                          {/* Client */}
+                          <td className="px-4 py-3">
+                            <select
+                              value={task.client?._id || task.client || ''}
+                              onChange={(e) =>
+                                handleAssignedTaskClientChange(
+                                  task._id,
+                                  e.target.value,
+                                )
+                              }
+                              className="
                   px-2
                   py-2
                   rounded-md
@@ -2118,28 +2135,28 @@ export default function EmployeeDashboard() {
                   focus:ring-2
                   focus:ring-blue-400
                 "
-                          >
-                            <option value="">-- Select Client --</option>
+                            >
+                              <option value="">-- Select Client --</option>
 
-                            {clients.map((c) => (
-                              <option key={c._id} value={c._id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
+                              {clients.map((c) => (
+                                <option key={c._id} value={c._id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
 
-                        {/* Assigned To - READ ONLY */}
-                        <td className="px-4 py-3 text-slate-600">
-                          {task.assignedTo?.name || 'Unknown'}
-                        </td>
+                          {/* Assigned To - READ ONLY */}
+                          <td className="px-4 py-3 text-slate-600">
+                            {task.assignedTo?.name || 'Unknown'}
+                          </td>
 
-                        {/* Delete */}
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAssignedTask(task._id)}
-                            className="
+                          {/* Delete */}
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAssignedTask(task._id)}
+                              className="
                   px-4
                   py-2
                   rounded-md
@@ -2150,31 +2167,31 @@ export default function EmployeeDashboard() {
                   font-medium
                   transition
                 "
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* =======================================================
+          {/* =======================================================
         COMPLETED TASKS
     ======================================================= */}
-        {activeTab === 'completedTasks' && (
-          <div className="w-full">
-            <h3 className="text-xl font-semibold text-slate-800 mb-5">
-              Completed Tasks
-            </h3>
+          {activeTab === 'completedTasks' && (
+            <div className="w-full">
+              <h3 className="text-xl font-semibold text-slate-800 mb-5">
+                Completed Tasks
+              </h3>
 
-            {completedTasks.length === 0 ? (
-              <div
-                className="
+              {completedTasks.length === 0 ? (
+                <div
+                  className="
               bg-white
               rounded-xl
               border
@@ -2183,17 +2200,17 @@ export default function EmployeeDashboard() {
               text-center
               text-slate-500
             "
-              >
-                No completed tasks found.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {completedTasks.map((task) => {
-                  const isEditing = editingTimeTaskId === task._id;
+                >
+                  No completed tasks found.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {completedTasks.map((task) => {
+                    const isEditing = editingTimeTaskId === task._id;
 
-                  return (
-                    <div
-                      className="
+                    return (
+                      <div
+                        className="
                     bg-white
                     rounded-xl
                     border
@@ -2201,15 +2218,15 @@ export default function EmployeeDashboard() {
                     shadow-sm
                     p-5
                   "
-                      key={task._id}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                        <h4 className="text-lg font-semibold text-slate-800">
-                          {task.title}
-                        </h4>
+                        key={task._id}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                          <h4 className="text-lg font-semibold text-slate-800">
+                            {task.title}
+                          </h4>
 
-                        <span
-                          className="
+                          <span
+                            className="
                         inline-flex
                         w-fit
                         px-3
@@ -2220,42 +2237,46 @@ export default function EmployeeDashboard() {
                         text-xs
                         font-semibold
                       "
-                        >
-                          Completed
-                        </span>
-                      </div>
+                          >
+                            Completed
+                          </span>
+                        </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <p className="text-sm text-slate-600">
-                          <strong className="text-slate-800">Remarks:</strong>{' '}
-                          {task.remarks || 'No remarks'}
-                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <p className="text-sm text-slate-600">
+                            <strong className="text-slate-800">Remarks:</strong>{' '}
+                            {task.remarks || 'No remarks'}
+                          </p>
 
-                        <p className="text-sm text-slate-600">
-                          <strong className="text-slate-800">Priority:</strong>{' '}
-                          {task.priority || 'Normal'}
-                        </p>
+                          <p className="text-sm text-slate-600">
+                            <strong className="text-slate-800">
+                              Priority:
+                            </strong>{' '}
+                            {task.priority || 'Normal'}
+                          </p>
 
-                        <p className="text-sm text-slate-600">
-                          <strong className="text-slate-800">Due Date:</strong>{' '}
-                          {task.dueDate
-                            ? new Date(task.dueDate).toLocaleDateString()
-                            : 'N/A'}
-                        </p>
+                          <p className="text-sm text-slate-600">
+                            <strong className="text-slate-800">
+                              Due Date:
+                            </strong>{' '}
+                            {task.dueDate
+                              ? new Date(task.dueDate).toLocaleDateString()
+                              : 'N/A'}
+                          </p>
 
-                        <p className="text-sm text-slate-600">
-                          <strong className="text-slate-800">
-                            Time Spent:
-                          </strong>{' '}
-                          {task.totalHours ?? 0} hours {task.totalMinutes ?? 0}{' '}
-                          minutes
-                        </p>
-                      </div>
+                          <p className="text-sm text-slate-600">
+                            <strong className="text-slate-800">
+                              Time Spent:
+                            </strong>{' '}
+                            {task.totalHours ?? 0} hours{' '}
+                            {task.totalMinutes ?? 0} minutes
+                          </p>
+                        </div>
 
-                      {/* Time Editing */}
-                      {isEditing && (
-                        <div
-                          className="
+                        {/* Time Editing */}
+                        {isEditing && (
+                          <div
+                            className="
                         mt-5
                         p-4
                         rounded-lg
@@ -2263,31 +2284,31 @@ export default function EmployeeDashboard() {
                         border
                         border-green-100
                       "
-                        >
-                          <strong className="block mb-3 text-green-800">
-                            Edit Time Spent
-                          </strong>
+                          >
+                            <strong className="block mb-3 text-green-800">
+                              Edit Time Spent
+                            </strong>
 
-                          <div
-                            className="
+                            <div
+                              className="
                           grid
                           grid-cols-1
                           sm:grid-cols-2
                           gap-3
                         "
-                          >
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Hours
-                              </label>
+                            >
+                              <div>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">
+                                  Hours
+                                </label>
 
-                              <input
-                                type="number"
-                                min="0"
-                                value={editHours}
-                                onChange={(e) => setEditHours(e.target.value)}
-                                placeholder="Hours"
-                                className="
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editHours}
+                                  onChange={(e) => setEditHours(e.target.value)}
+                                  placeholder="Hours"
+                                  className="
                               w-full
                               px-3
                               py-2
@@ -2299,22 +2320,24 @@ export default function EmployeeDashboard() {
                               focus:ring-2
                               focus:ring-green-300
                             "
-                              />
-                            </div>
+                                />
+                              </div>
 
-                            <div>
-                              <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Minutes
-                              </label>
+                              <div>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">
+                                  Minutes
+                                </label>
 
-                              <input
-                                type="number"
-                                min="0"
-                                max="59"
-                                value={editMinutes}
-                                onChange={(e) => setEditMinutes(e.target.value)}
-                                placeholder="Minutes"
-                                className="
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="59"
+                                  value={editMinutes}
+                                  onChange={(e) =>
+                                    setEditMinutes(e.target.value)
+                                  }
+                                  placeholder="Minutes"
+                                  className="
                               w-full
                               px-3
                               py-2
@@ -2326,13 +2349,13 @@ export default function EmployeeDashboard() {
                               focus:ring-2
                               focus:ring-green-300
                             "
-                              />
+                                />
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="flex flex-wrap gap-2 mt-4">
-                            <button
-                              className="
+                            <div className="flex flex-wrap gap-2 mt-4">
+                              <button
+                                className="
                             px-4
                             py-2
                             rounded-md
@@ -2342,15 +2365,15 @@ export default function EmployeeDashboard() {
                             text-sm
                             font-medium
                           "
-                              onClick={() =>
-                                handleUpdateCompletedTime(task._id)
-                              }
-                            >
-                              Save
-                            </button>
+                                onClick={() =>
+                                  handleUpdateCompletedTime(task._id)
+                                }
+                              >
+                                Save
+                              </button>
 
-                            <button
-                              className="
+                              <button
+                                className="
                             px-4
                             py-2
                             rounded-md
@@ -2360,23 +2383,23 @@ export default function EmployeeDashboard() {
                             text-sm
                             font-medium
                           "
-                              onClick={() => {
-                                setEditingTimeTaskId(null);
-                                setEditHours('');
-                                setEditMinutes('');
-                              }}
-                            >
-                              Cancel
-                            </button>
+                                onClick={() => {
+                                  setEditingTimeTaskId(null);
+                                  setEditHours('');
+                                  setEditMinutes('');
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {/* Action Buttons */}
-                      <div className="flex flex-wrap gap-2 mt-5">
-                        {!isEditing && (
-                          <button
-                            className="
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-2 mt-5">
+                          {!isEditing && (
+                            <button
+                              className="
                           px-4
                           py-2
                           rounded-md
@@ -2386,21 +2409,21 @@ export default function EmployeeDashboard() {
                           text-sm
                           font-medium
                         "
-                            onClick={() => {
-                              setEditingTimeTaskId(task._id);
+                              onClick={() => {
+                                setEditingTimeTaskId(task._id);
 
-                              setEditHours(String(task.totalHours ?? 0));
+                                setEditHours(String(task.totalHours ?? 0));
 
-                              setEditMinutes(String(task.totalMinutes ?? 0));
-                            }}
-                          >
-                            Edit Time
-                          </button>
-                        )}
+                                setEditMinutes(String(task.totalMinutes ?? 0));
+                              }}
+                            >
+                              Edit Time
+                            </button>
+                          )}
 
-                        <button
-                          onClick={() => handleUncompleteTask(task._id)}
-                          className="
+                          <button
+                            onClick={() => handleUncompleteTask(task._id)}
+                            className="
                         px-4
                         py-2
                         rounded-md
@@ -2410,24 +2433,24 @@ export default function EmployeeDashboard() {
                         text-sm
                         font-medium
                       "
-                        >
-                          Uncomplete
-                        </button>
+                          >
+                            Uncomplete
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* =======================================================
+          {/* =======================================================
         COMPLETION TIME POPUP
     ======================================================= */}
-        {showPopup && (
-          <div
-            className="
+          {showPopup && (
+            <div
+              className="
           fixed
           inset-0
           z-50
@@ -2437,9 +2460,9 @@ export default function EmployeeDashboard() {
           justify-center
           p-4
         "
-          >
-            <div
-              className="
+            >
+              <div
+                className="
             w-full
             max-w-md
             bg-white
@@ -2447,19 +2470,19 @@ export default function EmployeeDashboard() {
             shadow-2xl
             p-5
           "
-            >
-              <h3 className="text-lg font-semibold text-slate-800 mb-4">
-                Upon Completion of your task, Please Log your Time
-              </h3>
+              >
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                  Upon Completion of your task, Please Log your Time
+                </h3>
 
-              <div className="space-y-3">
-                <input
-                  id="hours"
-                  type="number"
-                  placeholder="Hours"
-                  value={hours}
-                  onChange={(e) => setHours(e.target.value)}
-                  className="
+                <div className="space-y-3">
+                  <input
+                    id="hours"
+                    type="number"
+                    placeholder="Hours"
+                    value={hours}
+                    onChange={(e) => setHours(e.target.value)}
+                    className="
                 w-full
                 px-3
                 py-2
@@ -2470,15 +2493,15 @@ export default function EmployeeDashboard() {
                 focus:ring-2
                 focus:ring-blue-400
               "
-                />
+                  />
 
-                <input
-                  id="minutes"
-                  type="number"
-                  placeholder="Minutes"
-                  value={minutes}
-                  onChange={(e) => setMinutes(e.target.value)}
-                  className="
+                  <input
+                    id="minutes"
+                    type="number"
+                    placeholder="Minutes"
+                    value={minutes}
+                    onChange={(e) => setMinutes(e.target.value)}
+                    className="
                 w-full
                 px-3
                 py-2
@@ -2489,13 +2512,13 @@ export default function EmployeeDashboard() {
                 focus:ring-2
                 focus:ring-blue-400
               "
-                />
-              </div>
+                  />
+                </div>
 
-              <div className="flex justify-end gap-2 mt-5">
-                <button
-                  onClick={() => setShowPopup(false)}
-                  className="
+                <div className="flex justify-end gap-2 mt-5">
+                  <button
+                    onClick={() => setShowPopup(false)}
+                    className="
                 px-4
                 py-2
                 rounded-md
@@ -2504,15 +2527,15 @@ export default function EmployeeDashboard() {
                 text-slate-700
                 text-sm
               "
-                >
-                  Cancel
-                </button>
+                  >
+                    Cancel
+                  </button>
 
-                <button
-                  onClick={() => {
-                    handleCompleteTask();
-                  }}
-                  className="
+                  <button
+                    onClick={() => {
+                      handleCompleteTask();
+                    }}
+                    className="
                 px-4
                 py-2
                 rounded-md
@@ -2522,34 +2545,34 @@ export default function EmployeeDashboard() {
                 text-sm
                 font-medium
               "
-                >
-                  Save
-                </button>
+                  >
+                    Save
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* =======================================================
+          {/* =======================================================
         CLIENTS
     ======================================================= */}
-        {activeTab === 'clients' && (
-          <div className="w-full">
-            {/* Header */}
-            <div className="mb-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-800">
-                    My Clients
-                  </h2>
+          {activeTab === 'clients' && (
+            <div className="w-full">
+              {/* Header */}
+              <div className="mb-6">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-800">
+                      My Clients
+                    </h2>
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    Clients assigned to you by the administrator.
-                  </p>
-                </div>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Clients assigned to you by the administrator.
+                    </p>
+                  </div>
 
-                <span
-                  className="
+                  <span
+                    className="
             w-fit
             rounded-full
             bg-blue-50
@@ -2558,16 +2581,16 @@ export default function EmployeeDashboard() {
             font-semibold
             text-blue-600
           "
-                >
-                  {myClients.length} client
-                  {myClients.length !== 1 ? 's' : ''}
-                </span>
+                  >
+                    {myClients.length} client
+                    {myClients.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            {/* Client Table */}
-            <div
-              className="
+              {/* Client Table */}
+              <div
+                className="
         overflow-hidden
         rounded-2xl
         border
@@ -2575,89 +2598,89 @@ export default function EmployeeDashboard() {
         bg-white
         shadow-sm
       "
-            >
-              <div className="w-full overflow-x-auto">
-                <table className="w-full min-w-162.5 text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50">
-                    <tr>
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
-                        Client
-                      </th>
-
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
-                        Email
-                      </th>
-
-                      <th className="px-6 py-4 text-left font-semibold text-slate-600">
-                        Company
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-slate-100">
-                    {loadingMyClients ? (
+              >
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full min-w-162.5 text-sm">
+                    <thead className="border-b border-slate-200 bg-slate-50">
                       <tr>
-                        <td
-                          colSpan={3}
-                          className="
+                        <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                          Client
+                        </th>
+
+                        <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                          Email
+                        </th>
+
+                        <th className="px-6 py-4 text-left font-semibold text-slate-600">
+                          Company
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {loadingMyClients ? (
+                        <tr>
+                          <td
+                            colSpan={3}
+                            className="
                     px-6
                     py-12
                     text-center
                     text-slate-500
                   "
-                        >
-                          Loading your clients...
-                        </td>
-                      </tr>
-                    ) : myClients.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="
-                    px-6
-                    py-12
-                    text-center
-                    text-slate-500
-                  "
-                        >
-                          No clients have been assigned to you.
-                        </td>
-                      </tr>
-                    ) : (
-                      myClients.map((client) => (
-                        <tr
-                          key={client._id}
-                          className="transition hover:bg-slate-50"
-                        >
-                          <td className="px-6 py-4 font-medium text-slate-800">
-                            {client.name}
-                          </td>
-
-                          <td className="px-6 py-4 text-slate-600">
-                            {client.email || 'N/A'}
-                          </td>
-
-                          <td className="px-6 py-4 text-slate-600">
-                            {client.company || 'N/A'}
+                          >
+                            Loading your clients...
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : myClients.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={3}
+                            className="
+                    px-6
+                    py-12
+                    text-center
+                    text-slate-500
+                  "
+                          >
+                            No clients have been assigned to you.
+                          </td>
+                        </tr>
+                      ) : (
+                        myClients.map((client) => (
+                          <tr
+                            key={client._id}
+                            className="transition hover:bg-slate-50"
+                          >
+                            <td className="px-6 py-4 font-medium text-slate-800">
+                              {client.name}
+                            </td>
+
+                            <td className="px-6 py-4 text-slate-600">
+                              {client.email || 'N/A'}
+                            </td>
+
+                            <td className="px-6 py-4 text-slate-600">
+                              {client.company || 'N/A'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* =======================================================
+          {/* =======================================================
         NOTIFICATIONS
     ======================================================= */}
-        {activeTab === 'notifications' && (
-          <div className="w-full">
-            {/* ================= NOTIFICATION HEADER ================= */}
-            <div
-              className="
+          {activeTab === 'notifications' && (
+            <div className="w-full">
+              {/* ================= NOTIFICATION HEADER ================= */}
+              <div
+                className="
       mb-5
       flex
       flex-col
@@ -2666,21 +2689,21 @@ export default function EmployeeDashboard() {
       sm:items-center
       sm:justify-between
     "
-            >
-              <h2 className="text-xl font-semibold text-slate-800">
-                Notifications
-              </h2>
+              >
+                <h2 className="text-xl font-semibold text-slate-800">
+                  Notifications
+                </h2>
 
-              <span className="text-sm text-slate-500">
-                {notifications.length} notification
-                {notifications.length !== 1 ? 's' : ''}
-              </span>
-            </div>
+                <span className="text-sm text-slate-500">
+                  {notifications.length} notification
+                  {notifications.length !== 1 ? 's' : ''}
+                </span>
+              </div>
 
-            {/* ================= EMPTY STATE ================= */}
-            {notifications.length === 0 ? (
-              <div
-                className="
+              {/* ================= EMPTY STATE ================= */}
+              {notifications.length === 0 ? (
+                <div
+                  className="
         rounded-xl
         border
         border-slate-200
@@ -2689,27 +2712,27 @@ export default function EmployeeDashboard() {
         text-center
         shadow-sm
       "
-              >
-                <MdNotificationsNone
-                  size={50}
-                  className="mx-auto mb-3 text-slate-400"
-                />
+                >
+                  <MdNotificationsNone
+                    size={50}
+                    className="mx-auto mb-3 text-slate-400"
+                  />
 
-                <h3 className="text-lg font-semibold text-slate-700">
-                  No notifications
-                </h3>
+                  <h3 className="text-lg font-semibold text-slate-700">
+                    No notifications
+                  </h3>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  You don't have any notifications right now.
-                </p>
-              </div>
-            ) : (
-              /* ================= NOTIFICATION LIST ================= */
-              <div className="space-y-3">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification._id}
-                    className="
+                  <p className="mt-1 text-sm text-slate-500">
+                    You don't have any notifications right now.
+                  </p>
+                </div>
+              ) : (
+                /* ================= NOTIFICATION LIST ================= */
+                <div className="space-y-3">
+                  {notifications.map((notification) => (
+                    <div
+                      key={notification._id}
+                      className="
             flex
             items-start
             gap-3
@@ -2723,10 +2746,10 @@ export default function EmployeeDashboard() {
             hover:shadow-md
             sm:gap-4
           "
-                  >
-                    {/* ================= ICON ================= */}
-                    <div
-                      className="
+                    >
+                      {/* ================= ICON ================= */}
+                      <div
+                        className="
               flex
               h-10
               w-10
@@ -2737,42 +2760,44 @@ export default function EmployeeDashboard() {
               bg-blue-50
               text-lg
             "
-                    >
-                      🔔
-                    </div>
+                      >
+                        🔔
+                      </div>
 
-                    {/* ================= CONTENT ================= */}
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-semibold text-slate-800">
-                        New Notification
-                      </h4>
+                      {/* ================= CONTENT ================= */}
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-semibold text-slate-800">
+                          New Notification
+                        </h4>
 
-                      <p
-                        className="
+                        <p
+                          className="
                 mt-1
                 wrap-break-word
                 text-sm
                 leading-6
                 text-slate-600
               "
-                      >
-                        {notification.message}
-                      </p>
+                        >
+                          {notification.message}
+                        </p>
 
-                      <small className="mt-2 block text-xs text-slate-400">
-                        {notification.createdAt
-                          ? new Date(notification.createdAt).toLocaleString()
-                          : ''}
-                      </small>
-                    </div>
+                        <small className="mt-2 block text-xs text-slate-400">
+                          {notification.createdAt
+                            ? new Date(notification.createdAt).toLocaleString()
+                            : ''}
+                        </small>
+                      </div>
 
-                    {/* ================= DELETE BUTTON ================= */}
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteNotification(notification._id)}
-                      title="Delete notification"
-                      aria-label="Delete notification"
-                      className="
+                      {/* ================= DELETE BUTTON ================= */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDeleteNotification(notification._id)
+                        }
+                        title="Delete notification"
+                        aria-label="Delete notification"
+                        className="
               flex
               h-9
               w-9
@@ -2786,15 +2811,16 @@ export default function EmployeeDashboard() {
               hover:text-red-600
               active:scale-95
             "
-                    >
-                      <MdDelete size={20} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                      >
+                        <MdDelete size={20} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
