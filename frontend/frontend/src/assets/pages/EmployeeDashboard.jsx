@@ -78,6 +78,17 @@ export default function EmployeeDashboard() {
   const [completedTasks, setCompletedTasks] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
   const [assignedTasks, setAssignedTasks] = useState([]);
+
+  const [assignedTaskSearch, setAssignedTaskSearch] = useState('');
+  const [assignedTaskStatusFilter, setAssignedTaskStatusFilter] =
+    useState('all');
+  const [assignedTaskEmployeeFilter, setAssignedTaskEmployeeFilter] =
+    useState('all');
+  const [assignedTaskClientFilter, setAssignedTaskClientFilter] =
+    useState('all');
+  const [assignedTaskDueFilter, setAssignedTaskDueFilter] = useState('all');
+  const [assignedTaskSort, setAssignedTaskSort] = useState('due-asc');
+
   const [refreshingAssignedTasks, setRefreshingAssignedTasks] = useState(false);
   const remarkTimeouts = useRef({});
   const [myClients, setMyClients] = useState([]);
@@ -305,6 +316,187 @@ export default function EmployeeDashboard() {
     setSelectedTaskId(taskId);
     setShowPopup(true);
   };
+
+  const getAssignedTaskClientName = (task) => {
+    const client = task?.client;
+
+    if (!client) return '';
+
+    if (typeof client === 'string') {
+      const matchedClient = clients.find(
+        (item) => String(item._id) === String(client),
+      );
+
+      return matchedClient?.name || '';
+    }
+
+    return client.name || client.company || client.clientName || '';
+  };
+
+  const getAssignedTaskDueDateKey = (task) => {
+    if (!task?.dueDate) return '';
+
+    if (typeof task.dueDate === 'string') {
+      return task.dueDate.slice(0, 10);
+    }
+
+    const date = new Date(task.dueDate);
+
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const filteredAndSortedAssignedTasks = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const search = String(assignedTaskSearch || '')
+      .trim()
+      .toLowerCase();
+
+    const filtered = assignedTasks.filter((task) => {
+      const title = String(task?.title || '').toLowerCase();
+
+      const remarks = String(task?.remarks || '').toLowerCase();
+
+      const status = String(task?.status || 'Not Started').toLowerCase();
+
+      const priority = String(task?.priority || '').toLowerCase();
+
+      const clientName = getAssignedTaskClientName(task).toLowerCase();
+
+      const assignedToName = String(
+        task?.assignedTo?.name ||
+          task?.assignedTo?.fullName ||
+          task?.assignedTo?.email ||
+          '',
+      ).toLowerCase();
+
+      const dueDate = getAssignedTaskDueDateKey(task);
+
+      /*
+       * Search
+       */
+      if (
+        search &&
+        !title.includes(search) &&
+        !remarks.includes(search) &&
+        !status.includes(search) &&
+        !priority.includes(search) &&
+        !clientName.includes(search) &&
+        !assignedToName.includes(search)
+      ) {
+        return false;
+      }
+
+      /*
+       * Status filter
+       */
+      if (assignedTaskStatusFilter === 'pending') {
+        if (status !== 'not started' && status !== 'pending') {
+          return false;
+        }
+      }
+
+      if (assignedTaskStatusFilter === 'in-progress') {
+        if (status !== 'in progress' && status !== 'in-progress') {
+          return false;
+        }
+      }
+
+      if (assignedTaskStatusFilter === 'completed') {
+        if (status !== 'completed') {
+          return false;
+        }
+      }
+
+      /*
+       * Employee filter
+       */
+      if (assignedTaskEmployeeFilter !== 'all') {
+        const assignedToId =
+          task?.assignedTo?._id ||
+          task?.assignedTo?.id ||
+          task?.assignedTo ||
+          '';
+
+        if (String(assignedToId) !== String(assignedTaskEmployeeFilter)) {
+          return false;
+        }
+      }
+
+      /*
+       * Client filter
+       */
+      if (assignedTaskClientFilter !== 'all') {
+        const clientId =
+          task?.client?._id || task?.client?.id || task?.client || '';
+
+        if (String(clientId) !== String(assignedTaskClientFilter)) {
+          return false;
+        }
+      }
+
+      /*
+       * Due date filter
+       */
+      if (assignedTaskDueFilter === 'overdue') {
+        if (!dueDate || dueDate >= today) {
+          return false;
+        }
+      }
+
+      if (assignedTaskDueFilter === 'upcoming') {
+        if (!dueDate || dueDate < today) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    /*
+     * Sorting
+     */
+    return [...filtered].sort((a, b) => {
+      if (assignedTaskSort === 'title-asc') {
+        return String(a?.title || '').localeCompare(
+          String(b?.title || ''),
+          undefined,
+          {
+            sensitivity: 'base',
+          },
+        );
+      }
+
+      const aDue = getAssignedTaskDueDateKey(a);
+      const bDue = getAssignedTaskDueDateKey(b);
+
+      if (!aDue && !bDue) return 0;
+      if (!aDue) return 1;
+      if (!bDue) return -1;
+
+      if (assignedTaskSort === 'due-desc') {
+        return bDue.localeCompare(aDue);
+      }
+
+      return aDue.localeCompare(bDue);
+    });
+  }, [
+    assignedTasks,
+    assignedTaskSearch,
+    assignedTaskStatusFilter,
+    assignedTaskEmployeeFilter,
+    assignedTaskClientFilter,
+    assignedTaskDueFilter,
+    assignedTaskSort,
+    clients,
+  ]);
 
   const handleUpdateAssignedTaskRemarks = async (taskId, remarks) => {
     try {
@@ -1980,7 +2172,254 @@ export default function EmployeeDashboard() {
                     {refreshingAssignedTasks ? 'Refreshing...' : 'Refresh'}
                   </button>
                 </div>
+                {/* Assigned Tasks Table Filters */}
+                <div className="border-b border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-800">
+                        Table Filters
+                      </span>
+                    </div>
 
+                    <span className="text-xs text-slate-500 sm:text-sm">
+                      Showing{' '}
+                      <span className="font-semibold text-slate-700">
+                        {filteredAndSortedAssignedTasks.length}
+                      </span>{' '}
+                      of{' '}
+                      <span className="font-semibold text-slate-700">
+                        {assignedTasks.length}
+                      </span>{' '}
+                      tasks
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+                    {/* Search */}
+                    <div className="xl:col-span-2">
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Search
+                      </label>
+
+                      <input
+                        type="text"
+                        value={assignedTaskSearch}
+                        onChange={(e) => setAssignedTaskSearch(e.target.value)}
+                        placeholder="Title, client, remarks, employee..."
+                        className="
+          w-full
+          rounded-md
+          border border-slate-300
+          bg-white
+          px-3
+          py-2
+          text-sm
+          outline-none
+          transition
+          focus:border-blue-400
+          focus:ring-2
+          focus:ring-blue-200
+        "
+                      />
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Status
+                      </label>
+
+                      <select
+                        value={assignedTaskStatusFilter}
+                        onChange={(e) =>
+                          setAssignedTaskStatusFilter(e.target.value)
+                        }
+                        className="
+          w-full
+          rounded-md
+          border border-slate-300
+          bg-white
+          px-3
+          py-2
+          text-sm
+          outline-none
+          focus:border-blue-400
+          focus:ring-2
+          focus:ring-blue-200
+        "
+                      >
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                    </div>
+
+                    {/* Employee */}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Assigned To
+                      </label>
+
+                      <select
+                        value={assignedTaskEmployeeFilter}
+                        onChange={(e) =>
+                          setAssignedTaskEmployeeFilter(e.target.value)
+                        }
+                        className="
+          w-full
+          rounded-md
+          border border-slate-300
+          bg-white
+          px-3
+          py-2
+          text-sm
+          outline-none
+          focus:border-blue-400
+          focus:ring-2
+          focus:ring-blue-200
+        "
+                      >
+                        <option value="all">All Employees</option>
+
+                        {employees.map((employee) => (
+                          <option key={employee._id} value={employee._id}>
+                            {employee.name ||
+                              employee.fullName ||
+                              employee.email ||
+                              'Unnamed Employee'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Client */}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Client
+                      </label>
+
+                      <select
+                        value={assignedTaskClientFilter}
+                        onChange={(e) =>
+                          setAssignedTaskClientFilter(e.target.value)
+                        }
+                        className="
+          w-full
+          rounded-md
+          border border-slate-300
+          bg-white
+          px-3
+          py-2
+          text-sm
+          outline-none
+          focus:border-blue-400
+          focus:ring-2
+          focus:ring-blue-200
+        "
+                      >
+                        <option value="all">All Clients</option>
+
+                        {clients.map((client) => (
+                          <option key={client._id} value={client._id}>
+                            {client.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Due Date */}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Due Date
+                      </label>
+
+                      <select
+                        value={assignedTaskDueFilter}
+                        onChange={(e) =>
+                          setAssignedTaskDueFilter(e.target.value)
+                        }
+                        className="
+          w-full
+          rounded-md
+          border border-slate-300
+          bg-white
+          px-3
+          py-2
+          text-sm
+          outline-none
+          focus:border-blue-400
+          focus:ring-2
+          focus:ring-blue-200
+        "
+                      >
+                        <option value="all">All Dates</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="upcoming">Upcoming</option>
+                      </select>
+                    </div>
+
+                    {/* Sort */}
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Sort By
+                      </label>
+
+                      <select
+                        value={assignedTaskSort}
+                        onChange={(e) => setAssignedTaskSort(e.target.value)}
+                        className="
+          w-full
+          rounded-md
+          border border-slate-300
+          bg-white
+          px-3
+          py-2
+          text-sm
+          outline-none
+          focus:border-blue-400
+          focus:ring-2
+          focus:ring-blue-200
+        "
+                      >
+                        <option value="due-asc">Due Date: Earliest</option>
+
+                        <option value="due-desc">Due Date: Latest</option>
+
+                        <option value="title-asc">Title: A-Z</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Clear Filters */}
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssignedTaskSearch('');
+                        setAssignedTaskStatusFilter('all');
+                        setAssignedTaskEmployeeFilter('all');
+                        setAssignedTaskClientFilter('all');
+                        setAssignedTaskDueFilter('all');
+                        setAssignedTaskSort('due-asc');
+                      }}
+                      className="
+        rounded-md
+        border border-slate-300
+        bg-white
+        px-3
+        py-2
+        text-xs
+        font-medium
+        text-slate-700
+        transition
+        hover:bg-slate-100
+      "
+                    >
+                      Clear Filters
+                    </button>
+                  </div>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-250 text-sm">
                     <thead>
@@ -1996,7 +2435,7 @@ export default function EmployeeDashboard() {
                     </thead>
 
                     <tbody>
-                      {assignedTasks.map((task) => (
+                      {filteredAndSortedAssignedTasks.map((task) => (
                         <tr
                           key={task._id}
                           className="border-b border-slate-100 hover:bg-slate-50"

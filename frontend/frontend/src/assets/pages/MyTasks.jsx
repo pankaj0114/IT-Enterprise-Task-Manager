@@ -63,6 +63,7 @@ export default function MyTasks({ user, searchValue = '' }) {
 
   // Table filters for Assigned to Me
   const [assignedTaskSearch, setAssignedTaskSearch] = useState('');
+
   const [assignedTaskClientFilter, setAssignedTaskClientFilter] =
     useState('all');
   const [assignedTaskDueFilter, setAssignedTaskDueFilter] = useState('all');
