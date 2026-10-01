@@ -1044,23 +1044,33 @@ const AdminDashboard = () => {
 
       <aside
         className="
-        z-40
-        w-16
-        bg-slate-900
-        text-white
-        min-h-screen
-        flex
-        flex-col
-        overflow-y-auto
-        fixed
-        left-0
-        top-0
-        bottom-0
-        transition-all
-        duration-300
-        sm:w-20
-        lg:w-64
-      "
+    fixed
+    left-0
+    top-0
+    bottom-0
+    z-40
+
+    w-16
+    sm:w-20
+    lg:w-64
+
+    min-h-screen
+
+    flex
+    flex-col
+
+    overflow-y-auto
+
+    bg-slate-900
+    text-white
+
+    border-r
+    border-slate-700
+    shadow-lg
+
+    transition-all
+    duration-300
+  "
       >
         {/* Admin Info */}
 
@@ -1414,20 +1424,32 @@ const AdminDashboard = () => {
 
       <main
         className="
-        min-h-screen
-        w-full
-        min-w-0
-        pl-16
-        pr-3
-        py-4
-        sm:pl-20
-        sm:pr-5
-        sm:py-6
-        lg:pl-64
-        lg:pr-8
-        lg:py-8
-        pb-8
-      "
+    min-h-screen
+    min-w-0
+
+    ml-8
+    w-[calc(100%-4.5rem)]
+
+    px-3
+    py-4
+
+    sm:ml-22
+    sm:w-[calc(100%-5.5rem)]
+    sm:px-5
+    sm:py-6
+
+    lg:ml-68
+    lg:w-[calc(100%-17rem)]
+    lg:px-6
+    lg:py-8
+
+    pb-8
+
+    bg-slate-50
+
+    transition-all
+    duration-300
+  "
       >
         {/* ==========================================
     MY TASKS

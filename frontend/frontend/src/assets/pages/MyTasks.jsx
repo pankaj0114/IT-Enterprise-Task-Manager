@@ -550,6 +550,9 @@ export default function MyTasks({ user, searchValue = '' }) {
         task?.assignedBy?.email || '',
       ).toLowerCase();
 
+      // Get the task's due date in YYYY-MM-DD format
+      const dueDate = getTaskDueDateKey(task);
+
       if (
         search &&
         !title.includes(search) &&
@@ -564,15 +567,15 @@ export default function MyTasks({ user, searchValue = '' }) {
       }
 
       if (filters.status === 'pending') {
-        if (status !== 'Not Started' && status !== 'Pending') return false;
+        if (status !== 'not started' && status !== 'pending') return false;
       }
 
       if (filters.status === 'in-progress') {
-        if (status !== 'In Progress' && status !== 'in-progress') return false;
+        if (status !== 'in progress' && status !== 'in-progress') return false;
       }
 
       if (filters.status === 'completed') {
-        if (status !== 'Completed') return false;
+        if (status !== 'completed') return false;
       }
 
       if (filters.client !== 'all') {
