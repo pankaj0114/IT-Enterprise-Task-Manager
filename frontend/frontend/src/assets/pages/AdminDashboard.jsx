@@ -21,6 +21,21 @@ const AdminDashboard = () => {
   const [showPassword, setShowPassword] = useState({});
   const [confirmPassword, setConfirmPassword] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
+  const [dateOfJoining, setDateOfJoining] = useState('');
+
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+
+  const [editingEmployeeId, setEditingEmployeeId] = useState(null);
+
+  const [editingEmployeeData, setEditingEmployeeData] = useState({
+    name: '',
+    email: '',
+    dateOfJoining: '',
+  });
+
+  const [employeeUpdateLoading, setEmployeeUpdateLoading] = useState(false);
+  const [employeeUpdateError, setEmployeeUpdateError] = useState('');
 
   // Keep the selected Admin Dashboard section after a page refresh.
   const [activeTab, setActiveTab] = useState(() => {
@@ -114,7 +129,7 @@ const AdminDashboard = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    dateOfBirth: '',
+    dateOfJoining: '',
   });
 
   const [loading, setLoading] = useState(false);
@@ -138,6 +153,134 @@ const AdminDashboard = () => {
       }
     }
   }, []);
+
+  // ==========================================
+  // EDIT EMPLOYEE
+  // ==========================================
+
+  const handleStartEditEmployee = (employee) => {
+    setEditingEmployeeId(employee._id);
+
+    setEditingEmployeeData({
+      name: employee.name || '',
+      email: employee.email || '',
+      dateOfJoining: employee.dateOfJoining
+        ? String(employee.dateOfJoining).slice(0, 10)
+        : '',
+    });
+
+    setEmployeeUpdateError('');
+  };
+
+  const handleCancelEditEmployee = () => {
+    setEditingEmployeeId(null);
+
+    setEditingEmployeeData({
+      name: '',
+      email: '',
+      dateOfJoining: '',
+    });
+
+    setEmployeeUpdateError('');
+  };
+
+  const handleEmployeeEditChange = (field, value) => {
+    setEditingEmployeeData((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveEmployee = async (employeeId) => {
+    if (!employeeId) {
+      return;
+    }
+
+    const name = editingEmployeeData.name.trim();
+    const email = editingEmployeeData.email.trim();
+    const dateOfJoining = editingEmployeeData.dateOfJoining;
+
+    if (!name) {
+      setEmployeeUpdateError('Employee name is required.');
+      return;
+    }
+
+    if (!email) {
+      setEmployeeUpdateError('Employee email is required.');
+      return;
+    }
+
+    if (!dateOfJoining) {
+      setEmployeeUpdateError('Date of joining is required.');
+      return;
+    }
+
+    try {
+      setEmployeeUpdateLoading(true);
+      setEmployeeUpdateError('');
+
+      const token = localStorage.getItem('accessToken');
+
+      if (!token) {
+        setEmployeeUpdateError(
+          'Authentication token not found. Please login again.',
+        );
+        return;
+      }
+
+      const response = await axios.put(
+        `http://localhost:5000/api/admin/employees/${employeeId}`,
+        {
+          name,
+          email,
+          dateOfJoining,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const updatedEmployee = response.data.employee || response.data;
+
+      setEmployees((previousEmployees) =>
+        previousEmployees.map((employee) =>
+          String(employee._id) === String(employeeId)
+            ? {
+                ...employee,
+                ...updatedEmployee,
+                name,
+                email,
+                dateOfJoining,
+              }
+            : employee,
+        ),
+      );
+
+      setEditingEmployeeId(null);
+
+      setEditingEmployeeData({
+        name: '',
+        email: '',
+        dateOfJoining: '',
+      });
+
+      setEmployeeUpdateError('');
+    } catch (error) {
+      console.error(
+        'UPDATE EMPLOYEE ERROR:',
+        error.response?.data || error.message,
+      );
+
+      setEmployeeUpdateError(
+        error.response?.data?.message || 'Failed to update employee details.',
+      );
+    } finally {
+      setEmployeeUpdateLoading(false);
+    }
+  };
 
   const fetchAdmin = async () => {
     try {
@@ -296,8 +439,8 @@ const AdminDashboard = () => {
         return;
       }
 
-      if (!dateOfBirth) {
-        setErrorMessage('Please select date of birth.');
+      if (!dateOfJoining) {
+        setErrorMessage('Please select date of joining.');
         return;
       }
 
@@ -315,7 +458,7 @@ const AdminDashboard = () => {
           email: email.trim(),
           password,
           confirmPassword,
-          dateOfBirth,
+          dateOfJoining,
         },
         {
           headers: {
@@ -339,7 +482,7 @@ const AdminDashboard = () => {
       setEmail('');
       setPassword('');
       setConfirmPassword('');
-      setDateOfBirth('');
+      setDateOfJoining('');
     } catch (error) {
       console.error(
         'Error registering employee:',
@@ -1581,9 +1724,9 @@ const AdminDashboard = () => {
 
                     <input
                       type="date"
-                      name="dateOfBirth"
-                      value={dateOfBirth}
-                      onChange={(e) => setDateOfBirth(e.target.value)}
+                      name="dateOfJoining"
+                      value={dateOfJoining}
+                      onChange={(e) => setDateOfJoining(e.target.value)}
                       className="
                         w-full
                         px-4
@@ -1731,6 +1874,24 @@ const AdminDashboard = () => {
               </div>
 
               {/* Responsive Table */}
+
+              {employeeUpdateError && (
+                <div
+                  className="
+      mb-4
+      rounded-lg
+      border
+      border-red-200
+      bg-red-50
+      px-4
+      py-3
+      text-sm
+      text-red-600
+    "
+                >
+                  {employeeUpdateError}
+                </div>
+              )}
               <div className="w-full overflow-x-auto overscroll-x-contain">
                 <table className="w-full min-w-200 text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50">
@@ -1750,71 +1911,252 @@ const AdminDashboard = () => {
                       <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
                         Reset Password
                       </th>
+
+                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
+                        Action
+                      </th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
-                    {employees.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="px-6 py-10 text-center text-slate-500"
-                        >
-                          No employees registered yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      employees.map((employee) => (
+                    {employees.map((employee) => {
+                      const isEditing =
+                        String(editingEmployeeId) === String(employee._id);
+
+                      return (
                         <tr
                           key={employee._id}
                           className="transition hover:bg-slate-50"
                         >
-                          {/* Name */}
-                          <td className="px-3 py-3 sm:px-5 sm:py-4 font-medium text-slate-800">
-                            {employee.name || 'N/A'}
+                          {/* ==================================================
+          NAME
+      =================================================== */}
+
+                          <td className="px-3 py-3 sm:px-5 sm:py-4">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editingEmployeeData.name}
+                                onChange={(e) =>
+                                  handleEmployeeEditChange(
+                                    'name',
+                                    e.target.value,
+                                  )
+                                }
+                                className="
+              h-10
+              w-full
+              min-w-45
+              rounded-lg
+              border
+              border-slate-300
+              bg-white
+              px-3
+              text-sm
+              text-slate-800
+              outline-none
+              focus:border-blue-500
+              focus:ring-2
+              focus:ring-blue-100
+            "
+                              />
+                            ) : (
+                              <span className="font-medium text-slate-800">
+                                {employee.name || 'N/A'}
+                              </span>
+                            )}
                           </td>
 
-                          {/* Email */}
-                          <td className="px-3 py-3 sm:px-5 sm:py-4 text-slate-600">
-                            {employee.email || 'N/A'}
+                          {/* ==================================================
+          EMAIL
+      =================================================== */}
+
+                          <td className="px-3 py-3 sm:px-5 sm:py-4">
+                            {isEditing ? (
+                              <input
+                                type="email"
+                                value={editingEmployeeData.email}
+                                onChange={(e) =>
+                                  handleEmployeeEditChange(
+                                    'email',
+                                    e.target.value,
+                                  )
+                                }
+                                className="
+              h-10
+              w-full
+              <min-w-55></min-w-55>
+              rounded-lg
+              border
+              border-slate-300
+              bg-white
+              px-3
+              text-sm
+              text-slate-800
+              outline-none
+              focus:border-blue-500
+              focus:ring-2
+              focus:ring-blue-100
+            "
+                              />
+                            ) : (
+                              <span className="text-slate-600">
+                                {employee.email || 'N/A'}
+                              </span>
+                            )}
                           </td>
 
-                          {/* Date of Birth */}
-                          <td className="px-3 py-3 sm:px-5 sm:py-4 text-slate-600">
-                            {employee.dateOfBirth
-                              ? new Date(
-                                  employee.dateOfBirth,
-                                ).toLocaleDateString()
-                              : 'N/A'}
+                          {/* ==================================================
+          DATE OF JOINING
+      =================================================== */}
+
+                          <td className="px-3 py-3 sm:px-5 sm:py-4">
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                value={editingEmployeeData.dateOfJoining}
+                                onChange={(e) =>
+                                  handleEmployeeEditChange(
+                                    'dateOfJoining',
+                                    e.target.value,
+                                  )
+                                }
+                                className="
+              h-10
+              w-full
+              min-w-42.5
+              rounded-lg
+              border
+              border-slate-300
+              bg-white
+              px-3
+              text-sm
+              text-slate-800
+              outline-none
+              focus:border-blue-500
+              focus:ring-2
+              focus:ring-blue-100
+            "
+                              />
+                            ) : (
+                              <span className="text-slate-600">
+                                {employee.dateOfJoining
+                                  ? new Date(
+                                      employee.dateOfJoining,
+                                    ).toLocaleDateString()
+                                  : 'N/A'}
+                              </span>
+                            )}
                           </td>
 
-                          {/* Password */}
-                          {/* Reset Password */}
+                          {/* ==================================================
+          RESET PASSWORD
+          DO NOT CHANGE THIS BUTTON
+      =================================================== */}
+
                           <td className="px-3 py-3 sm:px-5 sm:py-4">
                             <button
                               type="button"
                               onClick={() => handleOpenResetPassword(employee)}
                               className="
-      rounded-lg
-      bg-blue-600
-      px-4
-      py-2
-      text-sm
-      font-medium
-      text-white
-      transition
-      hover:bg-blue-700
-      focus:outline-none
-      focus:ring-2
-      focus:ring-blue-200
-    "
+            rounded-lg
+            bg-blue-600
+            px-4
+            py-2
+            text-sm
+            font-medium
+            text-white
+            transition
+            hover:bg-blue-700
+            focus:outline-none
+            focus:ring-2
+            focus:ring-blue-200
+          "
                             >
                               Reset Password
                             </button>
                           </td>
+
+                          {/* ==================================================
+          EDIT / SAVE / CANCEL
+      =================================================== */}
+
+                          <td className="px-3 py-3 sm:px-5 sm:py-4">
+                            {isEditing ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleSaveEmployee(employee._id)
+                                  }
+                                  disabled={employeeUpdateLoading}
+                                  className="
+                rounded-lg
+                bg-green-600
+                px-4
+                py-2
+                text-sm
+                font-medium
+                text-white
+                transition
+                hover:bg-green-700
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+              "
+                                >
+                                  {employeeUpdateLoading ? 'Saving...' : 'Save'}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditEmployee}
+                                  disabled={employeeUpdateLoading}
+                                  className="
+                rounded-lg
+                bg-slate-100
+                px-4
+                py-2
+                text-sm
+                font-medium
+                text-slate-700
+                transition
+                hover:bg-slate-200
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+              "
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleStartEditEmployee(employee)
+                                }
+                                className="
+              rounded-lg
+              border
+              border-slate-300
+              bg-white
+              px-4
+              py-2
+              text-sm
+              font-medium
+              text-slate-700
+              transition
+              hover:bg-slate-50
+              hover:border-blue-400
+              hover:text-blue-600
+            "
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </td>
                         </tr>
-                      ))
-                    )}
+                      );
+                    })}
                   </tbody>
                 </table>
                 {showResetPassword && selectedEmployee && (
@@ -1864,26 +2206,65 @@ const AdminDashboard = () => {
                           New Password
                         </label>
 
-                        <input
-                          type="password"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="Enter new password"
-                          className="
-            h-12
-            w-full
-            rounded-lg
-            border
-            border-slate-300
-            px-4
-            text-sm
-            text-slate-800
-            outline-none
-            focus:border-blue-500
-            focus:ring-2
-            focus:ring-blue-100
-          "
-                        />
+                        <div className="relative">
+                          <input
+                            type={showNewPassword ? 'text' : 'password'}
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Enter new password"
+                            className="
+        h-12
+        w-full
+        rounded-lg
+        border
+        border-slate-300
+        px-4
+        pr-12
+        text-sm
+        text-slate-800
+        outline-none
+        focus:border-blue-500
+        focus:ring-2
+        focus:ring-blue-100
+      "
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowNewPassword((previous) => !previous)
+                            }
+                            className="
+        absolute
+        right-0
+        top-0
+        flex
+        h-12
+        w-12
+        items-center
+        justify-center
+        rounded-r-lg
+        text-slate-500
+        transition
+        hover:bg-slate-50
+        hover:text-slate-700
+        focus:outline-none
+        focus:ring-2
+        focus:ring-blue-100
+      "
+                            aria-label={
+                              showNewPassword
+                                ? 'Hide new password'
+                                : 'Show new password'
+                            }
+                          >
+                            {showNewPassword ? (
+                              <EyeOff size={19} />
+                            ) : (
+                              <Eye size={19} />
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Confirm Password */}
@@ -1892,28 +2273,67 @@ const AdminDashboard = () => {
                           Confirm New Password
                         </label>
 
-                        <input
-                          type="password"
-                          value={confirmNewPassword}
-                          onChange={(e) =>
-                            setConfirmNewPassword(e.target.value)
-                          }
-                          placeholder="Confirm new password"
-                          className="
-            h-12
-            w-full
-            rounded-lg
-            border
-            border-slate-300
-            px-4
-            text-sm
-            text-slate-800
-            outline-none
-            focus:border-blue-500
-            focus:ring-2
-            focus:ring-blue-100
-          "
-                        />
+                        <div className="relative">
+                          <input
+                            type={showConfirmNewPassword ? 'text' : 'password'}
+                            value={confirmNewPassword}
+                            onChange={(e) =>
+                              setConfirmNewPassword(e.target.value)
+                            }
+                            placeholder="Confirm new password"
+                            className="
+        h-12
+        w-full
+        rounded-lg
+        border
+        border-slate-300
+        px-4
+        pr-12
+        text-sm
+        text-slate-800
+        outline-none
+        focus:border-blue-500
+        focus:ring-2
+        focus:ring-blue-100
+      "
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setShowConfirmNewPassword((previous) => !previous)
+                            }
+                            className="
+        absolute
+        right-0
+        top-0
+        flex
+        h-12
+        w-12
+        items-center
+        justify-center
+        rounded-r-lg
+        text-slate-500
+        transition
+        hover:bg-slate-50
+        hover:text-slate-700
+        focus:outline-none
+        focus:ring-2
+        focus:ring-blue-100
+      "
+                            aria-label={
+                              showConfirmNewPassword
+                                ? 'Hide confirm password'
+                                : 'Show confirm password'
+                            }
+                          >
+                            {showConfirmNewPassword ? (
+                              <EyeOff size={19} />
+                            ) : (
+                              <Eye size={19} />
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Error */}
@@ -2611,10 +3031,6 @@ const AdminDashboard = () => {
                       </th>
 
                       <th className="px-5 py-4 text-left font-semibold text-slate-600">
-                        Priority
-                      </th>
-
-                      <th className="px-5 py-4 text-left font-semibold text-slate-600">
                         Client
                       </th>
 
@@ -2704,26 +3120,6 @@ const AdminDashboard = () => {
                           </td>
 
                           {/* PRIORITY */}
-                          <td className="px-5 py-4">
-                            <span
-                              className={`
-                        rounded-full
-                        px-3
-                        py-1
-                        text-xs
-                        font-semibold
-                        ${
-                          task.priority === 'High'
-                            ? 'bg-red-100 text-red-700'
-                            : task.priority === 'Low'
-                              ? 'bg-slate-100 text-slate-600'
-                              : 'bg-yellow-100 text-yellow-700'
-                        }
-                      `}
-                            >
-                              {task.priority || 'Medium'}
-                            </span>
-                          </td>
 
                           {/* CLIENT */}
                           <td className="px-5 py-4 text-slate-600">

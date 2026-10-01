@@ -12,6 +12,7 @@ import {
   deleteAdminTask,
   getEmployeePerformance,
   resetEmployeePassword,
+  updateEmployee,
 } from '../controllers/adminController.js';
 
 import {
@@ -143,4 +144,11 @@ router.put(
 );
 
 router.put('/tasks/:taskId', authMiddleware, adminMiddleware, updateTask);
+
+router.put(
+  '/employees/:employeeId',
+  authMiddleware,
+  adminMiddleware,
+  updateEmployee,
+);
 export default router;

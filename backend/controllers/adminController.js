@@ -7,9 +7,9 @@ import Task from '../models/Task.js';
 
 export const registerEmployee = async (req, res) => {
   try {
-    const { name, email, password, confirmPassword, dateOfBirth } = req.body;
+    const { name, email, password, confirmPassword, dateOfJoining } = req.body;
 
-    if (!name || !email || !password || !confirmPassword || !dateOfBirth) {
+    if (!name || !email || !password || !confirmPassword || !dateOfJoining) {
       return res.status(400).json({
         message: 'All fields are required',
       });
@@ -39,7 +39,7 @@ export const registerEmployee = async (req, res) => {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       role: 'employee',
-      dateOfBirth,
+      dateOfJoining,
     });
 
     await employee.save();
@@ -51,7 +51,7 @@ export const registerEmployee = async (req, res) => {
         _id: employee._id,
         name: employee.name,
         email: employee.email,
-        dateOfBirth: employee.dateOfBirth,
+        dateOfJoining: employee.dateOfJoining,
 
         // Only for immediate frontend display
         passwordForDisplay: password,
@@ -70,7 +70,7 @@ export const getEmployees = async (req, res) => {
   try {
     const employees = await User.find({
       role: 'employee',
-    }).select('name email dateOfBirth');
+    }).select('name email dateOfJoining');
 
     res.status(200).json(employees);
   } catch (error) {
@@ -420,6 +420,84 @@ export const resetEmployeePassword = async (req, res) => {
 
     return res.status(500).json({
       message: 'Failed to reset employee password',
+      error: error.message,
+    });
+  }
+};
+
+export const updateEmployee = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+
+    const { name, email, dateOfJoining } = req.body;
+
+    if (!employeeId) {
+      return res.status(400).json({
+        message: 'Employee ID is required.',
+      });
+    }
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        message: 'Employee name is required.',
+      });
+    }
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        message: 'Employee email is required.',
+      });
+    }
+
+    if (!dateOfJoining) {
+      return res.status(400).json({
+        message: 'Date of joining is required.',
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check whether another employee already uses this email
+    const existingEmployee = await User.findOne({
+      email: normalizedEmail,
+      _id: { $ne: employeeId },
+    });
+
+    if (existingEmployee) {
+      return res.status(409).json({
+        message: 'Another employee already uses this email.',
+      });
+    }
+
+    const employee = await User.findById(employeeId);
+
+    if (!employee) {
+      return res.status(404).json({
+        message: 'Employee not found.',
+      });
+    }
+
+    employee.name = name.trim();
+    employee.email = normalizedEmail;
+    employee.dateOfJoining = dateOfJoining;
+
+    await employee.save();
+
+    return res.status(200).json({
+      message: 'Employee details updated successfully.',
+      employee: {
+        _id: employee._id,
+        name: employee.name,
+        email: employee.email,
+        dateOfJoining: employee.dateOfJoining,
+        role: employee.role,
+      },
+    });
+  } catch (error) {
+    console.error('UPDATE EMPLOYEE ERROR:', error);
+
+    return res.status(500).json({
+      message: 'Failed to update employee details.',
       error: error.message,
     });
   }

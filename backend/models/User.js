@@ -57,6 +57,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
     },
 
+    dateOfJoining: {
+      type: Date,
+      default: null,
+    },
+
     // ==============================
     // FORGOT PASSWORD / OTP
     // ==============================
