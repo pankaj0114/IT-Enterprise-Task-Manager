@@ -1,7 +1,7 @@
 //import mongoose from 'mongoose';
-import Task from '../models/Task.js';
-import Client from '../models/Client.js';
-import User from '../models/User.js';
+import Task from '../../../Task Management project/backend/models/Task.js';
+import Client from '../../../Task Management project/backend/models/Client.js';
+import User from '../../../Task Management project/backend/models/User.js';
 
 // =====================================================
 // GET ALL TASKS FOR ADMIN

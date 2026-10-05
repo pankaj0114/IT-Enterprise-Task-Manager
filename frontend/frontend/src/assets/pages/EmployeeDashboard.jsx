@@ -12,7 +12,7 @@ import EmployeeAttendance from './EmployeeAttendance';
 import EmployeeNavbar from './EmployeeNavbar';
 import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
-import DatePicker from 'react-datepicker';
+//import DatePicker from 'react-datepicker';
 //import { useRef } from 'react';
 import socket from '../services/socket.js';
 
@@ -1649,8 +1649,6 @@ export default function EmployeeDashboard() {
           },
         },
       );
-
-      //console.log('UNCOMPLETED TASK:', response.data);
 
       const updatedTask = response.data.task;
 
