@@ -314,7 +314,7 @@ export const requestLeave = async (req, res) => {
 
     const today = getTodayKey();
 
-    if (startDate <= today) {
+    if (startDate < today) {
       return res.status(400).json({
         success: false,
         message:
