@@ -152,6 +152,20 @@ export default function MyTasks({ user, searchValue = '' }) {
     }
   };
 
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
+
+    try {
+      await axios.delete(`${API_BASE}/api/tasks/${taskId}`, authConfig());
+
+      // Remove the deleted task from local state immediately without full page refresh
+      setTasks((prevTasks) => prevTasks.filter((task) => task._id !== taskId));
+    } catch (err) {
+      console.error('Error deleting task:', err.response?.data || err.message);
+      alert(err.response?.data?.message || 'Failed to delete task.');
+    }
+  };
+
   const handleQuickAddTask = async () => {
     try {
       const title = newTask.title.trim();
@@ -159,6 +173,8 @@ export default function MyTasks({ user, searchValue = '' }) {
 
       const todayDate = getTodayDate();
       const currentUserId = user?._id || user?.id;
+
+      const finalDueDate = newTask.dueDate ? newTask.dueDate : todayDate;
       await axios.post(
         `${API_BASE}/api/tasks/assign`,
         {
@@ -167,7 +183,7 @@ export default function MyTasks({ user, searchValue = '' }) {
           assignedTo: 'me',
           assignedBy: currentUserId,
           priority: 'Medium',
-          dueDate: newTask.dueDate || todayDate,
+          dueDate: finalDueDate,
           client: newTask.client || null,
         },
         authConfig(),
@@ -273,59 +289,69 @@ export default function MyTasks({ user, searchValue = '' }) {
     }
   };
 
+  const saveRemark = async (taskId, value) => {
+    try {
+      await axios.put(
+        `${API_BASE}/api/tasks/${taskId}/remarks`,
+        { remarks: value },
+        authConfig(),
+      );
+
+      console.log('Remark saved successfully:', value);
+
+      // Update local task state
+      setTasks((prev) =>
+        prev.map((task) =>
+          String(task._id) === String(taskId)
+            ? { ...task, remarks: value }
+            : task,
+        ),
+      );
+
+      // Remove temporary editing state
+      setEditingRemarks((prev) => {
+        const updated = { ...prev };
+        delete updated[taskId];
+        return updated;
+      });
+    } catch (err) {
+      console.error('Error saving remark:', err.response?.data || err.message);
+    }
+  };
+
   const handleRemarkChange = (taskId, value) => {
-    // Update ONLY the local typing state.
-    // This keeps the textarea focused while typing.
+    // Update local typing state
     setEditingRemarks((prev) => ({
       ...prev,
       [taskId]: value,
     }));
 
-    // Clear previous timer for this task
+    // Clear previous timer
     if (typingTimeouts.current[taskId]) {
       clearTimeout(typingTimeouts.current[taskId]);
     }
 
     // Save after user stops typing for 1 second
-    typingTimeouts.current[taskId] = setTimeout(async () => {
-      try {
-        await axios.put(
-          `${API_BASE}/api/tasks/${taskId}/remarks`,
-          {
-            remarks: value,
-          },
-          authConfig(),
-        );
-
-        console.log('Remark saved successfully:', value);
-
-        // Update the task state without refetching the entire table.
-        setTasks((prev) =>
-          prev.map((task) =>
-            String(task._id) === String(taskId)
-              ? {
-                  ...task,
-                  remarks: value,
-                }
-              : task,
-          ),
-        );
-
-        // Remove temporary editing state
-        setEditingRemarks((prev) => {
-          const updated = { ...prev };
-          delete updated[taskId];
-          return updated;
-        });
-
-        delete typingTimeouts.current[taskId];
-      } catch (err) {
-        console.error(
-          'Error saving remark:',
-          err.response?.data || err.message,
-        );
-      }
+    typingTimeouts.current[taskId] = setTimeout(() => {
+      saveRemark(taskId, value);
+      delete typingTimeouts.current[taskId];
     }, 1000);
+  };
+
+  const handleKeyDown = (e, taskId, value) => {
+    if (e.key === 'Enter') {
+      // Prevent default form submission behavior if inside a form
+      e.preventDefault();
+
+      // Clear the 1-second debounce timer so it doesn't fire twice
+      if (typingTimeouts.current[taskId]) {
+        clearTimeout(typingTimeouts.current[taskId]);
+        delete typingTimeouts.current[taskId];
+      }
+
+      // Save immediately on Enter
+      saveRemark(taskId, value);
+    }
   };
 
   const filteredTaskClients = useMemo(() => {
@@ -845,7 +871,7 @@ export default function MyTasks({ user, searchValue = '' }) {
             key={task._id}
             className="border-b border-slate-100 hover:bg-slate-50"
           >
-            <td className="px-4 py-3 font-medium text-slate-700">
+            <td className="px-4 py-3 font-medium text-slate-700 max-w-xs">
               {editingTaskId === task._id ? (
                 <input
                   autoFocus
@@ -862,7 +888,8 @@ export default function MyTasks({ user, searchValue = '' }) {
                     }
                   }}
                   onBlur={() => handleUpdateTaskTitle(task._id)}
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                  // Changed w-full to w-64 or max-w-xs to keep it short
+                  className="h-10 w-64 max-w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-400"
                 />
               ) : (
                 <div
@@ -870,7 +897,9 @@ export default function MyTasks({ user, searchValue = '' }) {
                     setEditingTaskId(task._id);
                     setEditingTitle(task.title || '');
                   }}
-                  className="cursor-text rounded-md px-2 py-2 hover:bg-slate-100"
+                  // Added truncate and max-w classes, plus a title tooltip for full text on hover
+                  className="cursor-text rounded-md px-2 py-2 hover:bg-slate-100 truncate"
+                  title={task.title}
                 >
                   {task.title}
                 </div>
@@ -1049,10 +1078,29 @@ export default function MyTasks({ user, searchValue = '' }) {
                     : task.remarks || ''
                 }
                 onChange={(e) => handleRemarkChange(task._id, e.target.value)}
-                placeholder="Add your remarks..."
+                onKeyDown={(e) =>
+                  handleKeyDown(
+                    e,
+                    task._id,
+                    editingRemarks[task._id] !== undefined
+                      ? editingRemarks[task._id]
+                      : task.remarks || '',
+                  )
+                }
+                placeholder="Enter remarks..."
                 rows={2}
                 className="min-w-45 resize-y rounded-md border border-slate-300 bg-green-50 px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-green-300"
               />
+            </td>
+
+            <td className="px-4 py-3">
+              <button
+                type="button"
+                onClick={() => handleDeleteTask(task._id)}
+                className="rounded-md bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 transition"
+              >
+                Delete
+              </button>
             </td>
           </tr>
         );
@@ -1076,7 +1124,10 @@ export default function MyTasks({ user, searchValue = '' }) {
                 ].map((heading) => (
                   <th
                     key={heading}
-                    className="px-4 py-3 text-left font-semibold text-slate-700"
+                    // Add a fixed/max width constraint for the Title column
+                    className={`px-4 py-3 text-left font-semibold text-slate-700 ${
+                      heading === 'Title' ? 'w-48 max-w-48' : ''
+                    }`}
                   >
                     {heading}
                   </th>
@@ -1087,7 +1138,7 @@ export default function MyTasks({ user, searchValue = '' }) {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-10 text-center text-slate-500"
                   >
                     Loading your tasks...

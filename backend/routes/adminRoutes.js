@@ -13,6 +13,11 @@ import {
   getEmployeePerformance,
   resetEmployeePassword,
   updateEmployee,
+  deleteEmployee,
+  registerHrManager,
+  getHrManagers,
+  updateHrManager,
+  deleteHrManager,
 } from '../controllers/adminController.js';
 
 import {
@@ -150,5 +155,34 @@ router.put(
   authMiddleware,
   adminMiddleware,
   updateEmployee,
+);
+
+router.delete('/:id', authMiddleware, adminMiddleware, deleteEmployee);
+
+// ==========================================
+// HR MANAGER MANAGEMENT
+// ==========================================
+
+router.post(
+  '/register-hr-manager',
+  authMiddleware,
+  adminMiddleware,
+  registerHrManager,
+);
+
+router.get('/hr-managers', authMiddleware, adminMiddleware, getHrManagers);
+
+router.put(
+  '/hr-managers/:id',
+  authMiddleware,
+  adminMiddleware,
+  updateHrManager,
+);
+
+router.delete(
+  '/hr-managers/:id',
+  authMiddleware,
+  adminMiddleware,
+  deleteHrManager,
 );
 export default router;

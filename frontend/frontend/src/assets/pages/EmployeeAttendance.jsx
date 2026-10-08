@@ -253,6 +253,10 @@ export default function EmployeeAttendance() {
   };
 
   const handleAttendanceChange = async (dateKey, status) => {
+    if (status === 'WFO' && dateKey > getTodayKey()) {
+      setError('You cannot mark Work From Office for future dates.');
+      return;
+    }
     try {
       setSavingDate(dateKey);
       setError('');
@@ -473,6 +477,10 @@ export default function EmployeeAttendance() {
     }
 
     if (status === 'WFO') {
+      if (selectedDate > getTodayKey()) {
+        setError('You cannot mark Work From Office for future dates.');
+        return;
+      }
       try {
         setShowEditModal(false);
         setSavingDate(selectedDate);
@@ -1031,18 +1039,21 @@ export default function EmployeeAttendance() {
          ========================================================= */}
                             {!status && !leaveRequest && !wfhRequest && (
                               <div className="space-y-2">
-                                {/* WFO */}
-                                <button
-                                  type="button"
-                                  disabled={savingDate === dateKey}
-                                  onClick={() =>
-                                    handleAttendanceChange(dateKey, 'WFO')
-                                  }
-                                  className="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {savingDate === dateKey ? 'Saving...' : 'WFO'}
-                                </button>
-
+                                {/* Only show direct WFO button if it is NOT a future date */}
+                                {dateKey <= getTodayKey() && (
+                                  <button
+                                    type="button"
+                                    disabled={savingDate === dateKey}
+                                    onClick={() =>
+                                      handleAttendanceChange(dateKey, 'WFO')
+                                    }
+                                    className="w-xl-full w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {savingDate === dateKey
+                                      ? 'Saving...'
+                                      : 'WFO'}
+                                  </button>
+                                )}
                                 {/* WFH Request */}
                                 <button
                                   type="button"

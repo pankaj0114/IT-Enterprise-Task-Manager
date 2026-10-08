@@ -63,6 +63,25 @@ router.get('/', async (req, res) => {
   }
 });
 
+// DELETE /api/tasks/:id
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+
+    // Find and delete the task by its ID
+    const deletedTask = await Task.findByIdAndDelete(taskId);
+
+    if (!deletedTask) {
+      return res.status(404).json({ message: 'Task not found.' });
+    }
+
+    res.status(200).json({ message: 'Task deleted successfully.' });
+  } catch (err) {
+    console.error('Error deleting task on server:', err.message);
+    res.status(500).json({ message: 'Server error while deleting task.' });
+  }
+});
+
 // ✅ Get tasks for logged-in user (assigned to OR assigned by)
 router.get('/my-tasks', authMiddleware, async (req, res) => {
   try {
@@ -171,7 +190,7 @@ router.post('/assign', authMiddleware, async (req, res) => {
     if (quickAdd === true) {
       const task = new Task({
         title: title.trim(),
-        dueDate: null,
+        dueDate: req.body.dueDate,
         client: null,
 
         // Quick task belongs to logged-in employee

@@ -403,17 +403,6 @@ export default function AdminAttendance() {
           </button>
 
           <button
-            onClick={() => setActiveSection('mine')}
-            className={`min-h-10 flex-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-center text-xs font-medium transition sm:flex-none sm:px-4 sm:text-sm ${
-              activeSection === 'mine'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            My Attendance
-          </button>
-
-          <button
             onClick={() => setActiveSection('requests')}
             className={`relative min-h-10 flex-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-center text-xs font-medium transition sm:flex-none sm:px-4 sm:text-sm ${
               activeSection === 'requests'

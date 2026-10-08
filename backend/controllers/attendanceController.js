@@ -2,7 +2,7 @@ import Attendance from '../../../Task Management project/backend/models/Attendan
 import LeaveRequest from '../../../Task Management project/backend/models/LeaveRequest.js';
 import WfhRequest from '../../../Task Management project/backend/models/WfhRequest.js';
 import User from '../../../Task Management project/backend/models/User.js';
-
+import Notification from '../../../Task Management project/backend/models/Notification.js';
 const VALID_STATUSES = ['WFO', 'WFH'];
 
 const isValidDateKey = (dateKey) => {
@@ -396,12 +396,42 @@ export const requestLeave = async (req, res) => {
     // CREATE PENDING LEAVE REQUEST
     // =========================================================
 
+    // =========================================================
+    // CREATE PENDING LEAVE REQUEST
+    // =========================================================
+
     const leaveRequest = await LeaveRequest.create({
       employee: req.user.id,
       startDate,
       endDate,
       reason: reason.trim(),
       status: 'PENDING',
+    });
+
+    // --> ADD NOTIFICATION LOGIC HERE <--
+    try {
+      const admins = await User.find({ role: 'admin' });
+      const notifications = admins.map((admin) => ({
+        recipient: admin._id,
+        sender: req.user.id,
+        message: `${employee.name || 'An employee'} submitted a new leave request.`,
+        type: 'LEAVE_REQUEST',
+      }));
+
+      if (notifications.length > 0) {
+        await Notification.insertMany(notifications);
+      }
+    } catch (notifError) {
+      console.error(
+        'Failed to create admin notifications for leave:',
+        notifError,
+      );
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Leave request submitted for admin approval.',
+      leaveRequest,
     });
 
     return res.status(201).json({
@@ -979,6 +1009,9 @@ export const requestWfh = async (req, res) => {
      * Do NOT create WFH attendance here.
      * Attendance should only be created when admin approves.
      */
+    /*
+     * Create the WFH request as PENDING.
+     */
     const request = await WfhRequest.create({
       employee: employeeId,
       startDate,
@@ -986,6 +1019,27 @@ export const requestWfh = async (req, res) => {
       reason: reason.trim(),
       status: 'PENDING',
     });
+
+    // --> ADD NOTIFICATION LOGIC HERE <--
+    try {
+      const employeeUser = await User.findById(employeeId);
+      const admins = await User.find({ role: 'admin' });
+      const notifications = admins.map((admin) => ({
+        recipient: admin._id,
+        sender: employeeId,
+        message: `${employeeUser?.name || 'An employee'} submitted a new WFH request.`,
+        type: 'WFH_REQUEST',
+      }));
+
+      if (notifications.length > 0) {
+        await Notification.insertMany(notifications);
+      }
+    } catch (notifError) {
+      console.error(
+        'Failed to create admin notifications for WFH:',
+        notifError,
+      );
+    }
 
     const populatedRequest = await WfhRequest.findById(request._id)
       .populate('employee', 'name email')

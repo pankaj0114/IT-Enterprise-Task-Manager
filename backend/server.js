@@ -53,7 +53,7 @@ const io = new Server(server, {
   cors: {
     origin: ['http://localhost:5173'],
 
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
   },
 });
@@ -66,12 +66,31 @@ app.set('io', io);
 // ========================================
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('🟢 SOCKET CONNECTED:', socket.id);
 
-  // join room for this user (use their userId)
   socket.on('join', (userId) => {
-    socket.join(userId);
-    console.log(`User ${userId} joined their room`);
+    if (!userId) {
+      console.log('❌ Socket join called without userId');
+      return;
+    }
+
+    const roomId = String(userId);
+
+    socket.join(roomId);
+
+    console.log('👤 SOCKET ROOM JOINED');
+    console.log('Socket ID:', socket.id);
+    console.log('User ID:', roomId);
+    console.log('Rooms:', [...socket.rooms]);
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('🔴 SOCKET DISCONNECTED:', socket.id);
+    console.log('Reason:', reason);
+  });
+
+  socket.on('error', (error) => {
+    console.error('❌ SOCKET ERROR:', error);
   });
 });
 

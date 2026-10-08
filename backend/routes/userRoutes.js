@@ -54,14 +54,9 @@ router.post(
 );
 
 // Update user (Admin, Super Admin)
-router.put(
-  '/:id',
-  authMiddleware,
-  authorizeRoles('Admin', 'SuperAdmin'),
-  updateUser,
-);
+router.put('/:id', authMiddleware, authorizeRoles('Admin'), updateUser);
 
 // Delete user (Super Admin only)
-router.delete('/:id', authMiddleware, authorizeRoles('SuperAdmin'), deleteUser);
+router.delete('/:id', authMiddleware, authorizeRoles('Admin'), deleteUser);
 
 export default router;

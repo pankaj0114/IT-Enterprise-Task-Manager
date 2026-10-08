@@ -105,6 +105,8 @@ export default function EmployeeDashboard() {
   const [clientSearchTaskId, setClientSearchTaskId] = useState(null);
   const [clientSearchText, setClientSearchText] = useState('');
   const [showTaskClientDropdown, setShowTaskClientDropdown] = useState(false);
+
+  const [taskToDeleteId, setTaskToDeleteId] = useState(null);
   //const [highlightedTaskClientIndex, setHighlightedTaskClientIndex] =
   useState(-1);
 
@@ -942,6 +944,15 @@ export default function EmployeeDashboard() {
       setTimeout(() => {
         setShowSuccessMessage(false);
       }, 3000);
+
+      if (response.status === 200 || response.status === 204) {
+        // 2. Update the local state to remove the deleted task immediately
+        setAssignedTasks((prevTasks) =>
+          prevTasks.filter((task) => task._id !== taskId),
+        );
+
+        // Optional: Show a success toast/message
+      }
     } catch (error) {
       console.error('Failed to delete assigned task:', error);
       console.error('Delete error response:', error.response?.data);
@@ -1789,7 +1800,7 @@ export default function EmployeeDashboard() {
         `}
             >
               <MdOutlineNearMe size={20} />
-              <span>Assigned Task</span>
+              <span>Assign Task</span>
             </li>
 
             {/* Completed Tasks */}
@@ -1910,6 +1921,40 @@ export default function EmployeeDashboard() {
                     className="mt-5 rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700"
                   >
                     OK
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {taskToDeleteId && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+                <h3 className="text-lg font-semibold text-slate-800">
+                  Are you sure you want to delete this task?
+                </h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  This action cannot be undone.
+                </p>
+
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTaskToDeleteId(null)}
+                    className="rounded-md bg-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-300"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const id = taskToDeleteId;
+                      setTaskToDeleteId(null);
+                      await handleDeleteAssignedTask(id);
+                    }}
+                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                  >
+                    Yes, Delete
                   </button>
                 </div>
               </div>
@@ -2292,39 +2337,6 @@ export default function EmployeeDashboard() {
                     </div>
 
                     {/* Client */}
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">
-                        Client
-                      </label>
-
-                      <select
-                        value={assignedTaskClientFilter}
-                        onChange={(e) =>
-                          setAssignedTaskClientFilter(e.target.value)
-                        }
-                        className="
-          w-full
-          rounded-md
-          border border-slate-300
-          bg-white
-          px-3
-          py-2
-          text-sm
-          outline-none
-          focus:border-blue-400
-          focus:ring-2
-          focus:ring-blue-200
-        "
-                      >
-                        <option value="all">All Clients</option>
-
-                        {clients.map((client) => (
-                          <option key={client._id} value={client._id}>
-                            {client.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
 
                     {/* Due Date */}
                     <div>
@@ -2589,21 +2601,22 @@ export default function EmployeeDashboard() {
                           </td>
 
                           {/* Delete */}
+                          {/* Delete */}
                           <td className="px-4 py-3">
                             <button
                               type="button"
-                              onClick={() => handleDeleteAssignedTask(task._id)}
+                              onClick={() => setTaskToDeleteId(task._id)}
                               className="
-                  px-4
-                  py-2
-                  rounded-md
-                  bg-red-500
-                  hover:bg-red-600
-                  text-white
-                  text-xs
-                  font-medium
-                  transition
-                "
+      px-4
+      py-2
+      rounded-md
+      bg-red-500
+      hover:bg-red-600
+      text-white
+      text-xs
+      font-medium
+      transition
+    "
                             >
                               Delete
                             </button>
