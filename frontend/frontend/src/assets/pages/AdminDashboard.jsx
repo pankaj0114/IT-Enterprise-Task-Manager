@@ -797,17 +797,15 @@ const AdminDashboard = () => {
     setResetPasswordSuccess('');
   };
 
-  const handleResetPassword = async () => {
-    if (!selectedEmployee) {
+  const handleResetPassword = async (e) => {
+    e?.preventDefault();
+
+    if (!selectedEmployee?._id) {
+      setResetPasswordError('Please select a valid user.');
       return;
     }
 
-    if (!newPassword) {
-      setResetPasswordError('Please enter a new password.');
-      return;
-    }
-
-    if (newPassword.length < 6) {
+    if (!newPassword || newPassword.length < 6) {
       setResetPasswordError('Password must be at least 6 characters long.');
       return;
     }
@@ -817,53 +815,64 @@ const AdminDashboard = () => {
       return;
     }
 
+    const token = localStorage.getItem('accessToken');
+
+    if (!token) {
+      setResetPasswordError('Your session has expired. Please log in again.');
+      return;
+    }
+
+    const isHrManager = selectedEmployee.role === 'hr_manager';
+
+    const endpoint = isHrManager
+      ? `/api/admin/hr-managers/${selectedEmployee._id}/reset-password`
+      : `/api/admin/employees/${selectedEmployee._id}/reset-password`;
+
     try {
       setResetPasswordLoading(true);
       setResetPasswordError('');
       setResetPasswordSuccess('');
 
-      const token = localStorage.getItem('accessToken');
+      // Use your existing backend base URL.
+      const API_BASE_URL = 'http://localhost:5000';
 
-      if (!token) {
-        setResetPasswordError(
-          'Authentication token not found. Please login again.',
-        );
-        return;
-      }
-
-      await axios.put(
-        selectedEmployee.role === 'hr_manager'
-          ? `http://localhost:5000/api/admin/hr-managers/${selectedEmployee._id}/reset-password`
-          : `http://localhost:5000/api/admin/employees/${selectedEmployee._id}/reset-password`,
-        {
-          newPassword,
-        },
+      const response = await axios.put(
+        `${API_BASE_URL}${endpoint}`,
+        { newPassword },
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
         },
       );
 
-      setResetPasswordSuccess('Password reset successfully.');
+      setResetPasswordSuccess(
+        response.data?.message || 'Password reset successfully.',
+      );
 
       setNewPassword('');
       setConfirmNewPassword('');
 
-      setTimeout(() => {
+      // Close the modal after showing the success message.
+      window.setTimeout(() => {
         handleCloseResetPassword();
       }, 1200);
     } catch (error) {
-      console.error('RESET PASSWORD ERROR:', error);
+      console.error(
+        'RESET PASSWORD ERROR:',
+        error.response?.status,
+        error.response?.data || error.message,
+      );
 
       setResetPasswordError(
-        error.response?.data?.message || 'Failed to reset password.',
+        error.response?.data?.message ||
+          `Password reset failed (${error.response?.status || 'network error'}).`,
       );
     } finally {
       setResetPasswordLoading(false);
     }
   };
-
   // ==========================================
   // CLIENT FORM CHANGE
   // ==========================================
@@ -2154,7 +2163,7 @@ const AdminDashboard = () => {
                 </span>
               </div>
               <div className="w-full overflow-x-auto">
-                <table className="w-full min-w-212.5text-sm">
+                <table className="w-full min-w-212.5 text-sm">
                   <thead className="bg-slate-50 text-left text-slate-600">
                     <tr>
                       {[
@@ -3073,6 +3082,141 @@ const AdminDashboard = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Reset Password Modal */}
+        {showResetPassword && selectedEmployee && (
+          <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="mb-5">
+                <h2 className="text-xl font-bold text-slate-800">
+                  Reset Password
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Set a new password for {selectedEmployee.name}.
+                </p>
+              </div>
+
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                {/* New Password */}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    New Password
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      minLength={6}
+                      autoComplete="new-password"
+                      required
+                      className="w-full rounded-lg border border-slate-300 px-4 py-3 pr-12 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((prev) => !prev)}
+                      aria-label={
+                        showNewPassword
+                          ? 'Hide new password'
+                          : 'Show new password'
+                      }
+                      aria-pressed={showNewPassword}
+                      className="absolute inset-y-0 right-3 flex items-center justify-center text-slate-500 transition-colors hover:text-slate-800"
+                    >
+                      {showNewPassword ? (
+                        <EyeOff size={20} />
+                      ) : (
+                        <Eye size={20} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm New Password */}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    Confirm New Password
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      minLength={6}
+                      autoComplete="new-password"
+                      required
+                      className="w-full rounded-lg border border-slate-300 px-4 py-3 pr-12 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      aria-label={
+                        showConfirmPassword
+                          ? 'Hide confirm password'
+                          : 'Show confirm password'
+                      }
+                      aria-pressed={showConfirmPassword}
+                      className="absolute inset-y-0 right-3 flex items-center justify-center text-slate-500 transition-colors hover:text-slate-800"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff size={20} />
+                      ) : (
+                        <Eye size={20} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Error Message */}
+                {resetPasswordError && (
+                  <p
+                    role="alert"
+                    className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                  >
+                    {resetPasswordError}
+                  </p>
+                )}
+
+                {/* Success Message */}
+                {resetPasswordSuccess && (
+                  <p
+                    role="status"
+                    className="rounded-lg bg-green-50 p-3 text-sm text-green-700"
+                  >
+                    {resetPasswordSuccess}
+                  </p>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCloseResetPassword}
+                    disabled={resetPasswordLoading}
+                    className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={resetPasswordLoading}
+                    className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {resetPasswordLoading ? 'Resetting...' : 'Update Password'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </main>
