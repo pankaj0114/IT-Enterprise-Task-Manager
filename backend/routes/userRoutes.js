@@ -22,9 +22,10 @@ const router = express.Router();
 
 router.get('/employees', async (req, res) => {
   try {
-    const employees = await User.find({ role: 'employee' }).select(
-      'name email',
-    );
+    const employees = await User.find({
+      role: { $in: ['employee', 'admin'] },
+    }).select('_id name role email');
+
     res.json(employees);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });

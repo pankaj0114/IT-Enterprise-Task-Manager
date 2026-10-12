@@ -827,3 +827,40 @@ export const deleteHrManager = async (req, res) => {
     });
   }
 };
+
+export const resetHrManagerPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({
+        message: 'Password must be at least 6 characters long.',
+      });
+    }
+
+    const hrManager = await User.findOne({
+      _id: id,
+      role: 'hr_manager',
+    });
+
+    if (!hrManager) {
+      return res.status(404).json({
+        message: 'HR Manager not found.',
+      });
+    }
+
+    hrManager.password = await bcrypt.hash(newPassword, 10);
+    await hrManager.save();
+
+    return res.status(200).json({
+      message: 'HR Manager password reset successfully.',
+    });
+  } catch (error) {
+    console.error('Reset HR Manager password error:', error);
+
+    return res.status(500).json({
+      message: 'Failed to reset HR Manager password.',
+    });
+  }
+};

@@ -708,8 +708,8 @@ export default function EmployeeAttendance() {
   */
 
   return (
-    <div className="min-h-full bg-slate-50 p-4 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-5">
+    <div className="min-h-full w-full min-w-0 max-w-full bg-slate-50 p-3 sm:p-4 md:p-6">
+      <div className="mx-auto w-full min-w-0 max-w-7xl space-y-4 sm:space-y-5">
         {/* Header */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -739,37 +739,37 @@ export default function EmployeeAttendance() {
         )}
 
         {/* Calendar */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {/* Calendar header */}
 
           <div>
-            <div className="flex min-h-22.5 items-center justify-between gap-5 px-1">
+            <div className="flex min-w-0 flex-col items-stretch justify-between gap-3 px-3 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
               {/* Left: Month navigation */}
-              <div className="flex items-center gap-5">
+              <div className="flex min-w-0 items-center justify-between gap-2 sm:justify-start sm:gap-4">
                 <button
                   type="button"
                   onClick={previousMonth}
-                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 sm:h-14 sm:w-14"
                 >
                   ‹
                 </button>
 
-                <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                <h2 className="min-w-0 text-center text-xl font-bold tracking-tight text-slate-900 sm:text-left sm:text-2xl md:text-3xl xl:text-4xl">
                   {formatMonth(currentMonth)}
                 </h2>
 
                 <button
                   type="button"
                   onClick={nextMonth}
-                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 sm:h-14 sm:w-14"
                 >
                   ›
                 </button>
               </div>
 
               {/* Right: Today's status */}
-              <div className="flex items-center gap-2 pr-2">
-                <span className="text-xl font-extrabold text-slate-900">
+              <div className="flex min-w-0 flex-wrap items-center gap-2 pr-0 sm:pr-2">
+                <span className="text-sm font-extrabold text-slate-900 sm:text-base lg:text-xl">
                   Today:
                 </span>
                 {(() => {
@@ -829,7 +829,7 @@ export default function EmployeeAttendance() {
             </div>{' '}
             {/* Monthly Summary */}
             {/* Attendance Summary */}
-            <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-3">
+            <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 sm:mt-5 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
               {/* WFO */}
               <div className="flex min-h-3.25 flex-col justify-between rounded-2xl border border-green-100 bg-green-50 p-6 shadow-sm">
                 <div>
@@ -892,9 +892,9 @@ export default function EmployeeAttendance() {
           </div>
 
           {/* Calendar */}
-          <div className="p-3 md:p-5">
+          <div className="min-w-0 p-2 sm:p-3 md:p-5">
             {loading ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7">
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7">
                 {Array.from({ length: 14 }, (_, index) => (
                   <div
                     key={index}
@@ -903,7 +903,7 @@ export default function EmployeeAttendance() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7">
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7">
                 {days.map((day) => {
                   const dateKey = getDateKey(day);
                   const status = attendanceMap[dateKey];
@@ -926,7 +926,7 @@ export default function EmployeeAttendance() {
                   return (
                     <div
                       key={dateKey}
-                      className={`group relative min-h-36.25 rounded-xl border p-3 transition ${
+                      className={`group relative min-w-0 min-h-36.25 rounded-xl border p-2.5 transition sm:p-3 ${
                         isToday
                           ? 'border-slate-400 ring-2 ring-slate-100'
                           : 'border-slate-200'
@@ -943,7 +943,7 @@ export default function EmployeeAttendance() {
                       }`}
                     >
                       {/* Date */}
-                      <div className="flex items-start justify-between pr-14">
+                      <div className="flex min-w-0 items-start justify-between gap-1 pr-0 sm:pr-2">
                         <div>
                           <div className="text-xs font-medium uppercase text-slate-400">
                             {day.toLocaleDateString('en-US', {
@@ -1257,8 +1257,8 @@ export default function EmployeeAttendance() {
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-200 p-5">
-              <div className="flex items-center justify-between">
+            <div className="border-b border-slate-200 p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold text-slate-900">
                     Edit Attendance
@@ -1493,10 +1493,10 @@ export default function EmployeeAttendance() {
         </div>
       )}
       {/* Leave Requests */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {/* Header */}
-        <div className="border-b border-slate-200 p-5">
-          <div className="flex items-center justify-between">
+        <div className="border-b border-slate-200 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold text-slate-900">Leave Requests</h2>
 
@@ -1521,7 +1521,7 @@ export default function EmployeeAttendance() {
             {leaveRequests.map((request) => (
               <div
                 key={request._id}
-                className="p-5 transition hover:bg-slate-50"
+                className="p-4 transition hover:bg-slate-50 sm:p-5"
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   {/* Left Side */}
@@ -1604,10 +1604,10 @@ export default function EmployeeAttendance() {
       </div>
 
       {/* WFH Requests */}
-      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="mt-4 w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:mt-6">
         {/* Header */}
-        <div className="border-b border-slate-200 p-5">
-          <div className="flex items-center justify-between">
+        <div className="border-b border-slate-200 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold text-slate-900">
                 Work From Home Requests
@@ -1634,7 +1634,7 @@ export default function EmployeeAttendance() {
             {wfhRequests.map((request) => (
               <div
                 key={request._id}
-                className="p-5 transition hover:bg-slate-50"
+                className="p-4 transition hover:bg-slate-50 sm:p-5"
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   {/* Left Side */}

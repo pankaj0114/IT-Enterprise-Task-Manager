@@ -503,13 +503,16 @@ const AssignTaskPage = ({
               focus:ring-blue-100
             "
             >
-              <option value="">-- Select Employee --</option>
+              <option value="">-- Select User--</option>
 
               <option value="me">Me</option>
 
               {employees.map((emp) => (
                 <option key={emp._id} value={emp._id}>
                   {emp.name}
+                  {String(emp.role || '').toLowerCase() === 'admin'
+                    ? ' (Admin)'
+                    : ''}
                 </option>
               ))}
             </select>

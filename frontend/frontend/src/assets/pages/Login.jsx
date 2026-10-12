@@ -33,7 +33,6 @@ export default function Login() {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
 
-      // Save tokens
       localStorage.setItem('accessToken', res.data.accessToken);
       localStorage.setItem('refreshToken', res.data.refreshToken);
 
@@ -41,27 +40,16 @@ export default function Login() {
 
       setMessage('Login successful!');
 
-      // Redirect based on role
       if (userRole === 'employee') {
-        navigate('/employee-dashboard', {
-          replace: true,
-        });
+        navigate('/employee-dashboard', { replace: true });
       } else if (userRole === 'admin') {
-        navigate('/admin-dashboard', {
-          replace: true,
-        });
+        navigate('/admin-dashboard', { replace: true });
       } else if (userRole === 'hr_manager') {
-        navigate('/hr-dashboard', {
-          replace: true,
-        });
+        navigate('/hr-dashboard', { replace: true });
       } else if (userRole === 'team_leader') {
-        navigate('/team-dashboard', {
-          replace: true,
-        });
+        navigate('/team-dashboard', { replace: true });
       } else if (userRole === 'super_admin') {
-        navigate('/super-dashboard', {
-          replace: true,
-        });
+        navigate('/super-dashboard', { replace: true });
       }
     } catch (error) {
       setMessage(error.response?.data?.message || 'Error logging in');
@@ -74,16 +62,17 @@ export default function Login() {
       <div className="w-full max-w-md">
         <form
           onSubmit={handleSubmit}
-          className="
-            bg-white
-            rounded-2xl
-            shadow-xl
-            border border-slate-200
-            px-5 py-6
-            sm:px-8 sm:py-9
-            md:px-10
-          "
+          className="bg-white rounded-2xl shadow-xl border border-slate-200 px-5 py-6 sm:px-8 sm:py-9 md:px-10"
         >
+          {/* Logo */}
+          <div className="flex justify-center mb-6">
+            <img
+              src="/webgetup-logo.png"
+              alt="WebGetUp"
+              className="w-full max-w-xs h-auto max-h-24 object-contain"
+            />
+          </div>
+
           {/* Header */}
           <div className="text-center mb-7 sm:mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-800">
@@ -107,14 +96,7 @@ export default function Login() {
             <div className="relative">
               <Mail
                 size={19}
-                className="
-                  absolute
-                  left-3
-                  top-1/2
-                  -translate-y-1/2
-                  text-slate-400
-                  pointer-events-none
-                "
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
               />
 
               <input
@@ -125,22 +107,7 @@ export default function Login() {
                 onChange={handleChange}
                 placeholder="Enter your email"
                 required
-                className="
-                  w-full
-                  h-12
-                  pl-10 pr-4
-                  rounded-lg
-                  border border-slate-300
-                  bg-white
-                  text-sm sm:text-base
-                  text-slate-800
-                  outline-none
-                  transition
-                  focus:border-blue-500
-                  focus:ring-2
-                  focus:ring-blue-100
-                  placeholder:text-slate-400
-                "
+                className="w-full h-12 pl-10 pr-4 rounded-lg border border-slate-300 bg-white text-sm sm:text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 placeholder:text-slate-400"
               />
             </div>
           </div>
@@ -157,14 +124,7 @@ export default function Login() {
             <div className="relative">
               <Lock
                 size={19}
-                className="
-                  absolute
-                  left-3
-                  top-1/2
-                  -translate-y-1/2
-                  text-slate-400
-                  pointer-events-none
-                "
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
               />
 
               <input
@@ -175,39 +135,13 @@ export default function Login() {
                 onChange={handleChange}
                 placeholder="Enter your password"
                 required
-                className="
-                  w-full
-                  h-12
-                  pl-10 pr-12
-                  rounded-lg
-                  border border-slate-300
-                  bg-white
-                  text-sm sm:text-base
-                  text-slate-800
-                  outline-none
-                  transition
-                  focus:border-blue-500
-                  focus:ring-2
-                  focus:ring-blue-100
-                  placeholder:text-slate-400
-                "
+                className="w-full h-12 pl-10 pr-12 rounded-lg border border-slate-300 bg-white text-sm sm:text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 placeholder:text-slate-400"
               />
 
-              {/* Eye Button */}
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="
-                  absolute
-                  right-3
-                  top-1/2
-                  -translate-y-1/2
-                  p-1
-                  text-slate-400
-                  hover:text-slate-700
-                  transition
-                  focus:outline-none
-                "
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 transition focus:outline-none"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
@@ -220,14 +154,7 @@ export default function Login() {
             <button
               type="button"
               onClick={() => navigate('/forgot-password')}
-              className="
-                text-sm
-                font-medium
-                text-blue-600
-                hover:text-blue-700
-                hover:underline
-                transition
-              "
+              className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline transition"
             >
               Forgot Password?
             </button>
@@ -236,21 +163,7 @@ export default function Login() {
           {/* Login Button */}
           <button
             type="submit"
-            className="
-              w-full
-              h-12
-              rounded-lg
-              bg-blue-600
-              hover:bg-blue-700
-              active:bg-blue-800
-              text-white
-              font-semibold
-              text-sm sm:text-base
-              transition
-              duration-200
-              shadow-sm
-              hover:shadow-md
-            "
+            className="w-full h-12 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm sm:text-base transition duration-200 shadow-sm hover:shadow-md"
           >
             Login
           </button>
@@ -258,18 +171,11 @@ export default function Login() {
           {/* Message */}
           {message && (
             <div
-              className={`
-                mt-5
-                rounded-lg
-                px-4 py-3
-                text-sm
-                text-center
-                ${
-                  message.toLowerCase().includes('successful')
-                    ? 'bg-green-50 text-green-700 border border-green-200'
-                    : 'bg-red-50 text-red-700 border border-red-200'
-                }
-              `}
+              className={`mt-5 rounded-lg px-4 py-3 text-sm text-center ${
+                message.toLowerCase().includes('successful')
+                  ? 'bg-green-50 text-green-700 border border-green-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}
             >
               {message}
             </div>

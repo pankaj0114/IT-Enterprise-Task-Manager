@@ -18,6 +18,7 @@ import {
   getHrManagers,
   updateHrManager,
   deleteHrManager,
+  resetHrManagerPassword,
 } from '../controllers/adminController.js';
 
 import {
@@ -177,6 +178,13 @@ router.put(
   authMiddleware,
   adminMiddleware,
   updateHrManager,
+);
+
+router.put(
+  '/hr-managers/:id/reset-password',
+  authMiddleware,
+  adminMiddleware,
+  resetHrManagerPassword,
 );
 
 router.delete(

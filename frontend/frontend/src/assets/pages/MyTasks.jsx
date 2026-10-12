@@ -841,14 +841,16 @@ export default function MyTasks({ user, searchValue = '' }) {
               </select>
             </td>
 
-            <td className="px-4 py-3">
-              <span className="text-slate-700">
+            <td className="px-3 py-3">
+              <span className="block truncate text-slate-700">
                 {getTaskClientName(task) || 'No client'}
               </span>
             </td>
 
-            <td className="px-4 py-3 text-slate-600">
-              {task.assignedBy?.name || ''}
+            <td className="px-3 py-3">
+              <span className="block truncate text-slate-600">
+                {task.assignedBy?.name || ''}
+              </span>
             </td>
 
             <td className="px-4 py-3">
@@ -869,7 +871,9 @@ export default function MyTasks({ user, searchValue = '' }) {
       : ({ task }) => (
           <tr
             key={task._id}
-            className="border-b border-slate-100 hover:bg-slate-50"
+            className={`relative border-b border-slate-100 hover:bg-slate-50 ${
+              clientSearchTaskId === task._id ? 'z-20' : 'z-0'
+            }`}
           >
             <td className="px-4 py-3 font-medium text-slate-700 max-w-xs">
               {editingTaskId === task._id ? (
@@ -948,7 +952,7 @@ export default function MyTasks({ user, searchValue = '' }) {
                 ref={
                   clientSearchTaskId === task._id ? taskClientDropdownRef : null
                 }
-                className="relative z-40 w-48 min-w-48"
+                className="relative z-30 w-52 min-w-52"
               >
                 {clientSearchTaskId !== task._id && task.client?.name ? (
                   <button
@@ -1023,11 +1027,13 @@ export default function MyTasks({ user, searchValue = '' }) {
 
                 {clientSearchTaskId === task._id && showTaskClientDropdown && (
                   <div
-                    className={`absolute left-0 right-0 z-100 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl ${
-                      taskList.indexOf(task) >= taskList.length - 2
-                        ? 'bottom-full mb-1'
-                        : 'top-full mt-1'
-                    }`}
+                    className={`absolute left-0 right-0 z-50 max-h-60
+  overflow-y-auto rounded-lg border border-slate-200
+  bg-white shadow-xl ${
+    taskList.indexOf(task) >= taskList.length - 2
+      ? 'bottom-full mb-1'
+      : 'top-full mt-1'
+  }`}
                   >
                     {filteredTaskClients.length ? (
                       filteredTaskClients.map((client, index) => {
@@ -1106,11 +1112,16 @@ export default function MyTasks({ user, searchValue = '' }) {
         );
 
     return (
-      <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="relative isolate w-full  rounded-xl border border-slate-200 bg-white shadow-sm">
         {renderTableFilters({ ...filterProps, taskList })}
 
         <div className="w-full overflow-x-auto overscroll-x-contain">
-          <table className="w-full min-w-237.5 border-collapse text-sm">
+          <table
+            className={`w-full border-collapse text-sm ${
+              readOnlyAssignmentFields ? 'min-w-262.5 ' : 'min-w-300 '
+            }`}
+          >
+            {' '}
             <thead>
               <tr className="border-b border-slate-200 bg-white">
                 {[
@@ -1123,10 +1134,16 @@ export default function MyTasks({ user, searchValue = '' }) {
                   'Remarks',
                 ].map((heading) => (
                   <th
-                    key={heading}
-                    // Add a fixed/max width constraint for the Title column
-                    className={`px-4 py-3 text-left font-semibold text-slate-700 ${
-                      heading === 'Title' ? 'w-48 max-w-48' : ''
+                    className={`px-3 py-3 text-left font-semibold text-slate-700 ${
+                      heading === 'Client'
+                        ? readOnlyAssignmentFields
+                          ? 'w-42.5'
+                          : 'w-56'
+                        : heading === 'Assigned By'
+                          ? readOnlyAssignmentFields
+                            ? 'w-42.5'
+                            : 'w-32'
+                          : ''
                     }`}
                   >
                     {heading}
@@ -1222,7 +1239,7 @@ export default function MyTasks({ user, searchValue = '' }) {
               name="client"
               value={newTask.client}
               onChange={handleChange}
-              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-600 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">Select an assigned client</option>
               {clients.map((client) => (
@@ -1257,7 +1274,7 @@ export default function MyTasks({ user, searchValue = '' }) {
             </select>
           </div>
 
-          <div className="col-span-1 flex justify-end md:col-span-2 xl:col-span-4">
+          <div className="col-span-1 flex justify-center md:col-span-2 xl:col-span-4">
             <button
               type="button"
               onClick={handleAddTask}

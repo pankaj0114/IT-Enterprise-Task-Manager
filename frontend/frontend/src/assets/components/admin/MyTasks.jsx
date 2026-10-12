@@ -432,13 +432,29 @@ export default function MyTasks({ user, admin }) {
     }
   };
 
+  const getTaskUserId = (value) => {
+    if (!value) return '';
+    return String(value._id || value.id || value);
+  };
+
+  const currentAdminId = getTaskUserId(currentAdmin?._id || currentAdmin?.id);
+
   const myOpenTasks = tasks.filter((task) => {
-    const assignedToId =
-      task.assignedTo?._id || task.assignedTo?.id || task.assignedTo;
-    const isMyTask = user?._id
-      ? String(assignedToId) === String(user._id)
-      : true;
-    return isMyTask && task.status !== 'Completed';
+    const assignedToId = getTaskUserId(task.assignedTo);
+    const assignedById = getTaskUserId(task.assignedBy);
+
+    return (
+      assignedToId === currentAdminId &&
+      assignedById === currentAdminId &&
+      task.status !== 'Completed'
+    );
+  });
+
+  const assignedToMeTasks = tasks.filter((task) => {
+    const assignedToId = getTaskUserId(task.assignedTo);
+    const assignedById = getTaskUserId(task.assignedBy);
+
+    return assignedToId === currentAdminId && assignedById !== currentAdminId;
   });
 
   return (
@@ -868,6 +884,154 @@ export default function MyTasks({ user, admin }) {
           </tbody>
         </table>
       </div>
+
+      {/* ADMIN: ASSIGNED TO ME */}
+      <section className="mt-8">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-slate-800 sm:text-xl">
+            Assigned to Me
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Tasks assigned to you by another user.
+          </p>
+        </div>
+
+        <div className="w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full min-w-275 border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-100">
+                {[
+                  'Title',
+                  'Issue Date',
+                  'Due Date',
+                  'Status',
+                  'Client',
+                  'Assigned By',
+                  'Remarks',
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    className="px-4 py-3 text-left font-semibold text-slate-700"
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-10 text-center text-slate-500"
+                  >
+                    Loading assigned tasks...
+                  </td>
+                </tr>
+              ) : assignedToMeTasks.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-10 text-center text-slate-500"
+                  >
+                    No tasks have been assigned to you.
+                  </td>
+                </tr>
+              ) : (
+                assignedToMeTasks.map((task) => {
+                  const clientId = getTaskUserId(task.client);
+                  const client =
+                    task.client && typeof task.client === 'object'
+                      ? task.client
+                      : clients.find(
+                          (item) => getTaskUserId(item) === clientId,
+                        );
+
+                  const clientName =
+                    client?.name ||
+                    client?.clientName ||
+                    client?.company ||
+                    (typeof task.client === 'string' ? task.client : '') ||
+                    'No client';
+
+                  const issueDate = task.issueDate
+                    ? new Date(task.issueDate).toISOString().slice(0, 10)
+                    : '';
+
+                  const dueDate = task.dueDate
+                    ? new Date(task.dueDate).toISOString().slice(0, 10)
+                    : '';
+
+                  return (
+                    <tr
+                      key={task._id}
+                      className="border-b border-slate-100 hover:bg-slate-50"
+                    >
+                      <td className="px-4 py-3 font-medium text-slate-700">
+                        {task.title}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <input
+                          type="date"
+                          readOnly
+                          value={issueDate}
+                          className="w-36 rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-xs"
+                        />
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <input
+                          type="date"
+                          value={dueDate}
+                          onChange={(e) =>
+                            handleDueDateChange(task._id, e.target.value)
+                          }
+                          min={getTodayDate()}
+                          className="w-36 rounded-md border border-slate-300 bg-white px-2 py-2 text-xs"
+                        />
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <select
+                          value={task.status || 'Not Started'}
+                          onChange={(e) => handleTaskChange(e, task._id)}
+                          className="w-36 rounded-md border border-slate-300 bg-white px-2 py-2 text-xs"
+                        >
+                          <option value="Not Started">Not Started</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Completed">Completed</option>
+                        </select>
+                      </td>
+
+                      <td className="px-4 py-3 text-slate-700">{clientName}</td>
+
+                      <td className="px-4 py-3 text-slate-600">
+                        {typeof task.assignedBy === 'object'
+                          ? task.assignedBy?.name || ''
+                          : ''}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <textarea
+                          value={task.remarks || ''}
+                          onChange={(e) =>
+                            handleRemarkChange(task._id, e.target.value)
+                          }
+                          placeholder="Add remarks..."
+                          rows={2}
+                          className="w-56 resize-y rounded-md border border-slate-300 bg-green-50 px-2 py-2 text-sm outline-none focus:ring-2 focus:ring-green-300"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {showPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

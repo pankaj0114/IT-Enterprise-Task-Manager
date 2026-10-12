@@ -47,7 +47,6 @@ const AdminDashboard = () => {
       'assignedTasks',
       'completedTasks',
       'userRegistration',
-      'hrManagerRegistration',
       'clients',
       'allTasks',
       'attendance',
@@ -833,7 +832,9 @@ const AdminDashboard = () => {
       }
 
       await axios.put(
-        `http://localhost:5000/api/admin/employees/${selectedEmployee._id}/reset-password`,
+        selectedEmployee.role === 'hr_manager'
+          ? `http://localhost:5000/api/admin/hr-managers/${selectedEmployee._id}/reset-password`
+          : `http://localhost:5000/api/admin/employees/${selectedEmployee._id}/reset-password`,
         {
           newPassword,
         },
@@ -1404,10 +1405,6 @@ const AdminDashboard = () => {
       fetchNotifications();
     }
 
-    if (activeTab === 'hrManagerRegistration') {
-      fetchHrManagers();
-    }
-
     if (activeTab === 'employeePerformance') {
       fetchEmployeePerformance();
     }
@@ -1430,6 +1427,151 @@ const AdminDashboard = () => {
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     navigate('/', { replace: true });
+  };
+
+  const [registrationRole, setRegistrationRole] = useState('employee');
+  const [registrationForm, setRegistrationForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    dateOfJoining: '',
+  });
+  const [unifiedUserLoading, setUnifiedUserLoading] = useState(false);
+  const [unifiedUserError, setUnifiedUserError] = useState('');
+  const [unifiedUserSuccess, setUnifiedUserSuccess] = useState('');
+
+  const handleUnifiedRegister = async (e) => {
+    e.preventDefault();
+    setUnifiedUserError('');
+    setUnifiedUserSuccess('');
+    if (registrationForm.password !== registrationForm.confirmPassword)
+      return setUnifiedUserError('Passwords do not match.');
+    if (registrationForm.password.length < 6)
+      return setUnifiedUserError(
+        'Password must be at least 6 characters long.',
+      );
+    const token = localStorage.getItem('accessToken');
+    if (!token)
+      return setUnifiedUserError(
+        'Authentication token not found. Please login again.',
+      );
+    const isHr = registrationRole === 'hr_manager';
+    try {
+      setUnifiedUserLoading(true);
+      const url = isHr
+        ? 'http://localhost:5000/api/admin/register-hr-manager'
+        : 'http://localhost:5000/api/admin/register-employee';
+      const response = await axios.post(url, registrationForm, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (isHr) await fetchHrManagers();
+      else await fetchEmployees();
+      setRegistrationForm({
+        name: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        dateOfJoining: '',
+      });
+      setUnifiedUserSuccess(
+        response.data?.message ||
+          `${isHr ? 'HR Manager' : 'Employee'} registered successfully.`,
+      );
+    } catch (error) {
+      setUnifiedUserError(
+        error.response?.data?.message || 'Unable to register user.',
+      );
+    } finally {
+      setUnifiedUserLoading(false);
+    }
+  };
+
+  const [unifiedEditingId, setUnifiedEditingId] = useState(null);
+  const [unifiedEditingRole, setUnifiedEditingRole] = useState(null);
+  const [unifiedEditingData, setUnifiedEditingData] = useState({
+    name: '',
+    email: '',
+    dateOfJoining: '',
+  });
+  const [unifiedEditLoading, setUnifiedEditLoading] = useState(false);
+
+  const handleUnifiedEdit = (record) => {
+    setUnifiedEditingId(record._id);
+    setUnifiedEditingRole(record.role);
+    setUnifiedEditingData({
+      name: record.name || '',
+      email: record.email || '',
+      dateOfJoining: record.dateOfJoining
+        ? String(record.dateOfJoining).slice(0, 10)
+        : '',
+    });
+    setUnifiedUserError('');
+    setUnifiedUserSuccess('');
+  };
+
+  const handleCancelUnifiedEdit = () => {
+    setUnifiedEditingId(null);
+    setUnifiedEditingRole(null);
+    setUnifiedEditingData({ name: '', email: '', dateOfJoining: '' });
+    setUnifiedUserError('');
+  };
+
+  const handleSaveUnifiedEdit = async (record) => {
+    const name = unifiedEditingData.name.trim();
+    const email = unifiedEditingData.email.trim();
+    const dateOfJoining = unifiedEditingData.dateOfJoining;
+
+    if (!name || !email || !dateOfJoining) {
+      setUnifiedUserError('Name, email, and date of joining are required.');
+      return;
+    }
+
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      setUnifiedUserError(
+        'Authentication token not found. Please login again.',
+      );
+      return;
+    }
+
+    try {
+      setUnifiedEditLoading(true);
+      setUnifiedUserError('');
+      const url =
+        record.role === 'hr_manager'
+          ? `http://localhost:5000/api/admin/hr-managers/${record._id}`
+          : `http://localhost:5000/api/admin/employees/${record._id}`;
+
+      await axios.put(
+        url,
+        { name, email, dateOfJoining },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      if (record.role === 'hr_manager') await fetchHrManagers();
+      else await fetchEmployees();
+
+      setUnifiedEditingId(null);
+      setUnifiedEditingRole(null);
+      setUnifiedEditingData({ name: '', email: '', dateOfJoining: '' });
+      setUnifiedUserSuccess('User details updated successfully.');
+    } catch (error) {
+      setUnifiedUserError(
+        error.response?.data?.message || 'Unable to update user details.',
+      );
+      setUnifiedUserSuccess('');
+    } finally {
+      setUnifiedEditLoading(false);
+    }
   };
 
   return (
@@ -1618,24 +1760,6 @@ const AdminDashboard = () => {
             <MdPersonAdd size={22} />
 
             <span className="hidden lg:inline">User Registration</span>
-          </button>
-
-          {/* HR Manager Registration */}
-          <button
-            type="button"
-            onClick={() => handleTabChange('hrManagerRegistration')}
-            className={`
-              flex w-full items-center justify-center gap-3 rounded-lg
-              px-3 py-3 text-left transition lg:justify-start lg:px-4
-              ${
-                activeTab === 'hrManagerRegistration'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-800'
-              }
-            `}
-          >
-            <span className="shrink-0 text-lg">👔</span>
-            <span className="hidden lg:inline">HR Manager Registration</span>
           </button>
 
           <button
@@ -1886,775 +2010,307 @@ const AdminDashboard = () => {
                 User Registration
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Register new employees and manage registered employees.
+                Register and manage employees and HR managers from one place.
               </p>
             </div>
-
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-6 mb-8">
-              <h2 className="text-lg font-semibold text-slate-800 mb-5">
-                Register Employee
+            <form
+              onSubmit={handleUnifiedRegister}
+              className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+            >
+              <h2 className="mb-5 text-lg font-semibold text-slate-800">
+                Register User
               </h2>
-
-              <form onSubmit={handleRegisterEmployee}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Enter employee name"
-                      className="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="employee@example.com"
-                      className="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        name="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter password"
-                        className="w-full px-4 py-2.5 pr-11 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 focus:outline-none"
-                        aria-label={
-                          showPassword ? 'Hide password' : 'Show password'
-                        }
-                      >
-                        {showPassword ? (
-                          <EyeOff size={20} />
-                        ) : (
-                          <Eye size={20} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      Confirm Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showConfirmPassword ? 'text' : 'password'}
-                        name="confirmPassword"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm password"
-                        className="w-full px-4 py-2.5 pr-11 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 focus:outline-none"
-                        aria-label={
-                          showConfirmPassword
-                            ? 'Hide confirm password'
-                            : 'Show confirm password'
-                        }
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff size={20} />
-                        ) : (
-                          <Eye size={20} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                      Date of Joining
-                    </label>
-                    <input
-                      type="date"
-                      name="dateOfJoining"
-                      value={dateOfJoining}
-                      onChange={(e) => setDateOfJoining(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {errorMessage && (
-                  <div className="mt-5 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
-                    {errorMessage}
-                  </div>
-                )}
-
-                {successMessage && (
-                  <div className="mt-5 px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-600 text-sm">
-                    {successMessage}
-                  </div>
-                )}
-
-                <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full px-6 py-2.5 rounded-lg bg-blue-600 sm:w-auto text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    {loading ? 'Registering...' : 'Register Employee'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-800">
-                    Registered Employees
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    View registered employee details.
-                  </p>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Role
+                  </label>
+                  <select
+                    value={registrationRole}
+                    onChange={(e) => setRegistrationRole(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5"
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="hr_manager">HR Manager</option>
+                  </select>
                 </div>
-                <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
-                  {employees.length} employee{employees.length !== 1 ? 's' : ''}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Name
+                  </label>
+                  <input
+                    required
+                    value={registrationForm.name}
+                    onChange={(e) =>
+                      setRegistrationForm((p) => ({
+                        ...p,
+                        name: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5"
+                    placeholder="Enter full name"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Email
+                  </label>
+                  <input
+                    required
+                    type="email"
+                    value={registrationForm.email}
+                    onChange={(e) =>
+                      setRegistrationForm((p) => ({
+                        ...p,
+                        email: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5"
+                    placeholder="name@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Date of Joining
+                  </label>
+                  <input
+                    required
+                    type="date"
+                    value={registrationForm.dateOfJoining}
+                    onChange={(e) =>
+                      setRegistrationForm((p) => ({
+                        ...p,
+                        dateOfJoining: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Password
+                  </label>
+                  <input
+                    required
+                    type="password"
+                    minLength={6}
+                    value={registrationForm.password}
+                    onChange={(e) =>
+                      setRegistrationForm((p) => ({
+                        ...p,
+                        password: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5"
+                    placeholder="At least 6 characters"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Confirm Password
+                  </label>
+                  <input
+                    required
+                    type="password"
+                    minLength={6}
+                    value={registrationForm.confirmPassword}
+                    onChange={(e) =>
+                      setRegistrationForm((p) => ({
+                        ...p,
+                        confirmPassword: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2.5"
+                    placeholder="Confirm password"
+                  />
+                </div>
+              </div>
+              {unifiedUserError && (
+                <p className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {unifiedUserError}
+                </p>
+              )}
+              {unifiedUserSuccess && (
+                <p className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                  {unifiedUserSuccess}
+                </p>
+              )}
+              <div className="mt-6 flex justify-end">
+                <button
+                  disabled={unifiedUserLoading}
+                  className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {unifiedUserLoading ? 'Registering...' : 'Register User'}
+                </button>
+              </div>
+            </form>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <h2 className="text-lg font-semibold text-slate-800">
+                  Registered Users
+                </h2>
+                <span className="text-sm text-slate-500">
+                  {employees.length + hrManagers.length} users
                 </span>
               </div>
-
-              {employeeUpdateError && (
-                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                  {employeeUpdateError}
-                </div>
-              )}
-
-              <div className="w-full overflow-x-auto overscroll-x-contain">
-                <table className="w-full min-w-200 text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-212.5text-sm">
+                  <thead className="bg-slate-50 text-left text-slate-600">
                     <tr>
-                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
-                        Name
-                      </th>
-                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
-                        Email
-                      </th>
-                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
-                        Date of Joining
-                      </th>
-                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
-                        Reset Password
-                      </th>
-                      <th className="px-3 py-3 sm:px-5 sm:py-4 text-left font-semibold text-slate-600">
-                        Action
-                      </th>
+                      {[
+                        'Name',
+                        'Email',
+                        'Role',
+                        'Date of Joining',
+                        'Reset Password',
+                        'Action',
+                      ].map((h) => (
+                        <th key={h} className="px-4 py-3 font-semibold">
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {employees.map((employee) => {
+                    {[
+                      ...employees.map((u) => ({ ...u, role: 'employee' })),
+                      ...hrManagers.map((u) => ({ ...u, role: 'hr_manager' })),
+                    ].map((u) => {
                       const isEditing =
-                        String(editingEmployeeId) === String(employee._id);
-
+                        String(unifiedEditingId) === String(u._id) &&
+                        unifiedEditingRole === u.role;
+                      const editInputClass =
+                        'w-full min-w-[140px] rounded-md border border-blue-300 px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200';
                       return (
-                        <tr
-                          key={employee._id}
-                          className="transition hover:bg-slate-50"
-                        >
-                          <td className="px-3 py-3 sm:px-5 sm:py-4">
+                        <tr key={u._id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 font-medium text-slate-800">
                             {isEditing ? (
                               <input
-                                type="text"
-                                value={editingEmployeeData.name}
+                                aria-label="Edit name"
+                                value={unifiedEditingData.name}
                                 onChange={(e) =>
-                                  handleEmployeeEditChange(
-                                    'name',
-                                    e.target.value,
-                                  )
+                                  setUnifiedEditingData((p) => ({
+                                    ...p,
+                                    name: e.target.value,
+                                  }))
                                 }
-                                className="h-10 w-full min-w-45 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className={editInputClass}
                               />
                             ) : (
-                              <span className="font-medium text-slate-800">
-                                {employee.name || 'N/A'}
-                              </span>
+                              u.name
                             )}
                           </td>
-
-                          <td className="px-3 py-3 sm:px-5 sm:py-4">
+                          <td className="px-4 py-3 text-slate-600">
                             {isEditing ? (
                               <input
+                                aria-label="Edit email"
                                 type="email"
-                                value={editingEmployeeData.email}
+                                value={unifiedEditingData.email}
                                 onChange={(e) =>
-                                  handleEmployeeEditChange(
-                                    'email',
-                                    e.target.value,
-                                  )
+                                  setUnifiedEditingData((p) => ({
+                                    ...p,
+                                    email: e.target.value,
+                                  }))
                                 }
-                                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className={editInputClass}
                               />
                             ) : (
-                              <span className="text-slate-600">
-                                {employee.email || 'N/A'}
-                              </span>
+                              u.email
                             )}
                           </td>
-
-                          <td className="px-3 py-3 sm:px-5 sm:py-4">
+                          <td className="px-4 py-3">
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${u.role === 'hr_manager' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}
+                            >
+                              {u.role === 'hr_manager'
+                                ? 'HR Manager'
+                                : 'Employee'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
                             {isEditing ? (
                               <input
+                                aria-label="Edit date of joining"
                                 type="date"
-                                value={editingEmployeeData.dateOfJoining}
+                                value={unifiedEditingData.dateOfJoining}
                                 onChange={(e) =>
-                                  handleEmployeeEditChange(
-                                    'dateOfJoining',
-                                    e.target.value,
-                                  )
+                                  setUnifiedEditingData((p) => ({
+                                    ...p,
+                                    dateOfJoining: e.target.value,
+                                  }))
                                 }
-                                className="h-10 w-full min-w-42.5 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                className={editInputClass}
                               />
+                            ) : u.dateOfJoining ? (
+                              new Date(u.dateOfJoining).toLocaleDateString()
                             ) : (
-                              <span className="text-slate-600">
-                                {employee.dateOfJoining
-                                  ? new Date(
-                                      employee.dateOfJoining,
-                                    ).toLocaleDateString()
-                                  : 'N/A'}
-                              </span>
+                              '—'
                             )}
                           </td>
-
-                          <td className="px-3 py-3 sm:px-5 sm:py-4">
+                          <td className="px-4 py-3">
                             <button
                               type="button"
-                              onClick={() => handleOpenResetPassword(employee)}
-                              className="
-            rounded-lg
-            bg-blue-600
-            px-4
-            py-2
-            text-sm
-            font-medium
-            text-white
-            transition
-            hover:bg-blue-700
-            focus:outline-none
-            focus:ring-2
-            focus:ring-blue-200
-          "
+                              onClick={() => handleOpenResetPassword(u)}
+                              className="rounded-lg border border-amber-300 px-3 py-1.5 font-medium text-amber-700 hover:bg-amber-50"
                             >
                               Reset Password
                             </button>
                           </td>
-
-                          {/* ==================================================
-          EDIT / SAVE / CANCEL
-      =================================================== */}
-
-                          <td className="px-3 py-3 sm:px-5 sm:py-4">
+                          <td className="px-4 py-3">
                             {isEditing ? (
-                              <div className="flex flex-wrap items-center gap-2">
+                              <>
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    handleSaveEmployee(employee._id)
-                                  }
-                                  disabled={employeeUpdateLoading}
-                                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  disabled={unifiedEditLoading}
+                                  onClick={() => handleSaveUnifiedEdit(u)}
+                                  className="mr-2 rounded-lg border border-green-300 px-3 py-1.5 font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
                                 >
-                                  {employeeUpdateLoading ? 'Saving...' : 'Save'}
+                                  {unifiedEditLoading ? 'Saving...' : 'Save'}
                                 </button>
-
                                 <button
                                   type="button"
-                                  onClick={handleCancelEditEmployee}
-                                  disabled={employeeUpdateLoading}
-                                  className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                  disabled={unifiedEditLoading}
+                                  onClick={handleCancelUnifiedEdit}
+                                  className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                                 >
                                   Cancel
                                 </button>
-                              </div>
+                              </>
                             ) : (
-                              <div className="flex items-center gap-2">
+                              <>
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    handleStartEditEmployee(employee)
-                                  }
-                                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-blue-400 hover:bg-slate-50 hover:text-blue-600"
+                                  onClick={() => handleUnifiedEdit(u)}
+                                  className="mr-2 rounded-lg border border-blue-300 px-3 py-1.5 font-medium text-blue-700 hover:bg-blue-50"
                                 >
                                   Edit
                                 </button>
-
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    handleDeleteEmployee(employee._id)
+                                    u.role === 'hr_manager'
+                                      ? handleDeleteHrManager(u._id)
+                                      : handleDeleteEmployee(u._id)
                                   }
-                                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+                                  className="rounded-lg border border-red-300 px-3 py-1.5 font-medium text-red-700 hover:bg-red-50"
                                 >
                                   Delete
                                 </button>
-                              </div>
+                              </>
                             )}
                           </td>
                         </tr>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {showResetPassword && selectedEmployee && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-                  <div className="mb-5">
-                    <h3 className="text-xl font-semibold text-slate-800">
-                      Reset Password
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Set a new password for{' '}
-                      <span className="font-medium text-slate-700">
-                        {selectedEmployee.name}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {selectedEmployee.email}
-                    </p>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      New Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showNewPassword ? 'text' : 'password'}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password"
-                        className="h-12 w-full rounded-lg border border-slate-300 px-4 pr-12 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowNewPassword((previous) => !previous)
-                        }
-                        className="absolute right-0 top-0 flex h-12 w-12 items-center justify-center rounded-r-lg text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 focus:outline-none"
-                      >
-                        {showNewPassword ? (
-                          <EyeOff size={19} />
-                        ) : (
-                          <Eye size={19} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Confirm New Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showConfirmNewPassword ? 'text' : 'password'}
-                        value={confirmNewPassword}
-                        onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        placeholder="Confirm new password"
-                        className="h-12 w-full rounded-lg border border-slate-300 px-4 pr-12 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowConfirmNewPassword((previous) => !previous)
-                        }
-                        className="absolute right-0 top-0 flex h-12 w-12 items-center justify-center rounded-r-lg text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 focus:outline-none"
-                      >
-                        {showConfirmNewPassword ? (
-                          <EyeOff size={19} />
-                        ) : (
-                          <Eye size={19} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {resetPasswordError && (
-                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                      {resetPasswordError}
-                    </div>
-                  )}
-
-                  {resetPasswordSuccess && (
-                    <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-600">
-                      {resetPasswordSuccess}
-                    </div>
-                  )}
-
-                  <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
-                    <button
-                      type="button"
-                      onClick={handleCloseResetPassword}
-                      disabled={resetPasswordLoading}
-                      className="w-full rounded-lg bg-slate-100 px-5 sm:w-auto py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleResetPassword}
-                      disabled={resetPasswordLoading}
-                      className="w-full rounded-lg bg-blue-600 px-5 sm:w-auto py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {resetPasswordLoading ? 'Resetting...' : 'Reset Password'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'hrManagerRegistration' && (
-          <div className="mx-auto w-full min-w-0 max-w-7xl">
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold text-slate-800 sm:text-3xl">
-                HR Manager Registration
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Register new HR Managers and manage registered HR Manager
-                accounts.
-              </p>
-            </div>
-
-            <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-              <h2 className="mb-5 text-lg font-semibold text-slate-800">
-                Register HR Manager
-              </h2>
-
-              <form onSubmit={handleRegisterHrManager}>
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      value={hrManagerName}
-                      onChange={(e) => setHrManagerName(e.target.value)}
-                      placeholder="Enter HR Manager name"
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={hrManagerEmail}
-                      onChange={(e) => setHrManagerEmail(e.target.value)}
-                      placeholder="hrmanager@example.com"
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showHrManagerPassword ? 'text' : 'password'}
-                        value={hrManagerPassword}
-                        onChange={(e) => setHrManagerPassword(e.target.value)}
-                        placeholder="Enter password"
-                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pr-11 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowHrManagerPassword((previous) => !previous)
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
-                      >
-                        {showHrManagerPassword ? (
-                          <EyeOff size={20} />
-                        ) : (
-                          <Eye size={20} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Confirm Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={
-                          showHrManagerConfirmPassword ? 'text' : 'password'
-                        }
-                        value={hrManagerConfirmPassword}
-                        onChange={(e) =>
-                          setHrManagerConfirmPassword(e.target.value)
-                        }
-                        placeholder="Confirm password"
-                        className="w-full rounded-lg border border-slate-300 px-4 py-2.5 pr-11 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowHrManagerConfirmPassword(
-                            (previous) => !previous,
-                          )
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
-                      >
-                        {showHrManagerConfirmPassword ? (
-                          <EyeOff size={20} />
-                        ) : (
-                          <Eye size={20} />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                      Date of Joining
-                    </label>
-                    <input
-                      type="date"
-                      value={hrManagerDateOfJoining}
-                      onChange={(e) =>
-                        setHrManagerDateOfJoining(e.target.value)
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                {hrManagerError && (
-                  <div className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                    {hrManagerError}
-                  </div>
-                )}
-
-                {hrManagerSuccess && (
-                  <div className="mt-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-600">
-                    {hrManagerSuccess}
-                  </div>
-                )}
-
-                <div className="mt-6 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={hrManagerLoading}
-                    className="w-full rounded-lg bg-blue-600 px-6 py-2.5 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                  >
-                    {hrManagerLoading
-                      ? 'Registering...'
-                      : 'Register HR Manager'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-800">
-                    Registered HR Managers
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    View and manage registered HR Manager accounts.
-                  </p>
-                </div>
-                <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
-                  {hrManagers.length} HR Manager
-                  {hrManagers.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-
-              {hrManagerUpdateError && (
-                <div className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 sm:mx-6">
-                  {hrManagerUpdateError}
-                </div>
-              )}
-
-              <div className="w-full overflow-x-auto overscroll-x-contain">
-                <table className="w-full min-w-190 text-sm">
-                  <thead className="border-b border-slate-200 bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-4 text-left font-semibold text-slate-600 sm:px-5">
-                        Name
-                      </th>
-                      <th className="px-4 py-4 text-left font-semibold text-slate-600 sm:px-5">
-                        Email
-                      </th>
-                      <th className="px-4 py-4 text-left font-semibold text-slate-600 sm:px-5">
-                        Date of Joining
-                      </th>
-                      <th className="px-4 py-4 text-left font-semibold text-slate-600 sm:px-5">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {hrManagers.length === 0 ? (
+                    {employees.length + hrManagers.length === 0 && (
                       <tr>
                         <td
-                          colSpan={4}
-                          className="px-5 py-12 text-center text-slate-500"
+                          colSpan={6}
+                          className="px-4 py-10 text-center text-slate-500"
                         >
-                          No HR Managers registered yet.
+                          No users found.
                         </td>
                       </tr>
-                    ) : (
-                      hrManagers.map((hrManager) => {
-                        const isEditing =
-                          String(editingHrManagerId) === String(hrManager._id);
-
-                        return (
-                          <tr
-                            key={hrManager._id}
-                            className="transition hover:bg-slate-50"
-                          >
-                            <td className="px-4 py-4 sm:px-5">
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={editingHrManagerData.name}
-                                  onChange={(e) =>
-                                    handleHrManagerEditChange(
-                                      'name',
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="h-10 w-full min-w-40 rounded-lg border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-                              ) : (
-                                <span className="font-medium text-slate-800">
-                                  {hrManager.name || 'N/A'}
-                                </span>
-                              )}
-                            </td>
-
-                            <td className="px-4 py-4 sm:px-5">
-                              {isEditing ? (
-                                <input
-                                  type="email"
-                                  value={editingHrManagerData.email}
-                                  onChange={(e) =>
-                                    handleHrManagerEditChange(
-                                      'email',
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="h-10 w-full min-w-55 rounded-lg border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-                              ) : (
-                                <span className="text-slate-600">
-                                  {hrManager.email || 'N/A'}
-                                </span>
-                              )}
-                            </td>
-
-                            <td className="px-4 py-4 sm:px-5">
-                              {isEditing ? (
-                                <input
-                                  type="date"
-                                  value={editingHrManagerData.dateOfJoining}
-                                  onChange={(e) =>
-                                    handleHrManagerEditChange(
-                                      'dateOfJoining',
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="h-10 min-w-40 rounded-lg border border-slate-300 px-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-                              ) : (
-                                <span className="text-slate-600">
-                                  {hrManager.dateOfJoining
-                                    ? new Date(
-                                        hrManager.dateOfJoining,
-                                      ).toLocaleDateString()
-                                    : 'N/A'}
-                                </span>
-                              )}
-                            </td>
-
-                            <td className="px-4 py-4 sm:px-5">
-                              {isEditing ? (
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleSaveHrManager(hrManager._id)
-                                    }
-                                    disabled={hrManagerUpdateLoading}
-                                    className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                                  >
-                                    {hrManagerUpdateLoading
-                                      ? 'Saving...'
-                                      : 'Save'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={handleCancelEditHrManager}
-                                    disabled={hrManagerUpdateLoading}
-                                    className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleStartEditHrManager(hrManager)
-                                    }
-                                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-400 hover:text-blue-600"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleDeleteHrManager(hrManager._id)
-                                    }
-                                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
                     )}
                   </tbody>
                 </table>

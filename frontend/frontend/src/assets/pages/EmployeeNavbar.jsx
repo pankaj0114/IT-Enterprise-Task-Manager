@@ -9,7 +9,7 @@ import {
   User,
   X,
 } from 'lucide-react';
-
+//import webgetupLogo from ''; // Adjust the path to your logo image
 const EmployeeNavbar = ({
   user,
   searchValue = '',
@@ -167,28 +167,23 @@ const EmployeeNavbar = ({
       ========================================================== */}
 
       <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white">
-        <div className="flex min-h-18 w-full items-center gap-3 px-3 sm:px-5 lg:px-7">
+        <div className="flex min-h-18 w-full min-w-0 items-center gap-2 px-3 sm:gap-3 sm:px-5 lg:px-7">
           {/* =====================================================
               BRAND
           ====================================================== */}
 
-          <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm sm:h-11 sm:w-11">
-              <CheckCircle2 size={23} strokeWidth={2.2} />
-            </div>
-
-            <div className="hidden min-w-0 md:block">
-              <h1 className="truncate text-base font-bold text-slate-900 sm:text-lg">
-                Task Assigned System
-              </h1>
-            </div>
+          <div className="flex min-w-0 shrink-0 items-center">
+            <img
+              src="/webgetup-logo.png"
+              alt="WebGetUp"
+              className="block h-auto w-36 shrink-0 object-contain sm:w-44 md:w-52 lg:w-56"
+            />
           </div>
 
           {/* =====================================================
               SEARCH BAR
           ====================================================== */}
-
-          <div className="mx-auto flex min-w-0 flex-1 justify-center">
+          <div className="flex min-w-0 flex-1 justify-center">
             <div className="relative w-full max-w-xl">
               <Search
                 size={19}
@@ -229,11 +224,9 @@ const EmployeeNavbar = ({
               />
             </div>
           </div>
-
           {/* =====================================================
               RIGHT SIDE
           ====================================================== */}
-
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
             {/* ===================================================
                 NOTIFICATIONS
@@ -300,12 +293,18 @@ const EmployeeNavbar = ({
               {showNotifications && (
                 <div
                   className="
-                    absolute
-                    right-0
-                    top-[calc(100%+10px)]
+                    fixed
+                    left-3
+                    right-3
+                    top-19
                     z-50
-                    w-[calc(100vw-24px)]
+                    w-auto
                     max-w-102.5
+                    sm:absolute
+                    sm:left-auto
+                    sm:right-0
+                    sm:top-[calc(100%+10px)]
+                    sm:w-[calc(100vw-24px)]
                     overflow-hidden
                     rounded-2xl
                     border

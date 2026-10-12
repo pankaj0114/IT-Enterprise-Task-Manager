@@ -357,7 +357,7 @@ export default function EmployeeDashboard() {
   const filteredAndSortedAssignedTasks = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
 
-    const search = String(assignedTaskSearch || '')
+    const search = String(searchValue || assignedTaskSearch || '')
       .trim()
       .toLowerCase();
 
@@ -491,6 +491,7 @@ export default function EmployeeDashboard() {
     });
   }, [
     assignedTasks,
+    searchValue,
     assignedTaskSearch,
     assignedTaskStatusFilter,
     assignedTaskEmployeeFilter,
@@ -1121,6 +1122,43 @@ export default function EmployeeDashboard() {
     }
   };
 
+  const filteredCompletedTasks = useMemo(() => {
+    const search = String(searchValue || '')
+      .trim()
+      .toLowerCase();
+
+    if (!search) {
+      return completedTasks;
+    }
+
+    return completedTasks.filter((task) => {
+      const title = String(task?.title || '').toLowerCase();
+      const remarks = String(task?.remarks || '').toLowerCase();
+      const priority = String(task?.priority || '').toLowerCase();
+      const status = String(task?.status || 'Completed').toLowerCase();
+
+      const dueDate = task?.dueDate
+        ? new Date(task.dueDate).toLocaleDateString().toLowerCase()
+        : '';
+
+      const clientName = String(
+        task?.client?.name ||
+          task?.client?.company ||
+          task?.client?.clientName ||
+          '',
+      ).toLowerCase();
+
+      return (
+        title.includes(search) ||
+        remarks.includes(search) ||
+        priority.includes(search) ||
+        status.includes(search) ||
+        dueDate.includes(search) ||
+        clientName.includes(search)
+      );
+    });
+  }, [completedTasks, searchValue]);
+
   useEffect(() => {
     if (activeTab === 'completed') {
       fetchCompletedTasks();
@@ -1685,7 +1723,7 @@ export default function EmployeeDashboard() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50">
+    <div className="min-h-screen w-full min-w-0 overflow-x-clip bg-slate-50">
       {/* =========================================================
         EMPLOYEE NAVBAR
     ========================================================= */}
@@ -1701,26 +1739,19 @@ export default function EmployeeDashboard() {
         onUpdateDateOfBirth={handleUpdateDateOfBirth}
       />
 
-      <div className="flex w-full flex-col lg:flex-row">
+      <div className="flex w-full min-w-0 flex-col lg:flex-row lg:items-start">
         {/* =========================================================
       SIDEBAR
   ========================================================= */}
 
-        <div
+        <aside
           className="
-          fixed
-      left-0
-     top-16
-      w-full lg:w-64
-      lg:min-h-screen
-      bg-linear-to-b from-blue-500 to-blue-600
-      text-white
-      shrink-0
-      p-4
-      lg:sticky lg:top-0
-      lg:h-screen
-      overflow-y-auto
-    "
+            relative z-10 w-full min-w-0 shrink-0
+            bg-linear-to-b from-blue-500 to-blue-600
+            p-3 text-white sm:p-4
+            lg:sticky lg:top-18 lg:h-[calc(100vh-72px)]
+            lg:w-64 lg:self-start lg:overflow-y-auto
+          "
         >
           {/* Employee Info 
           <div className="px-3 py-4 mb-4">
@@ -1756,12 +1787,12 @@ export default function EmployeeDashboard() {
           */}
 
           {/* Navigation */}
-          <ul className="space-y-1">
+          <ul className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
             {/* My Tasks */}
             <li
               onClick={() => setActiveTab('myTasks')}
               className={`
-          flex items-center
+          flex min-w-0 items-center
           gap-2
           px-3 py-3
           rounded-md
@@ -1784,7 +1815,7 @@ export default function EmployeeDashboard() {
             <li
               onClick={() => setActiveTab('assignedTasks')}
               className={`
-          flex items-center
+          flex min-w-0 items-center
           gap-2
           px-3 py-3
           rounded-md
@@ -1810,7 +1841,7 @@ export default function EmployeeDashboard() {
                 fetchCompletedTasks();
               }}
               className={`
-          flex items-center
+          flex min-w-0 items-center
           gap-2
           px-3 py-3
           rounded-md
@@ -1832,7 +1863,7 @@ export default function EmployeeDashboard() {
             <li
               onClick={() => setActiveTab('attendance')}
               className={`
-    flex items-center
+    flex min-w-0 items-center
     gap-2
     px-3 py-3
     rounded-md
@@ -1874,21 +1905,12 @@ export default function EmployeeDashboard() {
               <span>Clients</span>
             </li>
           </ul>
-        </div>
+        </aside>
 
         {/* =========================================================
       MAIN PANEL
   ========================================================= */}
-        <div
-          className="
-      flex-1
-      min-w-0
-      p-3
-      sm:p-5
-      lg:p-6
-      overflow-x-hidden
-    "
-        >
+        <main className="min-w-0 w-full flex-1 overflow-x-clip p-3 sm:p-5 lg:p-6">
           {activeTab === 'attendance' && (
             <div className="w-full">
               <EmployeeAttendance />
@@ -2639,7 +2661,7 @@ export default function EmployeeDashboard() {
                 Completed Tasks
               </h3>
 
-              {completedTasks.length === 0 ? (
+              {filteredCompletedTasks.length === 0 ? (
                 <div
                   className="
               bg-white
@@ -2655,7 +2677,7 @@ export default function EmployeeDashboard() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {completedTasks.map((task) => {
+                  {filteredCompletedTasks.map((task) => {
                     const isEditing = editingTimeTaskId === task._id;
 
                     return (
@@ -3270,7 +3292,7 @@ export default function EmployeeDashboard() {
               )}
             </div>
           )}
-        </div>
+        </main>
       </div>
     </div>
   );
