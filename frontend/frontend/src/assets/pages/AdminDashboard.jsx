@@ -1302,14 +1302,11 @@ const AdminDashboard = () => {
           fetchAdminTasks();
           fetchEmployeePerformance();
           fetchNotifications();
-          setAttendanceRefreshKey((previous) => previous + 1);
           break;
       }
     };
 
     const socket = io('http://localhost:5000', {
-      // Polling first prevents the dashboard from depending on a successful
-      // WebSocket upgrade. Socket.IO will upgrade to WebSocket automatically.
       transports: ['polling', 'websocket'],
       withCredentials: true,
       reconnection: true,
@@ -1321,9 +1318,10 @@ const AdminDashboard = () => {
     socket.on('connect', () => {
       console.log('🟢 ADMIN SOCKET CONNECTED:', socket.id);
 
-      socket.emit('join', String(admin._id));
+      const adminId = String(admin._id);
+      socket.emit('join', adminId);
 
-      console.log('👤 ADMIN SOCKET ROOM:', String(admin._id));
+      console.log('📤 ADMIN ROOM JOIN REQUEST SENT:', adminId);
     });
 
     socket.on('connect_error', (error) => {
@@ -1334,27 +1332,29 @@ const AdminDashboard = () => {
       console.log('🔴 ADMIN SOCKET DISCONNECTED:', reason);
     });
 
-    // Notification event: update the badge immediately.
     socket.on('newNotification', (notification) => {
-      if (!notification?._id) {
-        return;
-      }
+      if (!notification?._id) return;
 
       console.log('🔔 NEW NOTIFICATION RECEIVED:', notification);
 
       setNotifications((previous) => {
-        const withoutDuplicate = previous.filter(
-          (item) => String(item._id) !== String(notification._id),
+        const exists = previous.some(
+          (item) => String(item._id) === String(notification._id),
         );
 
-        return [notification, ...withoutDuplicate];
+        if (exists) {
+          return previous.map((item) =>
+            String(item._id) === String(notification._id) ? notification : item,
+          );
+        }
+
+        return [notification, ...previous];
       });
 
       if (!notification.isRead) {
         setUnreadNotificationCount((previous) => previous + 1);
       }
     });
-
     // Section-specific Socket.IO events.
     socket.on('employeesUpdated', () => refreshSection('employees'));
     socket.on('usersUpdated', () => refreshSection('employees'));
@@ -1390,7 +1390,6 @@ const AdminDashboard = () => {
       fetchAdminTasks();
       fetchEmployeePerformance();
       fetchNotifications();
-      setAttendanceRefreshKey((previous) => previous + 1);
     };
 
     // Initial synchronization after the admin is loaded.
@@ -2002,7 +2001,7 @@ const AdminDashboard = () => {
         )}
 
         {activeTab === 'attendance' && (
-          <AdminAttendance key={attendanceRefreshKey} />
+          <AdminAttendance refreshKey={attendanceRefreshKey} />
         )}
 
         {activeTab === 'assignedTasks' && (

@@ -68,20 +68,36 @@ app.set('io', io);
 io.on('connection', (socket) => {
   console.log('🟢 SOCKET CONNECTED:', socket.id);
 
-  socket.on('join', (userId) => {
-    if (!userId) {
-      console.log('❌ Socket join called without userId');
-      return;
+  socket.on('join', async (userId, acknowledge) => {
+    try {
+      if (!userId) {
+        console.error('❌ Socket join called without userId');
+
+        if (typeof acknowledge === 'function') {
+          acknowledge({ success: false, message: 'Missing userId' });
+        }
+
+        return;
+      }
+
+      const roomId = String(userId);
+      await socket.join(roomId);
+
+      console.log('✅ SOCKET ROOM JOINED');
+      console.log('Socket ID:', socket.id);
+      console.log('Room ID:', roomId);
+      console.log('Rooms:', [...socket.rooms]);
+
+      if (typeof acknowledge === 'function') {
+        acknowledge({ success: true, roomId });
+      }
+    } catch (error) {
+      console.error('❌ SOCKET ROOM JOIN FAILED:', error);
+
+      if (typeof acknowledge === 'function') {
+        acknowledge({ success: false, message: error.message });
+      }
     }
-
-    const roomId = String(userId);
-
-    socket.join(roomId);
-
-    console.log('👤 SOCKET ROOM JOINED');
-    console.log('Socket ID:', socket.id);
-    console.log('User ID:', roomId);
-    console.log('Rooms:', [...socket.rooms]);
   });
 
   socket.on('disconnect', (reason) => {

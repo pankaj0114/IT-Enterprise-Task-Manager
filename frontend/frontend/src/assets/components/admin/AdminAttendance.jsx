@@ -1,7 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = (
+  import.meta.env.VITE_API_URL || 'http://localhost:5000'
+).replace(/\/$/, '');
 
 const getToken = () => localStorage.getItem('accessToken');
 
@@ -65,7 +67,7 @@ const statusLabel = (status) => {
   return 'Not Marked';
 };
 
-export default function AdminAttendance() {
+export default function AdminAttendance({ refreshKey = 0 }) {
   const today = new Date();
 
   const [employees, setEmployees] = useState([]);
@@ -85,6 +87,7 @@ export default function AdminAttendance() {
   });
 
   const [loading, setLoading] = useState(false);
+  const attendanceRequestId = useRef(0);
 
   const [leaveRequests, setLeaveRequests] = useState([]);
 
@@ -120,37 +123,57 @@ export default function AdminAttendance() {
   };
 
   const fetchEmployeeAttendance = async () => {
-    if (!selectedEmployee) return;
+    if (!selectedEmployee) {
+      setAttendance([]);
+      setSummary({
+        WFO: 0,
+        WFH: 0,
+        LEAVE: 0,
+        PENDING_LEAVE: 0,
+        APPROVED_LEAVE: 0,
+      });
+      setLoading(false);
+      return;
+    }
 
-    setLoading(true);
+    const requestId = ++attendanceRequestId.current;
+    // Keep the last successful month visible while refreshing in the background.
+    if (attendance.length === 0) setLoading(true);
 
     try {
       const response = await axios.get(
         `${API_BASE}/api/admin/attendance/employee/${selectedEmployee}`,
         {
           ...authConfig(),
-          params: {
-            month,
-            year,
-          },
+          params: { month, year },
         },
       );
 
-      setAttendance(response.data?.attendance || []);
+      // Ignore responses from an older employee/month selection.
+      if (requestId !== attendanceRequestId.current) return;
 
-      setSummary(
-        response.data?.summary || {
-          WFO: 0,
-          WFH: 0,
-          LEAVE: 0,
-          PENDING_LEAVE: 0,
-          APPROVED_LEAVE: 0,
-        },
+      setAttendance(
+        Array.isArray(response.data?.attendance)
+          ? response.data.attendance
+          : [],
       );
+      setSummary({
+        WFO: 0,
+        WFH: 0,
+        LEAVE: 0,
+        PENDING_LEAVE: 0,
+        APPROVED_LEAVE: 0,
+        ...(response.data?.summary || {}),
+      });
     } catch (error) {
-      console.error('Failed to load attendance:', error);
+      if (requestId === attendanceRequestId.current) {
+        console.error(
+          'Failed to load attendance:',
+          error.response?.data || error.message,
+        );
+      }
     } finally {
-      setLoading(false);
+      if (requestId === attendanceRequestId.current) setLoading(false);
     }
   };
 
@@ -213,7 +236,7 @@ export default function AdminAttendance() {
   useEffect(() => {
     fetchEmployeeAttendance();
     fetchMyAttendance();
-  }, [selectedEmployee, month, year]);
+  }, [selectedEmployee, month, year, refreshKey]);
 
   const attendanceMap = useMemo(() => {
     const map = {};
