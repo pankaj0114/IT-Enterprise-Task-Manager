@@ -815,7 +815,7 @@ export default function MyTasks({ user, admin }) {
 
                             {clientSearchTaskId === task._id &&
                               showTaskClientDropdown && (
-                                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                                <div className="relative mt-2 w-full max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-md">
                                   {visibleClients.length ? (
                                     visibleClients.map((client, index) => {
                                       const name =
