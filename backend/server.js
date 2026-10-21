@@ -18,6 +18,7 @@ import clientRoutes from './routes/clientRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import attendanceRoutes from './routes/attendanceRoutes.js';
 import hrManagerRoutes from './routes/hrManagerRoutes.js';
+import hrRoutes from './routes/hrRoutes.js';
 
 import adminAttendanceRoutes from './routes/adminAttendanceRoutes.js';
 
@@ -120,6 +121,8 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/hr', hrRoutes);
+
 app.use('/api/admin/attendance', adminAttendanceRoutes);
 app.use('/api/hr-manager', hrManagerRoutes);
 

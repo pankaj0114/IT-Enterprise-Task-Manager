@@ -7,6 +7,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import MyTasks from '../components/admin/MyTasks';
 import AssignedTasks from '../components/admin/AssignedTasks';
 import AdminAttendance from '../components/admin/AdminAttendance';
+import AdminNavbar from '../components/admin/AdminNavbar';
 
 import { io } from 'socket.io-client';
 
@@ -1584,6 +1585,12 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <AdminNavbar
+        admin={admin}
+        notifications={notifications}
+        onLogout={handleLogout}
+        onViewAllNotifications={() => handleTabChange('notifications')}
+      />
       {/* ======================================
           SIDEBAR
       ====================================== */}

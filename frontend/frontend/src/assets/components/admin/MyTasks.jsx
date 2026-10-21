@@ -546,11 +546,11 @@ export default function MyTasks({ user, admin }) {
             </select>
           </div>
 
-          <div className="col-span-1 flex justify-end md:col-span-2 xl:col-span-4">
+          <div className="col-span-1 flex justify-center md:col-span-2 xl:col-span-4">
             <button
               type="button"
               onClick={handleAddTask}
-              className="h-11 rounded-lg bg-blue-600 px-7 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+              className="h-11 rounded-lg  bg-blue-600 px-7 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
             >
               Add Task
             </button>
