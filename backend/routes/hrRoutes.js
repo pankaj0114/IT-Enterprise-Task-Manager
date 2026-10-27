@@ -1,42 +1,50 @@
 import express from 'express';
-
+import authMiddleware from '../middleware/authMiddleware.js';
 import {
-  //getEmployeesForTaskAssignment,
-  //getHRClients,
-  //getHRMyTasks,
-  //createHRMyTask,
+  getHRUsers,
+  updateHRUser,
+  resetHRUserPassword,
+  getHRMyTasks,
+  createHRMyTask,
   getHRAssignedTasks,
   createHRAssignedTask,
-  updateHRTask,
-  updateHRTaskRemarks,
+  getHRClients,
+  assignExistingClient,
+  getHRAttendanceEmployees,
+  getHREmployeeAttendance,
+  getHRLeaveRequests,
+  reviewHRLeaveRequest,
+  getHRWfhRequests,
+  reviewHRWfhRequest,
+  getHRNotifications,
+  getHREmployeePerformance,
+  getHREmployees,
 } from '../controllers/hrControllers.js';
-import authMiddleware from '../middleware/authMiddleware.js';
-
 const router = express.Router();
-
-// HR-only authorization.
-// Your JWT middleware must set req.user.id and req.user.role.
 const hrOnly = (req, res, next) => {
-  if (req.user?.role !== 'hr_manager') {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied. HR Manager permission required.',
-    });
-  }
-
+  if ((req.user?.role || '').toLowerCase() !== 'hr_manager')
+    return res
+      .status(403)
+      .json({ success: false, message: 'HR Manager access required.' });
   next();
 };
-
-// My Tasks
-//router.get('/tasks/my', authMiddleware, hrOnly, getHRMyTasks);
-//router.post('/tasks/my', authMiddleware, hrOnly, createHRMyTask);
-
-router.get('/tasks/assigned', authMiddleware, hrOnly, getHRAssignedTasks);
-
-router.post('/tasks/assign', authMiddleware, hrOnly, createHRAssignedTask);
-
-router.put('/tasks/:id', authMiddleware, hrOnly, updateHRTask);
-
-router.put('/tasks/:id/remarks', authMiddleware, hrOnly, updateHRTaskRemarks);
-
+router.use(authMiddleware, hrOnly);
+router.get('/users', getHRUsers);
+router.put('/users/:userId', updateHRUser);
+router.put('/users/:userId/reset-password', resetHRUserPassword);
+router.get('/tasks/my', getHRMyTasks);
+router.post('/tasks/my', createHRMyTask);
+router.get('/tasks/assigned', getHRAssignedTasks);
+router.post('/tasks/assigned', createHRAssignedTask);
+router.get('/clients', getHRClients);
+router.get('/employees', getHREmployees);
+router.post('/clients/assign', assignExistingClient);
+router.get('/attendance/employees', getHRAttendanceEmployees);
+router.get('/attendance/employee/:employeeId', getHREmployeeAttendance);
+router.get('/leave-requests', getHRLeaveRequests);
+router.put('/leave-requests/:requestId/review', reviewHRLeaveRequest);
+router.get('/wfh-requests', getHRWfhRequests);
+router.put('/wfh-requests/:requestId/review', reviewHRWfhRequest);
+router.get('/notifications', getHRNotifications);
+router.get('/performance', getHREmployeePerformance);
 export default router;

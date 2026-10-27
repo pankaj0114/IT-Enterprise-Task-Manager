@@ -213,11 +213,37 @@ export default function EmployeeAttendance() {
   |--------------------------------------------------------------------------
   */
 
-  const getLeaveRequestForDate = (dateKey) => {
-    return leaveRequests.find((request) =>
+  const getLatestRequestForDate = (requests, dateKey) => {
+    const matchingRequests = requests.filter((request) =>
       isDateInRange(dateKey, request.startDate, request.endDate),
     );
+
+    // Active requests always take priority over rejected requests.
+    const activeRequest = matchingRequests.find((request) =>
+      ['PENDING', 'APPROVED'].includes(
+        String(request.status || '').toUpperCase(),
+      ),
+    );
+
+    if (activeRequest) return activeRequest;
+
+    // If no active request exists, return the latest rejected request.
+    return (
+      matchingRequests
+        .filter(
+          (request) =>
+            String(request.status || '').toUpperCase() === 'REJECTED',
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt || 0) -
+            new Date(a.updatedAt || a.createdAt || 0),
+        )[0] || null
+    );
   };
+
+  const getLeaveRequestForDate = (dateKey) =>
+    getLatestRequestForDate(leaveRequests, dateKey);
 
   /*
   |--------------------------------------------------------------------------
@@ -225,28 +251,27 @@ export default function EmployeeAttendance() {
   |--------------------------------------------------------------------------
   */
 
-  const getWfhRequestForDate = (dateKey) => {
-    return wfhRequests.find((request) =>
-      isDateInRange(dateKey, request.startDate, request.endDate),
-    );
-  };
+  const getWfhRequestForDate = (dateKey) =>
+    getLatestRequestForDate(wfhRequests, dateKey);
 
   const getActiveRequestForDate = (dateKey) => {
     const leaveRequest = getLeaveRequestForDate(dateKey);
     const wfhRequest = getWfhRequestForDate(dateKey);
 
-    if (leaveRequest && ['PENDING', 'APPROVED'].includes(leaveRequest.status)) {
-      return {
-        type: 'LEAVE',
-        request: leaveRequest,
-      };
+    if (
+      leaveRequest &&
+      ['PENDING', 'APPROVED'].includes(
+        String(leaveRequest.status).toUpperCase(),
+      )
+    ) {
+      return { type: 'LEAVE', request: leaveRequest };
     }
 
-    if (wfhRequest && ['PENDING', 'APPROVED'].includes(wfhRequest.status)) {
-      return {
-        type: 'WFH',
-        request: wfhRequest,
-      };
+    if (
+      wfhRequest &&
+      ['PENDING', 'APPROVED'].includes(String(wfhRequest.status).toUpperCase())
+    ) {
+      return { type: 'WFH', request: wfhRequest };
     }
 
     return null;
@@ -255,6 +280,13 @@ export default function EmployeeAttendance() {
   const handleAttendanceChange = async (dateKey, status) => {
     if (status === 'WFO' && dateKey > getTodayKey()) {
       setError('You cannot mark Work From Office for future dates.');
+      return;
+    }
+
+    if (getActiveRequestForDate(dateKey)) {
+      setError(
+        'You cannot mark WFO while a WFH or Leave request is pending or approved.',
+      );
       return;
     }
     try {
@@ -369,7 +401,12 @@ export default function EmployeeAttendance() {
       // Remove existing WFO/WFH attendance from the calendar
       setAttendance((prev) =>
         prev.filter(
-          (item) => !isDateInRange(item.dateKey, leaveStartDate, leaveEndDate),
+          (item) =>
+            !isDateInRange(
+              item.dateKey,
+              leaveForm.startDate,
+              leaveForm.endDate,
+            ),
         ),
       );
 
@@ -491,7 +528,7 @@ export default function EmployeeAttendance() {
          * If this date has a pending Leave request and/or
          * pending WFH request, delete those requests first.
          */
-        await deletePendingRequestsForDate(selectedDate);
+        // await deletePendingRequestsForDate(selectedDate);
 
         /*
          * Now mark the date as WFO.
@@ -563,9 +600,6 @@ export default function EmployeeAttendance() {
         authConfig(),
       );
 
-      // ------------------------------------------
-      // REMOVE OLD WFO/WFH FROM FRONTEND IMMEDIATELY
-      // ------------------------------------------
       setAttendance((prev) =>
         prev.filter(
           (item) => !isDateInRange(item.dateKey, wfhStartDate, wfhEndDate),
@@ -1029,15 +1063,14 @@ export default function EmployeeAttendance() {
                       {/* Controls */}
                       {!isPast &&
                         (status ||
-                          isPendingLeave ||
-                          isPendingWfh ||
-                          (!status && !leaveRequest && !wfhRequest)) && (
+                          activeRequest ||
+                          (!status && !activeRequest)) && (
                           <div className="mt-4 space-y-2">
                             {/* =========================================================
           EMPTY DATE
           Show WFO + WFH Request + Leave Request
          ========================================================= */}
-                            {!status && !leaveRequest && !wfhRequest && (
+                            {!status && !activeRequest && (
                               <div className="space-y-2">
                                 {/* Only show direct WFO button if it is NOT a future date */}
                                 {dateKey <= getTodayKey() && (

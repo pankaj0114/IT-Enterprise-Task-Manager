@@ -1,5 +1,3 @@
-// HRAssignedTasks.jsx
-
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
@@ -12,27 +10,28 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
-const API_BASE = (
-  import.meta.env.VITE_API_URL || 'http://localhost:5000'
-).replace(/\/$/, '');
+const API_BASE = 'http://localhost:5000';
 
 const HRAssignedTasks = () => {
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [clients, setClients] = useState([]);
 
+  const [loading, setLoading] = useState(true);
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Create task form
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [client, setClient] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
 
+  // Keep inline edits separate from server data.
+  // This prevents the remarks input from losing characters while typing.
   const [editingTasks, setEditingTasks] = useState({});
 
   const getToken = () => localStorage.getItem('accessToken');
@@ -56,91 +55,25 @@ const HRAssignedTasks = () => {
     return [];
   };
 
-  const fetchTasks = async () => {
-    setLoadingTasks(true);
-
-    try {
-      const response = await axios.get(
-        `${API_BASE}/api/hr/tasks/assigned`,
-        authConfig(),
-      );
-
-      setTasks(normalizeArray(response.data, ['tasks']));
-    } catch (error) {
-      console.error(error);
-      setTasks([]);
-    } finally {
-      setLoadingTasks(false);
+  const getTaskValue = (task, field) => {
+    if (
+      Object.prototype.hasOwnProperty.call(editingTasks, task._id) &&
+      Object.prototype.hasOwnProperty.call(editingTasks[task._id], field)
+    ) {
+      return editingTasks[task._id][field];
     }
-  };
 
-  const fetchEmployees = async () => {
-    try {
-      const response = await axios.get(
-        `${API_BASE}/api/hr/employees/task-assignment`,
-        authConfig(),
-      );
-
-      setEmployees(normalizeArray(response.data, ['employees', 'users']));
-    } catch (error) {
-      console.error(error);
+    if (field === 'client') {
+      return typeof task.client === 'object'
+        ? task.client?._id || ''
+        : task.client || '';
     }
-  };
 
-  const fetchClients = async () => {
-    try {
-      const response = await axios.get(
-        `${API_BASE}/api/hr/clients`,
-        authConfig(),
-      );
-
-      setClients(normalizeArray(response.data, ['clients']));
-    } catch (error) {
-      console.error(error);
+    if (field === 'remarks') {
+      return task.remarks || '';
     }
-  };
 
-  useEffect(() => {
-    fetchTasks();
-    fetchEmployees();
-    fetchClients();
-  }, []);
-
-  const handleCreateTask = async (e) => {
-    e.preventDefault();
-
-    setError('');
-    setSuccess('');
-
-    try {
-      setSaving(true);
-
-      await axios.post(
-        `${API_BASE}/api/hr/tasks/assign`,
-        {
-          title,
-          dueDate,
-          priority,
-          client: client || null,
-          assignedTo,
-        },
-        authConfig(),
-      );
-
-      setTitle('');
-      setDueDate('');
-      setPriority('Medium');
-      setClient('');
-      setAssignedTo('');
-
-      setSuccess('Task assigned successfully');
-
-      fetchTasks();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to assign task');
-    } finally {
-      setSaving(false);
-    }
+    return task[field] ?? '';
   };
 
   const setLocalTaskValue = (taskId, field, value) => {
@@ -152,40 +85,329 @@ const HRAssignedTasks = () => {
       },
     }));
   };
+  const fetchTasks = async () => {
+    console.log('========== FETCH ASSIGNED TASKS ==========');
 
-  const getTaskValue = (task, field) => {
-    if (editingTasks[task._id] && editingTasks[task._id][field] !== undefined) {
-      return editingTasks[task._id][field];
+    setLoadingTasks(true);
+
+    try {
+      const token = localStorage.getItem('accessToken');
+
+      console.log('Token exists:', !!token);
+
+      const response = await axios.get(
+        `${API_BASE}/api/hr-manager/tasks/assigned`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      console.log('API RESPONSE:', response.data);
+
+      const allTasks = normalizeArray(response.data, [
+        'tasks',
+        'assignedTasks',
+        'data',
+      ]);
+
+      console.log('ALL TASKS:', allTasks);
+
+      const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+
+      console.log('CURRENT USER:', currentUser);
+
+      const hrId = currentUser?._id || currentUser?.id;
+
+      console.log('HR ID:', hrId);
+
+      if (!hrId) {
+        // The dedicated /tasks/assigned endpoint is HR-scoped by auth middleware.
+        // If user details are not stored locally, trust that endpoint's result.
+        setTasks(allTasks);
+        return;
+      }
+
+      const assignedEmployeeTasks = allTasks.filter((task) => {
+        const assignedById =
+          task.assignedBy && typeof task.assignedBy === 'object'
+            ? task.assignedBy._id || task.assignedBy.id
+            : task.assignedBy;
+
+        const assignedToId =
+          task.assignedTo && typeof task.assignedTo === 'object'
+            ? task.assignedTo._id || task.assignedTo.id
+            : task.assignedTo;
+
+        console.log('TASK CHECK:', {
+          title: task.title,
+          assignedById,
+          assignedToId,
+          hrId,
+        });
+
+        return (
+          String(assignedById) === String(hrId) &&
+          assignedToId &&
+          String(assignedToId) !== String(hrId)
+        );
+      });
+
+      console.log('✅ TASKS ASSIGNED BY THIS HR:', assignedEmployeeTasks);
+
+      setTasks(assignedEmployeeTasks);
+    } catch (error) {
+      console.error('❌ FETCH TASKS ERROR:', error);
+
+      console.error('STATUS:', error.response?.status);
+
+      console.error('DATA:', error.response?.data);
+
+      setTasks([]);
+      setError(
+        error.response?.data?.message ||
+          'Failed to load assigned tasks. Check the HR task API route.',
+      );
+    } finally {
+      setLoadingTasks(false);
     }
-
-    if (field === 'client') {
-      return typeof task.client === 'object'
-        ? task.client?._id || ''
-        : task.client || '';
-    }
-
-    return task[field] || '';
   };
 
-  const updateTask = async (taskId, field, value) => {
+  const fetchEmployees = async () => {
     try {
+      const token = getToken();
+
+      const response = await axios.get(`${API_BASE}/api/users/employees`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      setEmployees(normalizeArray(response.data, ['employees', 'users']));
+    } catch (err) {
+      console.error(
+        'FETCH EMPLOYEES ERROR:',
+        err.response?.data || err.message,
+      );
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const token = getToken();
+
+      if (!token) {
+        setError('Authentication token not found.');
+        return;
+      }
+
+      const response = await axios.get(`${API_BASE}/api/hr-manager/clients`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      console.log('CLIENTS:', response.data);
+
+      setClients(normalizeArray(response.data, ['clients']) || []);
+    } catch (err) {
+      console.error('FETCH CLIENTS ERROR:', err.response?.data || err.message);
+
+      setError(err.response?.data?.message || 'Failed to load clients');
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+    fetchEmployees();
+    fetchClients();
+  }, []);
+
+  const handleCreateTask = async (event) => {
+    event.preventDefault();
+
+    setError('');
+    setSuccess('');
+
+    if (!title.trim()) {
+      setError('Please enter a task title.');
+      return;
+    }
+
+    if (!dueDate) {
+      setError('Please select a due date.');
+      return;
+    }
+
+    if (!assignedTo) {
+      setError('Please select an employee.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const token = getToken();
+
+      if (!token) {
+        setError('Authentication token not found.');
+        return;
+      }
+
+      const response = await axios.post(
+        `${API_BASE}/api/hr-manager/tasks/assigned`,
+        {
+          title: title.trim(),
+          dueDate,
+          priority: priority || 'Medium',
+          client: client || null,
+          assignedTo,
+        },
+        authConfig(),
+      );
+
+      const createdTask = response.data?.task || response.data;
+
+      if (createdTask && createdTask._id) {
+        setTasks((prev) => [createdTask, ...prev]);
+      } else {
+        await fetchTasks();
+      }
+
+      setTitle('');
+      setDueDate('');
+      setPriority('Medium');
+      setClient('');
+      setAssignedTo('');
+
+      setSuccess('Task assigned successfully.');
+
+      setTimeout(() => {
+        setSuccess('');
+      }, 3000);
+    } catch (err) {
+      console.error(
+        'CREATE ASSIGNED TASK ERROR:',
+        err.response?.data || err.message,
+      );
+
+      setError(err.response?.data?.message || 'Failed to assign task.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateTaskOnServer = async (taskId, field, value) => {
+    try {
+      let response;
+
       if (field === 'remarks') {
-        await axios.put(
-          `${API_BASE}/api/hr/tasks/${taskId}/remarks`,
-          { remarks: value },
+        response = await axios.put(
+          `${API_BASE}/api/tasks/${taskId}/remarks`,
+          {
+            remarks: value,
+          },
           authConfig(),
         );
       } else {
-        await axios.put(
-          `${API_BASE}/api/hr/tasks/${taskId}`,
-          { [field]: value },
+        response = await axios.put(
+          `${API_BASE}/api/tasks/${taskId}`,
+          {
+            [field]: value || null,
+          },
           authConfig(),
         );
       }
 
-      fetchTasks();
-    } catch (err) {
-      console.error(err);
+      console.log('Task update response:', response.data);
+
+      // IMPORTANT:
+      // Do NOT replace the entire task with response.data.
+      // Preserve assignedTo, client, assignedBy, etc.
+      setTasks((prevTasks) =>
+        prevTasks.map((task) => {
+          if (String(task._id) !== String(taskId)) {
+            return task;
+          }
+
+          return {
+            ...task,
+            [field]: value,
+          };
+        }),
+      );
+
+      return true;
+    } catch (error) {
+      console.error(`Error updating ${field}:`, error);
+      console.error('Response:', error.response?.data);
+
+      return false;
+    }
+  };
+
+  const handleInlineChange = (taskId, field, value) => {
+    // Update only local editing state while typing/selecting.
+    setLocalTaskValue(taskId, field, value);
+  };
+
+  const handleInlineBlur = async (taskId, field) => {
+    const value = editingTasks[taskId]?.[field];
+
+    if (value === undefined) {
+      return;
+    }
+
+    const success = await updateTaskOnServer(taskId, field, value);
+
+    if (success) {
+      setEditingTasks((prev) => {
+        const next = { ...prev };
+
+        if (next[taskId]) {
+          const taskEdits = { ...next[taskId] };
+          delete taskEdits[field];
+
+          if (Object.keys(taskEdits).length === 0) {
+            delete next[taskId];
+          } else {
+            next[taskId] = taskEdits;
+          }
+        }
+
+        return next;
+      });
+    }
+  };
+
+  const handleStatusChange = async (taskId, status) => {
+    await updateTaskOnServer(taskId, 'status', status);
+  };
+
+  const getStatusClass = (status) => {
+    switch (status) {
+      case 'Completed':
+        return 'bg-green-100 text-green-700';
+
+      case 'In Progress':
+        return 'bg-blue-100 text-blue-700';
+
+      default:
+        return 'bg-orange-100 text-orange-700';
+    }
+  };
+
+  const getPriorityClass = (taskPriority) => {
+    switch (taskPriority) {
+      case 'High':
+        return 'bg-red-100 text-red-700';
+
+      case 'Low':
+        return 'bg-slate-100 text-slate-600';
+
+      default:
+        return 'bg-yellow-100 text-yellow-700';
     }
   };
 
@@ -197,207 +419,385 @@ const HRAssignedTasks = () => {
 
   return (
     <div className="mx-auto w-full max-w-7xl">
-      {/* Create Task */}
+      {/* Create New Task */}
+      <div className="mb-12 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-slate-800 sm:text-3xl">
+            Create New Task
+          </h1>
 
-      <div className="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-6 text-2xl font-bold">Assign New Task</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Create and assign a task to yourself or another employee.
+          </p>
+        </div>
 
         {error && (
-          <div className="mb-4 rounded-lg bg-red-50 p-3 text-red-600">
+          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="mb-4 rounded-lg bg-green-50 p-3 text-green-600">
+          <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {success}
           </div>
         )}
 
         <form onSubmit={handleCreateTask}>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <input
-              placeholder="Task Title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="rounded-lg border px-4 py-3"
-            />
+            {/* Task Title */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Task Title
+              </label>
 
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="rounded-lg border px-4 py-3"
-            />
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter task title"
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
 
-            <select
-              value={client}
-              onChange={(e) => setClient(e.target.value)}
-              className="rounded-lg border px-4 py-3"
-            >
-              <option value="">Select Client</option>
+            {/* Due Date */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Due Date
+              </label>
 
-              {clients.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
 
-            <select
-              value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              className="rounded-lg border px-4 py-3"
-            >
-              <option value="">Select Employee</option>
+            {/* Priority */}
 
-              {employees.map((emp) => (
-                <option key={emp._id} value={emp._id}>
-                  {emp.name}
-                </option>
-              ))}
-            </select>
+            {/* Client */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Client
+              </label>
+
+              <select
+                value={client}
+                onChange={(e) => setClient(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">-- Select Client --</option>
+
+                {clients.map((item) => (
+                  <option key={item._id} value={item._id}>
+                    {item.name || item.company || 'Unnamed Client'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Assign To */}
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Assign To
+              </label>
+
+              <select
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">-- Select Employee --</option>
+
+                {employees.map((employee) => (
+                  <option key={employee._id} value={employee._id}>
+                    {employee.name || employee.email || 'Unnamed Employee'}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="mt-6 flex justify-end">
+          <div className="mt-8 flex justify-end gap-3 border-t border-slate-100 pt-6">
+            <button
+              type="button"
+              onClick={() => {
+                setTitle('');
+                setDueDate('');
+                setPriority('Medium');
+                setClient('');
+                setAssignedTo('');
+                setError('');
+              }}
+              className="rounded-lg border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-7 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? 'Assigning...' : 'Assign Task'}
+              <Plus size={18} />
+
+              {saving ? 'Adding...' : 'Add Task'}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Summary Cards */}
+      {/* Assigned Tasks */}
+      <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Assigned Tasks</h2>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-xl bg-white p-5 shadow">
-          <div className="flex justify-between">
-            <div>
-              <p>Total</p>
-              <h2 className="text-3xl font-bold">{tasks.length}</h2>
-            </div>
-            <Send />
-          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            View and update tasks assigned to your employees.
+          </p>
         </div>
-
-        <div className="rounded-xl bg-white p-5 shadow">
-          <div className="flex justify-between">
-            <div>
-              <p>Pending</p>
-              <h2 className="text-3xl font-bold">{pendingTasks.length}</h2>
-            </div>
-            <Clock3 />
-          </div>
-        </div>
-
-        <div className="rounded-xl bg-white p-5 shadow">
-          <div className="flex justify-between">
-            <div>
-              <p>In Progress</p>
-              <h2 className="text-3xl font-bold">{inProgressTasks.length}</h2>
-            </div>
-            <CircleDot />
-          </div>
-        </div>
-
-        <div className="rounded-xl bg-white p-5 shadow">
-          <div className="flex justify-between">
-            <div>
-              <p>Completed</p>
-              <h2 className="text-3xl font-bold">{completedTasks.length}</h2>
-            </div>
-            <CheckCircle2 />
-          </div>
-        </div>
-      </div>
-
-      {/* Assigned Tasks Table */}
-
-      <div className="mb-4 flex justify-between">
-        <h2 className="text-2xl font-bold">Tasks Assigned By Me</h2>
 
         <button
+          type="button"
           onClick={fetchTasks}
-          className="flex items-center gap-2 rounded-lg border px-4 py-2"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
           <RefreshCw size={16} />
           Refresh
         </button>
       </div>
 
+      {/* Summary */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Total Assigned</p>
+              <p className="mt-1 text-3xl font-bold text-slate-800">
+                {tasks.length}
+              </p>
+            </div>
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <Send size={22} />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Pending</p>
+              <p className="mt-1 text-3xl font-bold text-slate-800">
+                {pendingTasks.length}
+              </p>
+            </div>
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+              <Clock3 size={22} />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">In Progress</p>
+              <p className="mt-1 text-3xl font-bold text-slate-800">
+                {inProgressTasks.length}
+              </p>
+            </div>
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <CircleDot size={22} />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Completed</p>
+              <p className="mt-1 text-3xl font-bold text-slate-800">
+                {completedTasks.length}
+              </p>
+            </div>
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-50 text-green-600">
+              <CheckCircle2 size={22} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-250">
-            <thead className="bg-slate-50">
+        <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
+          <h3 className="text-lg font-semibold text-slate-800">
+            Tasks Assigned By Me
+          </h3>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Edit title, due date, client and remarks directly in the table.
+          </p>
+        </div>
+
+        <div className="w-full overflow-x-auto">
+          <table className="w-full min-w-262.5 text-sm">
+            <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="px-4 py-3 text-left">Title</th>
-                <th className="px-4 py-3 text-left">Assigned To</th>
-                <th className="px-4 py-3 text-left">Due Date</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Client</th>
-                <th className="px-4 py-3 text-left">Remarks</th>
+                <th className="px-5 py-4 text-left font-semibold text-slate-600">
+                  Title
+                </th>
+
+                <th className="px-5 py-4 text-left font-semibold text-slate-600">
+                  Assigned To
+                </th>
+
+                <th className="px-5 py-4 text-left font-semibold text-slate-600">
+                  Due Date
+                </th>
+
+                <th className="px-5 py-4 text-left font-semibold text-slate-600">
+                  Status
+                </th>
+
+                <th className="px-5 py-4 text-left font-semibold text-slate-600">
+                  Client
+                </th>
+
+                <th className="px-5 py-4 text-left font-semibold text-slate-600">
+                  Remarks
+                </th>
               </tr>
             </thead>
 
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {loadingTasks ? (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center">
-                    Loading...
+                  <td
+                    colSpan={6}
+                    className="px-6 py-12 text-center text-slate-500"
+                  >
+                    Loading assigned tasks...
                   </td>
                 </tr>
               ) : tasks.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center">
-                    <AlertCircle className="mx-auto mb-2" />
-                    No tasks assigned yet
+                  <td
+                    colSpan={6}
+                    className="px-6 py-12 text-center text-slate-500"
+                  >
+                    <div className="flex flex-col items-center">
+                      <AlertCircle className="mb-2 text-slate-400" size={28} />
+                      <p>You have not assigned any tasks yet.</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 tasks.map((task) => (
-                  <tr key={task._id} className="border-t">
-                    <td className="px-4 py-3">{task.title}</td>
-
-                    <td className="px-4 py-3">{task.assignedTo?.name}</td>
-
-                    <td className="px-4 py-3">
-                      {task.dueDate ? String(task.dueDate).slice(0, 10) : '-'}
+                  <tr key={task._id} className="transition hover:bg-slate-50">
+                    {/* Editable Title */}
+                    <td className="px-5 py-4">
+                      <input
+                        type="text"
+                        value={getTaskValue(task, 'title')}
+                        onChange={(e) =>
+                          handleInlineChange(task._id, 'title', e.target.value)
+                        }
+                        onBlur={() => handleInlineBlur(task._id, 'title')}
+                        className="w-full min-w-47.5 rounded-md border border-transparent bg-transparent px-2 py-2 font-medium text-slate-800 outline-none transition hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                      />
                     </td>
 
-                    <td className="px-4 py-3">
+                    {/* Assigned To */}
+                    <td className="px-5 py-4">
+                      <div>
+                        <p className="font-medium text-slate-700">
+                          {task.assignedTo?.name || 'Unknown'}
+                        </p>
+
+                        {task.assignedTo?.email && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {task.assignedTo.email}
+                          </p>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Editable Due Date */}
+                    <td className="px-5 py-4">
+                      <input
+                        type="date"
+                        value={
+                          getTaskValue(task, 'dueDate')
+                            ? String(getTaskValue(task, 'dueDate')).slice(0, 10)
+                            : ''
+                        }
+                        onChange={(e) =>
+                          handleInlineChange(
+                            task._id,
+                            'dueDate',
+                            e.target.value,
+                          )
+                        }
+                        onBlur={() => handleInlineBlur(task._id, 'dueDate')}
+                        className="rounded-md border border-transparent bg-transparent px-2 py-2 text-slate-600 outline-none hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                      />
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-5 py-4">
                       <select
                         value={task.status || 'Not Started'}
                         onChange={(e) =>
-                          updateTask(task._id, 'status', e.target.value)
+                          handleStatusChange(task._id, e.target.value)
                         }
-                        className="rounded border px-3 py-2"
+                        className={`rounded-full border-0 px-3 py-1.5 text-xs font-semibold outline-none ${getStatusClass(
+                          task.status,
+                        )}`}
                       >
-                        <option>Not Started</option>
-                        <option>In Progress</option>
-                        <option>Completed</option>
+                        <option value="Not Started">Not Started</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
                       </select>
                     </td>
 
-                    <td className="px-4 py-3">{task.client?.name || '-'}</td>
+                    {/* Editable Client */}
+                    <td className="px-5 py-4">
+                      <select
+                        value={getTaskValue(task, 'client')}
+                        onChange={(e) =>
+                          handleInlineChange(task._id, 'client', e.target.value)
+                        }
+                        onBlur={() => handleInlineBlur(task._id, 'client')}
+                        className="min-w-42.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      >
+                        <option value="">No Client</option>
 
-                    <td className="px-4 py-3">
+                        {clients.map((item) => (
+                          <option key={item._id} value={item._id}>
+                            {item.name || item.company || 'Unnamed Client'}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+
+                    {/* Editable Remarks */}
+                    <td className="px-5 py-4">
                       <input
-                        value={getTaskValue(task, 'remarks')}
+                        type="text"
+                        value={
+                          editingTasks[task._id]?.remarks !== undefined
+                            ? editingTasks[task._id].remarks
+                            : task.remarks || ''
+                        }
                         onChange={(e) =>
                           setLocalTaskValue(task._id, 'remarks', e.target.value)
                         }
-                        onBlur={() =>
-                          updateTask(
-                            task._id,
-                            'remarks',
-                            getTaskValue(task, 'remarks'),
-                          )
-                        }
-                        className="w-full rounded border px-3 py-2"
+                        onBlur={() => handleInlineBlur(task._id, 'remarks')}
+                        className="w-full px-3 py-2 border rounded-lg"
                       />
                     </td>
                   </tr>

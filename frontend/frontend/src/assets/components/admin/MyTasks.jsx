@@ -16,7 +16,7 @@ const authConfig = () => ({
   },
 });
 
-export default function MyTasks({ user, admin }) {
+export default function MyTasks({ user, admin, searchValue = '' }) {
   const currentAdmin =
     admin ||
     user ||
@@ -439,6 +439,61 @@ export default function MyTasks({ user, admin }) {
 
   const currentAdminId = getTaskUserId(currentAdmin?._id || currentAdmin?.id);
 
+  const normalizedSearch = String(searchValue || '')
+    .trim()
+    .toLowerCase();
+
+  const matchesTaskSearch = (task) => {
+    if (!normalizedSearch) return true;
+
+    const client =
+      task.client && typeof task.client === 'object'
+        ? task.client
+        : clients.find(
+            (item) => getTaskUserId(item) === getTaskUserId(task.client),
+          );
+
+    const assignedBy =
+      task.assignedBy && typeof task.assignedBy === 'object'
+        ? task.assignedBy
+        : employees.find(
+            (employee) =>
+              getTaskUserId(employee) === getTaskUserId(task.assignedBy),
+          );
+
+    const assignedTo =
+      task.assignedTo && typeof task.assignedTo === 'object'
+        ? task.assignedTo
+        : employees.find(
+            (employee) =>
+              getTaskUserId(employee) === getTaskUserId(task.assignedTo),
+          );
+
+    const searchableValues = [
+      task.title,
+      task.status,
+      task.priority,
+      task.remarks,
+      task._id,
+      task.issueDate,
+      task.dueDate,
+      task.description,
+      client?.name,
+      client?.clientName,
+      client?.company,
+      assignedBy?.name,
+      assignedBy?.email,
+      assignedTo?.name,
+      assignedTo?.email,
+    ];
+
+    return searchableValues.some((value) =>
+      String(value ?? '')
+        .toLowerCase()
+        .includes(normalizedSearch),
+    );
+  };
+
   const myOpenTasks = tasks.filter((task) => {
     const assignedToId = getTaskUserId(task.assignedTo);
     const assignedById = getTaskUserId(task.assignedBy);
@@ -446,7 +501,8 @@ export default function MyTasks({ user, admin }) {
     return (
       assignedToId === currentAdminId &&
       assignedById === currentAdminId &&
-      task.status !== 'Completed'
+      task.status !== 'Completed' &&
+      matchesTaskSearch(task)
     );
   });
 
@@ -454,7 +510,11 @@ export default function MyTasks({ user, admin }) {
     const assignedToId = getTaskUserId(task.assignedTo);
     const assignedById = getTaskUserId(task.assignedBy);
 
-    return assignedToId === currentAdminId && assignedById !== currentAdminId;
+    return (
+      assignedToId === currentAdminId &&
+      assignedById !== currentAdminId &&
+      matchesTaskSearch(task)
+    );
   });
 
   return (
@@ -600,7 +660,9 @@ export default function MyTasks({ user, admin }) {
                   colSpan={7}
                   className="px-4 py-10 text-center text-slate-500"
                 >
-                  No active tasks found.
+                  {normalizedSearch
+                    ? `No tasks match "${searchValue}".`
+                    : 'No active tasks found.'}
                 </td>
               </tr>
             ) : (
@@ -935,7 +997,9 @@ export default function MyTasks({ user, admin }) {
                     colSpan={7}
                     className="px-4 py-10 text-center text-slate-500"
                   >
-                    No tasks have been assigned to you.
+                    {normalizedSearch
+                      ? `No tasks match "${searchValue}".`
+                      : 'No tasks have been assigned to you.'}
                   </td>
                 </tr>
               ) : (

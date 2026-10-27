@@ -121,37 +121,34 @@ export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
-    console.log('Forgot password request:', email);
-
-    if (!email) {
+    if (!email || typeof email !== 'string') {
       return res.status(400).json({
-        message: 'Email is required',
+        message: 'A valid email is required.',
       });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Find employee
+    // Allow password reset for employees and admins.
     const user = await User.findOne({
       email: normalizedEmail,
-      role: 'employee',
+      role: { $in: ['employee', 'admin'] },
     });
 
     if (!user) {
       return res.status(400).json({
-        message: 'This password reset option is available for employees only.',
+        message:
+          'Password reset is available for registered employee and admin accounts.',
       });
     }
 
-    // Generate 6-digit OTP
+    // Generate a six-digit OTP.
     const otp = crypto.randomInt(100000, 1000000).toString();
 
-    console.log('Generated OTP:', otp);
-
-    // Hash OTP before storing
+    // Hash OTP before storing it.
     const hashedOtp = await bcrypt.hash(otp, 10);
 
-    // OTP expires in 5 minutes
+    // OTP expires after five minutes.
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     user.resetPasswordOtp = hashedOtp;
@@ -160,85 +157,79 @@ export const forgotPassword = async (req, res) => {
 
     await user.save();
 
-    console.log('OTP saved successfully');
-
-    // Send OTP email
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: user.email,
-      subject: 'Employee Password Reset OTP',
-
-      html: `
-        <div style="
-          font-family: Arial, sans-serif;
-          max-width: 600px;
-          margin: auto;
-          padding: 30px;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          background: #ffffff;
-        ">
-
-          <h2 style="color: #1e293b;">
-            Password Reset Request
-          </h2>
-
-          <p>Hello ${user.name},</p>
-
-          <p>
-            We received a request to reset your password.
-          </p>
-
-          <p>Your verification OTP is:</p>
-
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: 'Password Reset OTP',
+        html: `
           <div style="
-            text-align: center;
-            margin: 25px 0;
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+            padding: 30px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #ffffff;
           ">
-            <span style="
-              font-size: 32px;
-              font-weight: bold;
-              letter-spacing: 8px;
-              color: #2563eb;
-            ">
-              ${otp}
-            </span>
+            <h2 style="color: #1e293b;">
+              Password Reset Request
+            </h2>
+
+            <p>Hello ${String(user.name || 'User')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')},</p>
+
+            <p>
+              We received a request to reset your password.
+            </p>
+
+            <p>Your verification OTP is:</p>
+
+            <div style="text-align: center; margin: 25px 0;">
+              <span style="
+                font-size: 32px;
+                font-weight: bold;
+                letter-spacing: 8px;
+                color: #2563eb;
+              ">${otp}</span>
+            </div>
+
+            <p>
+              This OTP will expire in <strong>5 minutes</strong>.
+            </p>
+
+            <p>
+              If you did not request this reset, you can ignore this email.
+            </p>
+
+            <hr />
+
+            <p style="font-size: 12px; color: #64748b;">
+              This is an automated email. Please do not reply.
+            </p>
           </div>
+        `,
+      });
+    } catch (emailError) {
+      // Do not leave an active OTP if email delivery fails.
+      user.resetPasswordOtp = undefined;
+      user.resetPasswordOtpExpires = undefined;
+      user.resetPasswordVerified = false;
+      await user.save();
 
-          <p>
-            This OTP will expire in
-            <strong>5 minutes</strong>.
-          </p>
-
-          <p>
-            If you did not request this password reset,
-            please ignore this email.
-          </p>
-
-          <hr />
-
-          <p style="font-size: 12px; color: #64748b;">
-            This is an automated email. Please do not reply.
-          </p>
-
-        </div>
-      `,
-    });
-
-    console.log('OTP email sent successfully');
+      throw emailError;
+    }
 
     return res.status(200).json({
-      message: 'OTP sent successfully to your email.',
+      message: 'Password reset OTP sent successfully to your email.',
     });
   } catch (error) {
-    console.error('=================================');
-    console.error('FORGOT PASSWORD ERROR');
-    console.error(error);
-    console.error('=================================');
+    console.error('FORGOT PASSWORD ERROR:', error);
 
     return res.status(500).json({
-      message: 'Unable to send OTP.',
-      error: error.message,
+      message: 'Unable to send OTP. Please try again later.',
     });
   }
 };
@@ -264,7 +255,7 @@ export const verifyOtp = async (req, res) => {
     // Explicitly select fields that are select:false
     const user = await User.findOne({
       email: normalizedEmail,
-      role: 'employee',
+      role: { $in: ['employee', 'admin'] },
     }).select(
       '+resetPasswordOtp +resetPasswordOtpExpires +resetPasswordVerified',
     );
@@ -384,7 +375,7 @@ export const resetPassword = async (req, res) => {
 
     const employee = await User.findOne({
       email: normalizedEmail,
-      role: 'employee',
+      role: { $in: ['employee', 'admin'] },
     }).select(
       '+password +resetPasswordVerified +resetPasswordOtp +resetPasswordOtpExpires',
     );

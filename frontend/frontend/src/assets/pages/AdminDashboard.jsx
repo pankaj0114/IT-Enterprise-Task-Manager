@@ -26,6 +26,8 @@ const AdminDashboard = () => {
   const [dateOfJoining, setDateOfJoining] = useState('');
 
   const [showNewPassword, setShowNewPassword] = useState(false);
+
+  const [adminTasks, setAdminTasks] = useState([]);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   const [editingEmployeeId, setEditingEmployeeId] = useState(null);
@@ -63,6 +65,50 @@ const AdminDashboard = () => {
     localStorage.setItem('adminActiveTab', tab);
   };
 
+  // Shared navbar search for My Tasks, Assign Tasks, and All Tasks.
+  const [taskSearch, setTaskSearch] = useState('');
+
+  const normalizedTaskSearch = taskSearch.trim().toLowerCase();
+
+  const handleTaskSearchChange = (value) => {
+    setTaskSearch(value);
+
+    // If the admin searches while viewing another section, show matching tasks.
+    if (
+      value.trim() &&
+      !['myTasks', 'assignedTasks', 'allTasks'].includes(activeTab)
+    ) {
+      handleTabChange('allTasks');
+    }
+  };
+
+  const filteredAdminTasks = adminTasks.filter((task) => {
+    if (!normalizedTaskSearch) return true;
+
+    const searchableValues = [
+      task.title,
+      task.description,
+      task.status,
+      task.priority,
+      task.remarks,
+      task.client?.name,
+      task.client?.company,
+      task.assignedBy?.name,
+      task.assignedBy?.email,
+      task.assignedTo?.name,
+      task.assignedTo?.email,
+      task.dueDate,
+      task.issueDate,
+      task._id,
+    ];
+
+    return searchableValues.some((value) =>
+      String(value ?? '')
+        .toLowerCase()
+        .includes(normalizedTaskSearch),
+    );
+  });
+
   const [employees, setEmployees] = useState([]);
 
   // HR Manager registration and management
@@ -72,9 +118,9 @@ const AdminDashboard = () => {
   const [hrManagerPassword, setHrManagerPassword] = useState('');
   const [hrManagerConfirmPassword, setHrManagerConfirmPassword] = useState('');
   const [hrManagerDateOfJoining, setHrManagerDateOfJoining] = useState('');
-  const [showHrManagerPassword, setShowHrManagerPassword] = useState(false);
-  const [showHrManagerConfirmPassword, setShowHrManagerConfirmPassword] =
-    useState(false);
+  //const [showHrManagerPassword, setShowHrManagerPassword] = useState(false);
+  //const [showHrManagerConfirmPassword, setShowHrManagerConfirmPassword] =
+  //  useState(false);
   const [hrManagerLoading, setHrManagerLoading] = useState(false);
   const [hrManagerError, setHrManagerError] = useState('');
   const [hrManagerSuccess, setHrManagerSuccess] = useState('');
@@ -88,7 +134,7 @@ const AdminDashboard = () => {
   const [hrManagerUpdateError, setHrManagerUpdateError] = useState('');
   const [showPopup, setShowPopup] = useState(false);
   const [hours, setHours] = useState('');
-  const [minutes, setMinutes] = useState('');
+  //const [minutes, setMinutes] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [clients, setClients] = useState([]);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -109,7 +155,7 @@ const AdminDashboard = () => {
 
   const [selectedEmployees, setSelectedEmployees] = useState([]);
 
-  const [adminTasks, setAdminTasks] = useState([]);
+  // const [adminTasks, setAdminTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [deletingTaskId, setDeletingTaskId] = useState(null);
 
@@ -1587,6 +1633,8 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-slate-50">
       <AdminNavbar
         admin={admin}
+        searchValue={taskSearch}
+        onSearchChange={handleTaskSearchChange}
         notifications={notifications}
         onLogout={handleLogout}
         onViewAllNotifications={() => handleTabChange('notifications')}
@@ -1747,7 +1795,7 @@ const AdminDashboard = () => {
           >
             <span className="text-lg">📤</span>
 
-            <span className="hidden lg:inline">Assigned Tasks</span>
+            <span className="hidden lg:inline">Assign Tasks</span>
           </button>
           <button
             type="button"
@@ -2004,7 +2052,12 @@ const AdminDashboard = () => {
   "
       >
         {activeTab === 'myTasks' && (
-          <MyTasks tasks={adminTasks} loading={loadingTasks} admin={admin} />
+          <MyTasks
+            tasks={filteredAdminTasks}
+            loading={loadingTasks}
+            admin={admin}
+            searchValue={taskSearch}
+          />
         )}
 
         {activeTab === 'attendance' && (
@@ -2013,9 +2066,10 @@ const AdminDashboard = () => {
 
         {activeTab === 'assignedTasks' && (
           <AssignedTasks
-            tasks={adminTasks}
+            tasks={filteredAdminTasks}
             loading={loadingTasks}
             admin={admin}
+            searchValue={taskSearch}
           />
         )}
         {activeTab === 'userRegistration' && (
@@ -2660,7 +2714,8 @@ const AdminDashboard = () => {
                   </p>
                 </div>
                 <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
-                  {adminTasks.length} task{adminTasks.length !== 1 ? 's' : ''}
+                  {filteredAdminTasks.length} task
+                  {filteredAdminTasks.length !== 1 ? 's' : ''}
                 </span>
               </div>
             </div>
@@ -2709,17 +2764,19 @@ const AdminDashboard = () => {
                           Loading tasks...
                         </td>
                       </tr>
-                    ) : adminTasks.length === 0 ? (
+                    ) : filteredAdminTasks.length === 0 ? (
                       <tr>
                         <td
                           colSpan={10}
                           className="px-3 py-10 sm:px-6 sm:py-12 text-center text-slate-500"
                         >
-                          No tasks found.
+                          {normalizedTaskSearch
+                            ? `No tasks match "${taskSearch.trim()}".`
+                            : 'No tasks found.'}
                         </td>
                       </tr>
                     ) : (
-                      adminTasks.map((task) => (
+                      filteredAdminTasks.map((task) => (
                         <tr
                           key={task._id}
                           className="transition hover:bg-slate-50"

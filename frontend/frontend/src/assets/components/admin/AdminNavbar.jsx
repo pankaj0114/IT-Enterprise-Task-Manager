@@ -71,9 +71,10 @@ const AdminNavbar = ({
 
             <input
               type="text"
+              aria-label="Search tasks"
               value={searchValue}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Search..."
+              placeholder="Search tasks by title, employee, client, status..."
               className="
                 h-11
                 w-full

@@ -105,9 +105,11 @@ router.delete(
 
 router.delete('/wfh-requests/:requestId', authMiddleware, async (req, res) => {
   try {
+    const employeeId = req.user.id || req.user._id;
+
     const request = await WfhRequest.findOne({
       _id: req.params.requestId,
-      employee: req.user.id,
+      employee: employeeId,
     });
 
     if (!request) {
@@ -117,8 +119,18 @@ router.delete('/wfh-requests/:requestId', authMiddleware, async (req, res) => {
       });
     }
 
+    // Employees can delete pending or rejected requests.
+    if (!['PENDING', 'REJECTED'].includes(request.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You can only delete pending or rejected WFH requests.',
+      });
+    }
+
     await WfhRequest.deleteOne({
       _id: request._id,
+      employee: employeeId,
+      status: { $in: ['PENDING', 'REJECTED'] },
     });
 
     return res.status(200).json({

@@ -16,25 +16,31 @@ const authConfig = () => ({
 const pad = (n) => String(n).padStart(2, '0');
 const dateKey = (date) =>
   `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+const todayKey = () => dateKey(new Date());
 const monthKey = (year, month) => `${year}-${pad(month)}`;
 const monthDays = (year, month) =>
   Array.from(
     { length: new Date(year, month, 0).getDate() },
     (_, i) => new Date(year, month - 1, i + 1),
   );
-const todayKey = () => dateKey(new Date());
 const formatDate = (value) => {
   if (!value) return '—';
   const key = String(value).slice(0, 10);
   const [y, m, d] = key.split('-').map(Number);
-  if (!y || !m || !d) return key;
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  return y && m && d
+    ? new Date(y, m - 1, d).toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : key;
 };
-const statusStyle = (status) =>
+const inRange = (key, start, end) =>
+  key >= String(start || '').slice(0, 10) &&
+  key <= String(end || start || '').slice(0, 10);
+const recordKey = (record) =>
+  String(record?.dateKey || record?.date || '').slice(0, 10);
+const statusClass = (status) =>
   ({
     WFO: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     WFH: 'border-blue-200 bg-blue-50 text-blue-700',
@@ -50,35 +56,27 @@ const statusLabel = (status) =>
     PENDING_LEAVE: 'Leave Pending',
     PENDING_WFH: 'WFH Pending',
   })[status] || 'Not Marked';
-const getRefId = (value) => {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  return String(value._id || value.id || '');
-};
-const isInRange = (key, start, end) =>
-  key >= String(start || '').slice(0, 10) &&
-  key <= String(end || '').slice(0, 10);
 
 export default function HRAttendance() {
   const now = new Date();
-  const [activeSection, setActiveSection] = useState('employees');
-  const [employees, setEmployees] = useState([]);
-  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [section, setSection] = useState('employees');
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
+  const [employees, setEmployees] = useState([]);
+  const [selectedEmployee, setSelectedEmployee] = useState('');
   const [employeeAttendance, setEmployeeAttendance] = useState([]);
   const [employeeSummary, setEmployeeSummary] = useState({
     WFO: 0,
     WFH: 0,
     LEAVE: 0,
     PENDING_LEAVE: 0,
-    APPROVED_LEAVE: 0,
   });
   const [myAttendance, setMyAttendance] = useState([]);
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [wfhRequests, setWfhRequests] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
-  const [loadingCalendar, setLoadingCalendar] = useState(false);
+  const [loadingEmployeeCalendar, setLoadingEmployeeCalendar] = useState(false);
+  const [loadingMine, setLoadingMine] = useState(false);
   const [savingDate, setSavingDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -88,14 +86,12 @@ export default function HRAttendance() {
   const [endDate, setEndDate] = useState(todayKey());
   const [reason, setReason] = useState('');
   const requestIdRef = useRef(0);
-
   const days = useMemo(() => monthDays(year, month), [year, month]);
   const monthParam = monthKey(year, month);
 
   const fetchEmployees = useCallback(async () => {
     setLoadingEmployees(true);
     try {
-      // HR-specific endpoint; backend must authorize role "hr_manager".
       const { data } = await axios.get(
         `${API_BASE}/api/hr/attendance/employees`,
         authConfig(),
@@ -110,7 +106,7 @@ export default function HRAttendance() {
     } catch (e) {
       setError(
         e.response?.data?.message ||
-          'Could not load employee list. Check the HR attendance backend route.',
+          'Could not load employees. Check the HR attendance backend route.',
       );
     } finally {
       setLoadingEmployees(false);
@@ -120,17 +116,11 @@ export default function HRAttendance() {
   const fetchEmployeeAttendance = useCallback(async () => {
     if (!selectedEmployee) {
       setEmployeeAttendance([]);
-      setEmployeeSummary({
-        WFO: 0,
-        WFH: 0,
-        LEAVE: 0,
-        PENDING_LEAVE: 0,
-        APPROVED_LEAVE: 0,
-      });
+      setEmployeeSummary({ WFO: 0, WFH: 0, LEAVE: 0, PENDING_LEAVE: 0 });
       return;
     }
     const requestId = ++requestIdRef.current;
-    setLoadingCalendar(true);
+    setLoadingEmployeeCalendar(true);
     try {
       const { data } = await axios.get(
         `${API_BASE}/api/hr/attendance/employee/${selectedEmployee}`,
@@ -145,23 +135,21 @@ export default function HRAttendance() {
         WFH: 0,
         LEAVE: 0,
         PENDING_LEAVE: 0,
-        APPROVED_LEAVE: 0,
         ...(data?.summary || {}),
       });
     } catch (e) {
-      if (requestId === requestIdRef.current) {
+      if (requestId === requestIdRef.current)
         setError(
           e.response?.data?.message || 'Could not load employee attendance.',
         );
-      }
     } finally {
-      if (requestId === requestIdRef.current) setLoadingCalendar(false);
+      if (requestId === requestIdRef.current) setLoadingEmployeeCalendar(false);
     }
   }, [selectedEmployee, month, year]);
 
   const fetchMyAttendance = useCallback(async () => {
+    setLoadingMine(true);
     try {
-      // Uses the same personal attendance API as the employee attendance page.
       const { data } = await axios.get(`${API_BASE}/api/attendance/my`, {
         ...authConfig(),
         params: { month: monthParam },
@@ -173,6 +161,8 @@ export default function HRAttendance() {
       setWfhRequests(Array.isArray(data?.wfhRequests) ? data.wfhRequests : []);
     } catch (e) {
       setError(e.response?.data?.message || 'Could not load your attendance.');
+    } finally {
+      setLoadingMine(false);
     }
   }, [monthParam]);
 
@@ -186,51 +176,85 @@ export default function HRAttendance() {
     fetchMyAttendance();
   }, [fetchMyAttendance]);
 
-  const employeeMap = useMemo(() => {
-    const map = {};
-    employeeAttendance.forEach((record) => {
-      const key = String(record.dateKey || record.date || '').slice(0, 10);
-      if (key) map[key] = record;
-    });
-    return map;
-  }, [employeeAttendance]);
+  const employeeMap = useMemo(
+    () =>
+      Object.fromEntries(
+        employeeAttendance.map((r) => [recordKey(r), r]).filter(([key]) => key),
+      ),
+    [employeeAttendance],
+  );
+  const myAttendanceMap = useMemo(
+    () =>
+      Object.fromEntries(
+        myAttendance.map((r) => [recordKey(r), r]).filter(([key]) => key),
+      ),
+    [myAttendance],
+  );
+  const getRequestForDate = useCallback(
+    (key) => {
+      const leave = leaveRequests.find(
+        (r) =>
+          ['PENDING', 'APPROVED'].includes(String(r.status).toUpperCase()) &&
+          inRange(key, r.startDate, r.endDate),
+      );
+      if (leave)
+        return {
+          type:
+            String(leave.status).toUpperCase() === 'PENDING'
+              ? 'PENDING_LEAVE'
+              : 'LEAVE',
+          request: leave,
+        };
+      const wfh = wfhRequests.find(
+        (r) =>
+          ['PENDING', 'APPROVED'].includes(String(r.status).toUpperCase()) &&
+          inRange(key, r.startDate, r.endDate),
+      );
+      if (wfh)
+        return {
+          type:
+            String(wfh.status).toUpperCase() === 'PENDING'
+              ? 'PENDING_WFH'
+              : 'WFH',
+          request: wfh,
+        };
+      return null;
+    },
+    [leaveRequests, wfhRequests],
+  );
 
-  const myAttendanceMap = useMemo(() => {
-    const map = {};
-    myAttendance.forEach((record) => {
-      const key = String(record.dateKey || record.date || '').slice(0, 10);
-      if (key) map[key] = record;
-    });
-    return map;
-  }, [myAttendance]);
-
-  const pendingRequestForDate = (key) => {
-    const leave = leaveRequests.find(
-      (r) =>
-        ['PENDING', 'APPROVED'].includes(r.status) &&
-        isInRange(key, r.startDate, r.endDate),
-    );
-    if (leave)
-      return {
-        type: leave.status === 'PENDING' ? 'PENDING_LEAVE' : 'LEAVE',
-        request: leave,
-      };
-    const wfh = wfhRequests.find(
-      (r) =>
-        ['PENDING', 'APPROVED'].includes(r.status) &&
-        isInRange(key, r.startDate, r.endDate),
-    );
-    if (wfh)
-      return {
-        type: wfh.status === 'PENDING' ? 'PENDING_WFH' : 'WFH',
-        request: wfh,
-      };
-    return null;
+  const refreshMine = async () => {
+    await fetchMyAttendance();
   };
-
-  const reloadAll = async () => {
-    setError('');
-    await Promise.all([fetchEmployeeAttendance(), fetchMyAttendance()]);
+  const deletePendingRequestsForDate = async (key) => {
+    const pendingLeaves = leaveRequests.filter(
+      (r) =>
+        String(r.status).toUpperCase() === 'PENDING' &&
+        inRange(key, r.startDate, r.endDate),
+    );
+    const pendingWfhs = wfhRequests.filter(
+      (r) =>
+        String(r.status).toUpperCase() === 'PENDING' &&
+        inRange(key, r.startDate, r.endDate),
+    );
+    await Promise.all([
+      ...pendingLeaves
+        .filter((r) => r._id)
+        .map((r) =>
+          axios.delete(
+            `${API_BASE}/api/attendance/leave-requests/${r._id}`,
+            authConfig(),
+          ),
+        ),
+      ...pendingWfhs
+        .filter((r) => r._id)
+        .map((r) =>
+          axios.delete(
+            `${API_BASE}/api/attendance/wfh-requests/${r._id}`,
+            authConfig(),
+          ),
+        ),
+    ]);
   };
 
   const markWfo = async (key) => {
@@ -242,15 +266,24 @@ export default function HRAttendance() {
     setError('');
     setSuccess('');
     try {
-      await axios.put(
+      // Match EmployeeAttendance.jsx: clear pending requests covering this day before marking WFO.
+      await deletePendingRequestsForDate(key);
+      const { data } = await axios.put(
         `${API_BASE}/api/attendance/my`,
         { dateKey: key, status: 'WFO' },
         authConfig(),
       );
+      if (data?.attendance) {
+        setMyAttendance((prev) =>
+          prev.some((r) => recordKey(r) === key)
+            ? prev.map((r) => (recordKey(r) === key ? data.attendance : r))
+            : [...prev, data.attendance],
+        );
+      }
       setSuccess(`Attendance marked Work From Office for ${formatDate(key)}.`);
       await fetchMyAttendance();
     } catch (e) {
-      setError(e.response?.data?.message || 'Unable to update attendance.');
+      setError(e.response?.data?.message || 'Unable to mark attendance.');
     } finally {
       setSavingDate('');
     }
@@ -260,61 +293,73 @@ export default function HRAttendance() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    if (!startDate) {
+      setError('Please select a date.');
+      return;
+    }
     if (requestType !== 'WFO' && !reason.trim()) {
       setError('Please enter a reason for this request.');
       return;
     }
-    if (requestType === 'LEAVE' && endDate < startDate) {
+    if (requestType !== 'WFO' && endDate < startDate) {
       setError('End date cannot be before start date.');
+      return;
+    }
+    if (requestType === 'WFO') {
+      await markWfo(startDate);
       return;
     }
     setSubmitting(true);
     try {
-      if (requestType === 'WFO') {
-        await markWfo(startDate);
-        return;
-      }
-      const endpoint =
-        requestType === 'LEAVE'
-          ? `${API_BASE}/api/attendance/leave-requests`
-          : `${API_BASE}/api/attendance/wfh-requests`;
-      const payload = {
-        startDate,
-        endDate: requestType === 'LEAVE' ? endDate : endDate,
-        reason: reason.trim(),
-      };
-      const { data } = await axios.post(endpoint, payload, authConfig());
+      const isLeave = requestType === 'LEAVE';
+      const endpoint = isLeave
+        ? `${API_BASE}/api/attendance/leave-requests`
+        : `${API_BASE}/api/attendance/wfh-requests`;
+      const { data } = await axios.post(
+        endpoint,
+        { startDate, endDate, reason: reason.trim() },
+        authConfig(),
+      );
+      // Requests are pending, not direct attendance marks; refresh both calendar and request lists.
       setSuccess(
-        data?.message ||
-          `${requestType === 'LEAVE' ? 'Leave' : 'WFH'} request submitted.`,
+        data?.message || `${isLeave ? 'Leave' : 'WFH'} request submitted.`,
       );
       setReason('');
       await fetchMyAttendance();
     } catch (e) {
-      setError(e.response?.data?.message || 'Unable to submit request.');
+      setError(
+        e.response?.data?.message ||
+          `Unable to submit ${requestType === 'LEAVE' ? 'leave' : 'WFH'} request.`,
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const changeRequestStatus = async (type, id) => {
-    if (!id || !window.confirm(`Delete this pending ${type} request?`)) return;
+  const deleteRequest = async (type, id) => {
+    if (
+      !id ||
+      !window.confirm(
+        `Delete this pending ${type === 'LEAVE' ? 'leave' : 'WFH'} request?`,
+      )
+    )
+      return;
+    setError('');
+    setSuccess('');
     try {
-      const endpoint =
-        type === 'LEAVE'
-          ? `${API_BASE}/api/attendance/leave-requests/${id}`
-          : `${API_BASE}/api/attendance/wfh-requests/${id}`;
-      await axios.delete(endpoint, authConfig());
+      const path = type === 'LEAVE' ? 'leave-requests' : 'wfh-requests';
+      await axios.delete(
+        `${API_BASE}/api/attendance/${path}/${id}`,
+        authConfig(),
+      );
       setSuccess(`${type === 'LEAVE' ? 'Leave' : 'WFH'} request deleted.`);
       await fetchMyAttendance();
     } catch (e) {
-      setError(
-        e.response?.data?.message || `Unable to delete ${type} request.`,
-      );
+      setError(e.response?.data?.message || 'Unable to delete request.');
     }
   };
 
-  const summaryMine = useMemo(
+  const mySummary = useMemo(
     () => ({
       WFO: myAttendance.filter((r) => r.status === 'WFO').length,
       WFH: myAttendance.filter((r) => r.status === 'WFH').length,
@@ -322,36 +367,34 @@ export default function HRAttendance() {
     }),
     [myAttendance],
   );
-
   const tabClass = (key) =>
-    `rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeSection === key ? 'bg-indigo-600 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`;
+    `rounded-lg px-4 py-2.5 text-sm font-semibold transition ${section === key ? 'bg-indigo-600 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`;
 
   return (
     <section className="w-full min-w-0 space-y-5">
       <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h1 className="text-2xl font-bold text-slate-900">HR Attendance</h1>
         <p className="mt-1 text-sm text-slate-500">
-          View monthly attendance for all employees and manage your own
-          attendance, WFH, and leave requests.
+          Review employee attendance and manage your own daily attendance, WFH,
+          and leave requests.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             className={tabClass('employees')}
-            onClick={() => setActiveSection('employees')}
+            onClick={() => setSection('employees')}
           >
             Employee Attendance
           </button>
           <button
             type="button"
             className={tabClass('mine')}
-            onClick={() => setActiveSection('mine')}
+            onClick={() => setSection('mine')}
           >
             My Attendance
           </button>
         </div>
       </header>
-
       {error && (
         <div
           role="alert"
@@ -361,7 +404,10 @@ export default function HRAttendance() {
         </div>
       )}
       {success && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div
+          role="status"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+        >
           {success}
         </div>
       )}
@@ -399,14 +445,16 @@ export default function HRAttendance() {
         </label>
         <button
           type="button"
-          onClick={reloadAll}
+          onClick={() =>
+            Promise.all([fetchEmployeeAttendance(), fetchMyAttendance()])
+          }
           className="h-10 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         >
           Refresh
         </button>
       </div>
 
-      {activeSection === 'employees' && (
+      {section === 'employees' && (
         <>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <label className="block text-sm font-medium text-slate-700">
@@ -414,12 +462,14 @@ export default function HRAttendance() {
               <select
                 value={selectedEmployee}
                 onChange={(e) => setSelectedEmployee(e.target.value)}
-                disabled={loadingEmployees || employees.length === 0}
+                disabled={loadingEmployees || !employees.length}
                 className="mt-1 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 sm:max-w-md"
               >
-                {employees.length === 0 && (
-                  <option value="">No employees found</option>
-                )}
+                <option value="">
+                  {loadingEmployees
+                    ? 'Loading employees…'
+                    : 'Select an employee'}
+                </option>
                 {employees.map((employee) => (
                   <option key={employee._id} value={employee._id}>
                     {employee.name}
@@ -429,7 +479,6 @@ export default function HRAttendance() {
               </select>
             </label>
           </div>
-
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
               [
@@ -457,22 +506,22 @@ export default function HRAttendance() {
                 <p className="text-sm font-medium">{label}</p>
                 <p className="mt-2 text-3xl font-bold">{count || 0}</p>
                 <p className="text-xs opacity-75">
-                  {label === 'Pending Leave' ? 'Requests' : 'Days'}
+                  {label === 'Pending Leave' ? 'Requests' : 'Days this month'}
                 </p>
               </div>
             ))}
           </div>
-
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-4">
               <h2 className="font-semibold text-slate-900">
                 Monthly Employee Calendar
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Read-only attendance for the selected employee and month.
+                Read-only calendar. Only the employee can mark or request their
+                own attendance.
               </p>
             </div>
-            {loadingCalendar ? (
+            {loadingEmployeeCalendar ? (
               <p className="p-8 text-center text-slate-500">
                 Loading attendance…
               </p>
@@ -485,7 +534,7 @@ export default function HRAttendance() {
                   return (
                     <div
                       key={key}
-                      className={`min-h-28 rounded-xl border p-3 ${statusStyle(status)}`}
+                      className={`min-h-28 rounded-xl border p-3 ${statusClass(status)}`}
                     >
                       <div className="flex items-center justify-between text-xs">
                         <span>
@@ -512,34 +561,35 @@ export default function HRAttendance() {
         </>
       )}
 
-      {activeSection === 'mine' && (
+      {section === 'mine' && (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {[
               [
                 'Work From Office',
-                summaryMine.WFO,
+                mySummary.WFO,
                 'border-emerald-100 bg-emerald-50 text-emerald-800',
               ],
               [
                 'Work From Home',
-                summaryMine.WFH,
+                mySummary.WFH,
                 'border-blue-100 bg-blue-50 text-blue-800',
               ],
               [
                 'Leave',
-                summaryMine.LEAVE,
+                mySummary.LEAVE,
                 'border-rose-100 bg-rose-50 text-rose-800',
               ],
             ].map(([label, count, classes]) => (
               <div key={label} className={`rounded-xl border p-4 ${classes}`}>
                 <p className="text-sm font-medium">{label}</p>
                 <p className="mt-2 text-3xl font-bold">{count}</p>
-                <p className="text-xs opacity-75">Days this month</p>
+                <p className="text-xs opacity-75">
+                  Recorded days in selected month
+                </p>
               </div>
             ))}
           </div>
-
           <form
             onSubmit={submitRequest}
             className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-2"
@@ -562,7 +612,7 @@ export default function HRAttendance() {
                 type="date"
                 required
                 value={startDate}
-                min={requestType === 'LEAVE' ? todayKey() : undefined}
+                min={requestType === 'WFO' ? undefined : todayKey()}
                 max={requestType === 'WFO' ? todayKey() : undefined}
                 onChange={(e) => {
                   setStartDate(e.target.value);
@@ -573,11 +623,11 @@ export default function HRAttendance() {
             </label>
             {requestType !== 'WFO' && (
               <label className="text-sm font-medium text-slate-700">
-                {requestType === 'LEAVE' ? 'End date' : 'End date'}
+                End date
                 <input
                   type="date"
                   required
-                  min={startDate}
+                  min={startDate || todayKey()}
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-normal"
@@ -600,7 +650,7 @@ export default function HRAttendance() {
             )}
             <div className="md:col-span-2">
               <button
-                disabled={submitting || savingDate !== ''}
+                disabled={submitting || !!savingDate}
                 className="rounded-lg bg-indigo-600 px-5 py-2.5 font-semibold text-white disabled:opacity-60"
               >
                 {submitting || savingDate
@@ -611,74 +661,81 @@ export default function HRAttendance() {
               </button>
             </div>
           </form>
-
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-4">
               <h2 className="font-semibold text-slate-900">
                 My Monthly Calendar
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Your own attendance and request status for each day.
+                Click Mark WFO for an unmarked past or current day. WFH and
+                leave are submitted as requests.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-4 lg:grid-cols-7">
-              {days.map((day) => {
-                const key = dateKey(day);
-                const record = myAttendanceMap[key];
-                const request = pendingRequestForDate(key);
-                const status = record?.status || request?.type || '';
-                return (
-                  <div
-                    key={key}
-                    className={`min-h-28 rounded-xl border p-3 ${statusStyle(status)}`}
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <span>
-                        {day.toLocaleDateString('en-US', { weekday: 'short' })}
-                      </span>
-                      <strong className="text-base">{day.getDate()}</strong>
+            {loadingMine ? (
+              <p className="p-8 text-center text-slate-500">
+                Loading your attendance…
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 p-3 sm:grid-cols-4 lg:grid-cols-7">
+                {days.map((day) => {
+                  const key = dateKey(day);
+                  const record = myAttendanceMap[key];
+                  const request = getRequestForDate(key);
+                  const status = record?.status || request?.type || '';
+                  return (
+                    <div
+                      key={key}
+                      className={`min-h-28 rounded-xl border p-3 ${statusClass(status)}`}
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span>
+                          {day.toLocaleDateString('en-US', {
+                            weekday: 'short',
+                          })}
+                        </span>
+                        <strong className="text-base">{day.getDate()}</strong>
+                      </div>
+                      <div className="mt-3 rounded-lg border border-current/20 bg-white/70 px-2 py-2 text-xs font-semibold">
+                        {statusLabel(status)}
+                      </div>
+                      {request?.request?.reason && (
+                        <p className="mt-2 line-clamp-2 text-xs opacity-80">
+                          {request.request.reason}
+                        </p>
+                      )}
+                      {record?.reason && (
+                        <p className="mt-2 line-clamp-2 text-xs opacity-80">
+                          {record.reason}
+                        </p>
+                      )}
+                      {!record && !request && key <= todayKey() && (
+                        <button
+                          type="button"
+                          disabled={savingDate === key}
+                          onClick={() => markWfo(key)}
+                          className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs font-semibold text-emerald-700 disabled:opacity-60"
+                        >
+                          {savingDate === key ? 'Saving…' : 'Mark WFO'}
+                        </button>
+                      )}
                     </div>
-                    <div className="mt-3 rounded-lg border border-current/20 bg-white/70 px-2 py-2 text-xs font-semibold">
-                      {statusLabel(status)}
-                    </div>
-                    {request?.request?.reason && (
-                      <p className="mt-2 line-clamp-2 text-xs opacity-80">
-                        {request.request.reason}
-                      </p>
-                    )}
-                    {record?.reason && (
-                      <p className="mt-2 line-clamp-2 text-xs opacity-80">
-                        {record.reason}
-                      </p>
-                    )}
-                    {!record && !request && key <= todayKey() && (
-                      <button
-                        type="button"
-                        disabled={savingDate === key}
-                        onClick={() => markWfo(key)}
-                        className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xs font-semibold text-emerald-700 disabled:opacity-60"
-                      >
-                        {savingDate === key ? 'Saving…' : 'Mark WFO'}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <RequestList
               title="My Leave Requests"
               type="LEAVE"
               requests={leaveRequests}
-              onDelete={changeRequestStatus}
+              onDelete={deleteRequest}
             />
             <RequestList
               title="My WFH Requests"
               type="WFH"
               requests={wfhRequests}
-              onDelete={changeRequestStatus}
+              onDelete={deleteRequest}
             />
           </div>
         </>
@@ -713,7 +770,7 @@ function RequestList({ title, type, requests, onDelete }) {
                     {type === 'LEAVE' ? 'Leave' : 'Work From Home'}
                   </strong>
                   <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${request.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : request.status === 'REJECTED' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${String(request.status).toUpperCase() === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : String(request.status).toUpperCase() === 'REJECTED' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}
                   >
                     {request.status || 'PENDING'}
                   </span>
@@ -730,7 +787,7 @@ function RequestList({ title, type, requests, onDelete }) {
                   {request.reason || 'No reason provided.'}
                 </p>
               </div>
-              {request.status === 'PENDING' && (
+              {String(request.status).toUpperCase() === 'PENDING' && (
                 <button
                   type="button"
                   onClick={() => onDelete(type, request._id)}

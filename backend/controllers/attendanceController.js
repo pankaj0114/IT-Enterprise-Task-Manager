@@ -1,8 +1,8 @@
-import Attendance from '../../../Task Management project/backend/models/Attendance.js';
-import LeaveRequest from '../../../Task Management project/backend/models/LeaveRequest.js';
-import WfhRequest from '../../../Task Management project/backend/models/WfhRequest.js';
-import User from '../../../Task Management project/backend/models/User.js';
-import Notification from '../../../Task Management project/backend/models/Notification.js';
+import Attendance from '../models/Attendance.js';
+import LeaveRequest from '../models/LeaveRequest.js';
+import WfhRequest from '../models/WfhRequest.js';
+import User from '../models/User.js';
+import Notification from '../models/Notification.js';
 const VALID_STATUSES = ['WFO', 'WFH'];
 
 const isValidDateKey = (dateKey) => {
@@ -181,11 +181,12 @@ export const getMyAttendance = async (req, res) => {
 export const markAttendance = async (req, res) => {
   try {
     const { dateKey, status } = req.body;
+    const employeeId = req.user.id || req.user._id;
 
     if (!isValidDateKey(dateKey)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid date.',
+        message: 'Invalid date. Use YYYY-MM-DD.',
       });
     }
 
@@ -198,7 +199,7 @@ export const markAttendance = async (req, res) => {
 
     const today = getTodayKey();
 
-    // Employee cannot modify past dates
+    // Employees cannot change past attendance.
     if (dateKey < today) {
       return res.status(400).json({
         success: false,
@@ -206,44 +207,55 @@ export const markAttendance = async (req, res) => {
       });
     }
 
-    // Check approved leave
-    const approvedLeave = await LeaveRequest.findOne({
-      employee: req.user.id,
-      status: 'APPROVED',
-      startDate: { $lte: dateKey },
-      endDate: { $gte: dateKey },
-    });
-
-    if (approvedLeave) {
+    // WFO can only be marked for today, not a future date.
+    if (status === 'WFO' && dateKey > today) {
       return res.status(400).json({
         success: false,
-        message: 'This date is already approved as leave.',
+        message: 'You can mark WFO only for today.',
       });
     }
 
-    // Pending leave should not allow employee
-    // to simultaneously mark attendance
-    const pendingLeave = await LeaveRequest.findOne({
-      employee: req.user.id,
-      status: 'PENDING',
+    // Do not allow manual attendance if a leave request
+    // is pending or approved for this date.
+    const activeLeave = await LeaveRequest.findOne({
+      employee: employeeId,
+      status: { $in: ['PENDING', 'APPROVED'] },
       startDate: { $lte: dateKey },
       endDate: { $gte: dateKey },
     });
 
-    if (pendingLeave) {
+    if (activeLeave) {
       return res.status(400).json({
         success: false,
-        message: 'You already have a pending leave request for this date.',
+        message:
+          'You cannot mark attendance while a leave request is pending or approved for this date.',
+      });
+    }
+
+    // Do not allow manual attendance if a WFH request
+    // is pending or approved for this date.
+    const activeWfh = await WfhRequest.findOne({
+      employee: employeeId,
+      status: { $in: ['PENDING', 'APPROVED'] },
+      startDate: { $lte: dateKey },
+      endDate: { $gte: dateKey },
+    });
+
+    if (activeWfh) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'You cannot manually change attendance while a WFH request is pending or approved for this date.',
       });
     }
 
     const attendance = await Attendance.findOneAndUpdate(
       {
-        employee: req.user.id,
+        employee: employeeId,
         dateKey,
       },
       {
-        employee: req.user.id,
+        employee: employeeId,
         dateKey,
         status,
         source: 'employee',
@@ -268,7 +280,8 @@ export const markAttendance = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to update attendance',
+      message: 'Failed to update attendance.',
+      error: error.message,
     });
   }
 };
@@ -291,6 +304,7 @@ export const requestLeave = async (req, res) => {
     console.log('today:', getTodayKey());
     console.log('===================================');
 
+    // 1. Validate dates
     if (!isValidDateKey(startDate) || !isValidDateKey(endDate)) {
       return res.status(400).json({
         success: false,
@@ -305,6 +319,7 @@ export const requestLeave = async (req, res) => {
       });
     }
 
+    // 2. Validate reason
     if (!reason || reason.trim().length < 3) {
       return res.status(400).json({
         success: false,
@@ -312,6 +327,7 @@ export const requestLeave = async (req, res) => {
       });
     }
 
+    // 3. Validate leave dates
     const today = getTodayKey();
 
     if (startDate < today) {
@@ -322,43 +338,31 @@ export const requestLeave = async (req, res) => {
       });
     }
 
-    const employee = await User.findById(req.user.id);
+    // 4. Find logged-in user
+    const userId = req.user.id || req.user._id;
+    const user = await User.findById(userId);
 
-    if (!employee) {
+    if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Employee not found.',
+        message: 'User not found.',
       });
     }
 
-    if (employee.role !== 'employee') {
+    // 5. Allow employees and HR managers
+    const allowedRoles = ['employee', 'hr_manager'];
+
+    if (!allowedRoles.includes(user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only employees can request leave.',
+        message: 'Only employees and HR managers can request leave.',
       });
     }
 
-    const allLeaveRequests = await LeaveRequest.find({
-      employee: req.user.id,
-    }).sort({ startDate: 1 });
-
-    console.log('========== ALL MY LEAVE REQUESTS ==========');
-    console.log(
-      allLeaveRequests.map((leave) => ({
-        id: leave._id,
-        startDate: leave.startDate,
-        endDate: leave.endDate,
-        status: leave.status,
-        reason: leave.reason,
-      })),
-    );
-    console.log('============================================');
-
+    // 6. Check overlapping pending or approved leave requests
     const overlappingLeave = await LeaveRequest.findOne({
-      employee: req.user.id,
-      status: {
-        $in: ['PENDING', 'APPROVED'],
-      },
+      employee: user._id,
+      status: { $in: ['PENDING', 'APPROVED'] },
       startDate: { $lte: endDate },
       endDate: { $gte: startDate },
     });
@@ -371,50 +375,33 @@ export const requestLeave = async (req, res) => {
       });
     }
 
-    // =========================================================
-    // REMOVE EXISTING WFO / WFH ATTENDANCE
-    // =========================================================
-    // If the employee already marked these dates as WFO or WFH,
-    // remove those records because the dates are now pending
-    // leave approval.
-    //
-    // LEAVE records are NOT deleted.
-    // =========================================================
-
+    // 7. Remove existing WFO / WFH attendance for the requested dates
     await Attendance.deleteMany({
-      employee: req.user.id,
+      employee: user._id,
       dateKey: {
         $gte: startDate,
         $lte: endDate,
       },
-      status: {
-        $in: ['WFO', 'WFH'],
-      },
+      status: { $in: ['WFO', 'WFH'] },
     });
 
-    // =========================================================
-    // CREATE PENDING LEAVE REQUEST
-    // =========================================================
-
-    // =========================================================
-    // CREATE PENDING LEAVE REQUEST
-    // =========================================================
-
+    // 8. Create pending leave request
     const leaveRequest = await LeaveRequest.create({
-      employee: req.user.id,
+      employee: user._id,
       startDate,
       endDate,
       reason: reason.trim(),
       status: 'PENDING',
     });
 
-    // --> ADD NOTIFICATION LOGIC HERE <--
+    // 9. Notify admins
     try {
-      const admins = await User.find({ role: 'admin' });
+      const admins = await User.find({ role: 'admin' }).select('_id');
+
       const notifications = admins.map((admin) => ({
         recipient: admin._id,
-        sender: req.user.id,
-        message: `${employee.name || 'An employee'} submitted a new leave request.`,
+        sender: user._id,
+        message: `${user.name || 'A user'} (${user.role}) submitted a new leave request.`,
         type: 'LEAVE_REQUEST',
       }));
 
@@ -428,12 +415,7 @@ export const requestLeave = async (req, res) => {
       );
     }
 
-    return res.status(201).json({
-      success: true,
-      message: 'Leave request submitted for admin approval.',
-      leaveRequest,
-    });
-
+    // 10. Send success response
     return res.status(201).json({
       success: true,
       message: 'Leave request submitted for admin approval.',
@@ -444,7 +426,7 @@ export const requestLeave = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to submit leave request',
+      message: 'Failed to submit leave request.',
       error: error.message,
     });
   }
@@ -496,85 +478,134 @@ export const reviewLeaveRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
     const { action, adminComment = '' } = req.body;
+    const adminId = req.user?.id || req.user?._id;
 
     console.log('Review leave request:', {
       requestId,
       action,
-      adminId: req.user?.id,
+      adminId,
     });
 
+    // 1. Validate action
     if (!['approve', 'reject'].includes(action)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid action',
+        message: 'Invalid action. Use approve or reject.',
       });
     }
 
-    // Find the actual LeaveRequest
+    // 2. Find the leave request
     const leaveRequest = await LeaveRequest.findById(requestId);
 
     if (!leaveRequest) {
       return res.status(404).json({
         success: false,
-        message: 'Leave request not found',
+        message: 'Leave request not found.',
       });
     }
 
+    // 3. Only pending requests can be reviewed
     if (leaveRequest.status !== 'PENDING') {
       return res.status(400).json({
         success: false,
-        message: `Leave request is already ${leaveRequest.status.toLowerCase()}`,
+        message: `Leave request is already ${leaveRequest.status.toLowerCase()}.`,
       });
     }
 
-    // -------------------------
-    // REJECT
-    // -------------------------
+    // 4. Reject request
     if (action === 'reject') {
       leaveRequest.status = 'REJECTED';
-      leaveRequest.reviewedBy = req.user.id;
+      leaveRequest.reviewedBy = adminId;
       leaveRequest.reviewedAt = new Date();
       leaveRequest.adminComment = adminComment;
 
       await leaveRequest.save();
 
-      return res.json({
+      return res.status(200).json({
         success: true,
-        message: 'Leave request rejected',
+        message: 'Leave request rejected successfully.',
         request: leaveRequest,
       });
     }
 
-    // -------------------------
-    // APPROVE
-    // -------------------------
+    // 5. Validate dates
+    const { startDate, endDate } = leaveRequest;
 
-    const start = new Date(`${leaveRequest.startDate}T00:00:00`);
-    const end = new Date(`${leaveRequest.endDate}T00:00:00`);
-
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    if (
+      !isValidDateKey(startDate) ||
+      !isValidDateKey(endDate) ||
+      startDate > endDate
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid leave dates',
+        message: 'Invalid leave date range.',
       });
     }
 
-    if (start > end) {
-      return res.status(400).json({
+    // 6. Check for conflicting WFO/WFH attendance
+    const conflictingAttendance = await Attendance.findOne({
+      employee: leaveRequest.employee,
+      dateKey: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+      status: { $in: ['WFO', 'WFH'] },
+    });
+
+    if (conflictingAttendance) {
+      return res.status(409).json({
         success: false,
-        message: 'Leave start date cannot be after end date',
+        message:
+          `Cannot approve leave. Attendance is already marked as ${conflictingAttendance.status} ` +
+          `on ${conflictingAttendance.dateKey}.`,
       });
     }
 
+    // 7. Check for overlapping active WFH requests
+    const conflictingWfh = await WfhRequest.findOne({
+      employee: leaveRequest.employee,
+      status: { $in: ['PENDING', 'APPROVED'] },
+      startDate: { $lte: endDate },
+      endDate: { $gte: startDate },
+    });
+
+    if (conflictingWfh) {
+      return res.status(409).json({
+        success: false,
+        message:
+          'Cannot approve leave because this employee has a pending or approved WFH request for overlapping dates.',
+      });
+    }
+
+    // 8. Check for other overlapping active leave requests
+    // Exclude the leave request currently being reviewed.
+    const conflictingLeave = await LeaveRequest.findOne({
+      _id: { $ne: leaveRequest._id },
+      employee: leaveRequest.employee,
+      status: { $in: ['PENDING', 'APPROVED'] },
+      startDate: { $lte: endDate },
+      endDate: { $gte: startDate },
+    });
+
+    if (conflictingLeave) {
+      return res.status(409).json({
+        success: false,
+        message:
+          'Cannot approve leave because another pending or approved leave request overlaps these dates.',
+      });
+    }
+
+    // 9. Prepare LEAVE attendance records for each day
     const operations = [];
+    const current = new Date(`${startDate}T00:00:00`);
 
-    const current = new Date(start);
-
-    while (current <= end) {
+    while (
+      `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}` <=
+      endDate
+    ) {
       const year = current.getFullYear();
       const month = String(current.getMonth() + 1).padStart(2, '0');
       const day = String(current.getDate()).padStart(2, '0');
-
       const dateKey = `${year}-${month}-${day}`;
 
       operations.push({
@@ -602,21 +633,22 @@ export const reviewLeaveRequest = async (req, res) => {
 
     console.log('Attendance operations:', operations.length);
 
+    // 10. Save attendance records
     if (operations.length > 0) {
       await Attendance.bulkWrite(operations);
     }
 
-    // Mark LeaveRequest approved
+    // 11. Mark the request as approved
     leaveRequest.status = 'APPROVED';
-    leaveRequest.reviewedBy = req.user.id;
+    leaveRequest.reviewedBy = adminId;
     leaveRequest.reviewedAt = new Date();
     leaveRequest.adminComment = adminComment;
 
     await leaveRequest.save();
 
-    return res.json({
+    return res.status(200).json({
       success: true,
-      message: 'Leave request approved',
+      message: 'Leave request approved successfully.',
       request: leaveRequest,
     });
   } catch (error) {
@@ -624,7 +656,7 @@ export const reviewLeaveRequest = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to process leave request',
+      message: 'Failed to process leave request.',
       error: error.message,
     });
   }
@@ -1286,32 +1318,33 @@ export const handleLeaveRequest = async (req, res) => {
     }
 
     const conflictingWfh = await WfhRequest.findOne({
-      employee: req.user.id,
+      employee: leaveRequest.employee,
       status: { $in: ['PENDING', 'APPROVED'] },
-      startDate: { $lte: endDate },
-      endDate: { $gte: startDate },
+      startDate: { $lte: leaveRequest.endDate },
+      endDate: { $gte: leaveRequest.startDate },
     });
 
     if (conflictingWfh) {
       return res.status(409).json({
         success: false,
         message:
-          'You already have a WFH request for one or more of these dates.',
+          'This employee already has a pending or approved WFH request for one or more of these dates.',
       });
     }
 
     const conflictingLeave = await LeaveRequest.findOne({
-      employee: req.user.id,
+      _id: { $ne: leaveRequest._id },
+      employee: leaveRequest.employee,
       status: { $in: ['PENDING', 'APPROVED'] },
-      startDate: { $lte: endDate },
-      endDate: { $gte: startDate },
+      startDate: { $lte: leaveRequest.endDate },
+      endDate: { $gte: leaveRequest.startDate },
     });
 
     if (conflictingLeave) {
       return res.status(409).json({
         success: false,
         message:
-          'You already have a leave request for one or more of these dates.',
+          'This employee already has another pending or approved leave request for one or more of these dates.',
       });
     }
 

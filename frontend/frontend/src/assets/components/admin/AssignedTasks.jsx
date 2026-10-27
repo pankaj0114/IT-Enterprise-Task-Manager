@@ -12,7 +12,7 @@ import {
 
 const API_BASE = 'http://localhost:5000';
 
-const AssignedTasks = () => {
+const AssignedTasks = ({ searchValue = '' }) => {
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [clients, setClients] = useState([]);
@@ -402,11 +402,67 @@ const AssignedTasks = () => {
     }
   };
 
-  const pendingTasks = tasks.filter((task) => task.status === 'Not Started');
+  const normalizedSearch = String(searchValue || '')
+    .trim()
+    .toLowerCase();
 
-  const inProgressTasks = tasks.filter((task) => task.status === 'In Progress');
+  const filteredTasks = tasks.filter((task) => {
+    if (!normalizedSearch) return true;
 
-  const completedTasks = tasks.filter((task) => task.status === 'Completed');
+    // Support both populated objects and raw IDs.
+    const assignedTo =
+      task.assignedTo && typeof task.assignedTo === 'object'
+        ? task.assignedTo
+        : employees.find(
+            (employee) => String(employee._id) === String(task.assignedTo),
+          );
+
+    const taskClient =
+      task.client && typeof task.client === 'object'
+        ? task.client
+        : clients.find((item) => String(item._id) === String(task.client));
+
+    const assignedBy =
+      task.assignedBy && typeof task.assignedBy === 'object'
+        ? task.assignedBy
+        : null;
+
+    const searchableFields = [
+      task.title,
+      task.status,
+      task.priority,
+      task.remarks,
+      task.description,
+      task._id,
+      task.dueDate,
+      task.issueDate,
+      assignedTo?.name,
+      assignedTo?.email,
+      taskClient?.name,
+      taskClient?.company,
+      taskClient?.clientName,
+      assignedBy?.name,
+      assignedBy?.email,
+    ];
+
+    return searchableFields.some((value) =>
+      String(value ?? '')
+        .toLowerCase()
+        .includes(normalizedSearch),
+    );
+  });
+
+  const pendingTasks = filteredTasks.filter(
+    (task) => task.status === 'Not Started',
+  );
+
+  const inProgressTasks = filteredTasks.filter(
+    (task) => task.status === 'In Progress',
+  );
+
+  const completedTasks = filteredTasks.filter(
+    (task) => task.status === 'Completed',
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl">
@@ -566,7 +622,7 @@ const AssignedTasks = () => {
             <div>
               <p className="text-sm text-slate-500">Total Assigned</p>
               <p className="mt-1 text-3xl font-bold text-slate-800">
-                {tasks.length}
+                {filteredTasks.length}
               </p>
             </div>
 
@@ -674,7 +730,7 @@ const AssignedTasks = () => {
                     Loading assigned tasks...
                   </td>
                 </tr>
-              ) : tasks.length === 0 ? (
+              ) : filteredTasks.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -682,12 +738,16 @@ const AssignedTasks = () => {
                   >
                     <div className="flex flex-col items-center">
                       <AlertCircle className="mb-2 text-slate-400" size={28} />
-                      <p>You have not assigned any tasks yet.</p>
+                      <p>
+                        {normalizedSearch
+                          ? `No assigned tasks match "${searchValue}".`
+                          : 'You have not assigned any tasks yet.'}
+                      </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                tasks.map((task) => (
+                filteredTasks.map((task) => (
                   <tr key={task._id} className="transition hover:bg-slate-50">
                     {/* Editable Title */}
                     <td className="px-5 py-4">

@@ -1,117 +1,260 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import { ClipboardList, Send, CalendarDays, LogOut } from 'lucide-react';
-import HRMyTasks from '../components/hrmanager/HRMyTasks.jsx';
-import HRAssignedTasks from '../components/hrmanager/HRAssignedTasks.jsx';
-import HRAttendance from '../components/hrmanager/HRAttendance.jsx';
+import React, { useState } from 'react';
+import {
+  ListTodo,
+  ClipboardList,
+  Users,
+  UserRound,
+  CalendarDays,
+  ChartNoAxesCombined,
+} from 'lucide-react';
+import HRMyTasks from '../components/hrmanager/HRMyTasks';
+import HRAssignedTasks from '../components/hrmanager/HRAssignedTasks';
+import HRAttendance from '../components/hrmanager/HRAttendance';
+import AssignExistingClient from '../components/hrmanager/AssignExistingClient';
 
-const API_BASE = (
-  import.meta.env.VITE_API_URL || 'http://localhost:5000'
-).replace(/\/$/, '');
-export default function HRDashboard() {
-  const navigate = useNavigate();
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || 'null');
-    } catch {
-      return null;
-    }
-  });
-  const [tab, setTab] = useState('myTasks');
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      navigate('/', { replace: true });
-      return;
-    }
-    let cancelled = false;
-    axios
-      .get(`${API_BASE}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then(({ data }) => {
-        if (data?.role !== 'hr_manager') {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
-          navigate('/', { replace: true });
-          return;
-        }
-        if (!cancelled) {
-          setUser(data);
-          localStorage.setItem('user', JSON.stringify(data));
-        }
-      })
-      .catch(() => navigate('/', { replace: true }));
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate]);
-  const logout = () => {
-    ['accessToken', 'refreshToken', 'user'].forEach((k) =>
-      localStorage.removeItem(k),
-    );
-    navigate('/', { replace: true });
-  };
-  const tabs = [
-    { id: 'myTasks', label: 'My Tasks', Icon: ClipboardList },
-    { id: 'assignedTasks', label: 'Assigned Tasks', Icon: Send },
-    { id: 'attendance', label: 'Attendance', Icon: CalendarDays },
-  ];
+const sections = [
+  ['my-tasks', 'My Tasks', ListTodo],
+  ['assigned-tasks', 'Assigned Tasks', ClipboardList],
+  ['users', 'User Registration', Users],
+  ['clients', 'Assign Client', UserRound],
+  ['attendance', 'Attendance', CalendarDays],
+  ['performance', 'Employee Performance', ChartNoAxesCombined],
+];
+
+export default function HRManagerDashboard() {
+  const [active, setActive] = useState('my-tasks');
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      <aside className="fixed inset-y-0 left-0 z-20 flex w-16 flex-col bg-slate-900 text-white sm:w-20 lg:w-64">
-        <div className="border-b border-slate-700 px-2 py-5 lg:px-5">
-          <p className="text-center text-xs uppercase tracking-wider text-slate-400 lg:text-left">
-            HR Manager
-          </p>
-          <h2 className="mt-2 hidden truncate text-lg font-semibold lg:block">
-            {user?.name || 'HR Manager'}
-          </h2>
-          <div className="mx-auto mt-2 flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 font-bold lg:hidden">
-            {(user?.name || 'H').charAt(0).toUpperCase()}
-          </div>
-        </div>
-        <nav className="flex-1 space-y-2 px-2 py-4">
-          {tabs.map(({ id, label, Icon }) => (
+    <div className="min-h-screen bg-slate-50 md:flex">
+      <aside className="w-full border-r bg-white p-4 md:min-h-screen md:w-64">
+        <h1 className="mb-5 text-xl font-bold">HR Manager Dashboard</h1>
+        <nav className="grid grid-cols-2 gap-2 md:grid-cols-1">
+          {sections.map(([id, label, Icon]) => (
             <button
               key={id}
-              onClick={() => setTab(id)}
-              className={`flex w-full items-center justify-center gap-3 rounded-lg px-3 py-3 text-left transition lg:justify-start ${tab === id ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+              onClick={() => setActive(id)}
+              className={`flex items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active === id ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100'}`}
             >
-              <Icon size={20} />
-              <span className="hidden lg:inline">{label}</span>
+              <Icon size={18} />
+              {label}
             </button>
           ))}
         </nav>
-        <div className="border-t border-slate-700 p-2 lg:p-4">
-          <button
-            onClick={logout}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-3 font-medium hover:bg-red-700 lg:justify-start lg:px-4"
-          >
-            <LogOut size={20} />
-            <span className="hidden lg:inline">Logout</span>
-          </button>
-        </div>
       </aside>
-      <main className="ml-16 min-h-screen w-[calc(100%-4rem)] p-4 sm:ml-20 sm:w-[calc(100%-5rem)] sm:p-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:p-8">
-        <header className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-indigo-600">
-            People & Operations
-          </p>
-          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">
-            HR Manager Dashboard
-          </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Manage your own work, assigned tasks, attendance, leave and
-            work-from-home requests.
-          </p>
-        </header>
-        {tab === 'myTasks' && <HRMyTasks />}
-        {tab === 'assignedTasks' && <HRAssignedTasks />}
-        {tab === 'attendance' && <HRAttendance />}
+      <main className="min-w-0 flex-1 p-4 md:p-7">
+        <h2 className="mb-5 text-2xl font-bold">
+          {sections.find((s) => s[0] === active)?.[1]}
+        </h2>
+        {active === 'my-tasks' && <HRMyTasks />}
+        {active === 'assigned-tasks' && <HRAssignedTasks />}
+        {active === 'attendance' && <HRAttendance />}
+        {active === 'users' && <RegisteredUsers />}
+        {active === 'clients' && <AssignExistingClient />}
+        {active === 'performance' && <EmployeePerformance />}
       </main>
     </div>
+  );
+}
+
+function RegisteredUsers() {
+  const [users, setUsers] = useState([]),
+    [error, setError] = useState(''),
+    [editing, setEditing] = useState(null),
+    [form, setForm] = useState({ name: '', email: '' }),
+    [password, setPassword] = useState({ id: '', value: '' });
+  const api = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const config = {
+    headers: { Authorization: `Bearer ${localStorage.getItem('accessToken')}` },
+  };
+  const load = async () => {
+    try {
+      const r = await (
+        await import('axios')
+      ).default.get(api + '/api/hr/users', config);
+      setUsers(r.data.users || []);
+    } catch (e) {
+      setError(e.response?.data?.message || 'Could not load users');
+    }
+  };
+  React.useEffect(() => {
+    load();
+  }, []);
+  const save = async (e) => {
+    e.preventDefault();
+    try {
+      const axios = (await import('axios')).default;
+      await axios.put(`${api}/api/hr/users/${editing}`, form, config);
+      setEditing(null);
+      await load();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Could not update user');
+    }
+  };
+  const reset = async (e) => {
+    e.preventDefault();
+    try {
+      const axios = (await import('axios')).default;
+      await axios.put(
+        `${api}/api/hr/users/${password.id}/reset-password`,
+        { password: password.value },
+        config,
+      );
+      setPassword({ id: '', value: '' });
+      alert('Password reset. Admin has been notified.');
+    } catch (e) {
+      setError(e.response?.data?.message || 'Could not reset password');
+    }
+  };
+  return (
+    <section className="rounded-2xl border bg-white p-4">
+      <p className="mb-3 text-sm text-slate-500">
+        HR can edit existing registered users and reset employee passwords.
+        Registration is disabled.
+      </p>
+      {error && <p className="mb-3 text-rose-600">{error}</p>}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-150 text-left text-sm">
+          <thead>
+            <tr className="bg-slate-50">
+              <th className="p-3">Name</th>
+              <th className="p-3">Email</th>
+              <th className="p-3">Role</th>
+              <th className="p-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u._id} className="border-t">
+                <td className="p-3">{u.name}</td>
+                <td className="p-3">{u.email}</td>
+                <td className="p-3">{u.role}</td>
+                <td className="space-x-2 p-3">
+                  <button
+                    className="rounded border px-2 py-1"
+                    onClick={() => {
+                      setEditing(u._id);
+                      setForm({ name: u.name || '', email: u.email || '' });
+                    }}
+                  >
+                    Edit
+                  </button>
+                  {u.role === 'employee' && (
+                    <button
+                      className="rounded bg-indigo-600 px-2 py-1 text-white"
+                      onClick={() => setPassword({ id: u._id, value: '' })}
+                    >
+                      Reset password
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {editing && (
+        <form onSubmit={save} className="mt-4 flex flex-wrap gap-2">
+          <input
+            className="rounded border p-2"
+            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Name"
+          />
+          <input
+            className="rounded border p-2"
+            required
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="Email"
+          />
+          <button className="rounded bg-indigo-600 px-3 text-white">
+            Save
+          </button>
+          <button
+            type="button"
+            className="rounded border px-3"
+            onClick={() => setEditing(null)}
+          >
+            Cancel
+          </button>
+        </form>
+      )}
+      {password.id && (
+        <form onSubmit={reset} className="mt-4 flex flex-wrap gap-2">
+          <input
+            className="rounded border p-2"
+            type="password"
+            minLength="8"
+            required
+            value={password.value}
+            onChange={(e) =>
+              setPassword({ ...password, value: e.target.value })
+            }
+            placeholder="New password (8+ chars)"
+          />
+          <button className="rounded bg-amber-600 px-3 text-white">
+            Reset
+          </button>
+          <button
+            type="button"
+            className="rounded border px-3"
+            onClick={() => setPassword({ id: '', value: '' })}
+          >
+            Cancel
+          </button>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function EmployeePerformance() {
+  const [rows, setRows] = useState([]),
+    [error, setError] = useState('');
+  const api = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  React.useEffect(() => {
+    import('axios').then(({ default: axios }) =>
+      axios
+        .get(api + '/api/hr/performance', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+          },
+        })
+        .then((r) => setRows(r.data.performance || []))
+        .catch((e) =>
+          setError(e.response?.data?.message || 'Could not load performance'),
+        ),
+    );
+  }, []);
+  return (
+    <section className="rounded-2xl border bg-white p-4">
+      <h3 className="mb-4 font-bold">Employee performance</h3>
+      {error && <p className="text-rose-600">{error}</p>}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-137.5 text-left text-sm">
+          <thead>
+            <tr className="bg-slate-50">
+              <th className="p-3">Employee</th>
+              <th className="p-3">Tasks</th>
+              <th className="p-3">Completed</th>
+              <th className="p-3">In progress</th>
+              <th className="p-3">Not started</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.employeeId} className="border-t">
+                <td className="p-3">{r.name}</td>
+                <td className="p-3">{r.totalTasks}</td>
+                <td className="p-3">{r.completed}</td>
+                <td className="p-3">{r.inProgress}</td>
+                <td className="p-3">{r.notStarted}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
