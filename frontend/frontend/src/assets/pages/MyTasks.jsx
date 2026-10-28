@@ -1326,7 +1326,8 @@ export default function MyTasks({ user, searchValue = '' }) {
 
                   <p className="mt-1 text-sm text-slate-500">
                     Tasks created by you for yourself. User employees can edit
-                    Due Date, Status and add Remarks directly in the table.
+                    Due Date, Status , Add Remarks and delete Tasks directly in
+                    the table.
                   </p>
                 </div>
 

@@ -1639,39 +1639,81 @@ const AdminDashboard = () => {
         onLogout={handleLogout}
         onViewAllNotifications={() => handleTabChange('notifications')}
       />
+
+      {/* MOBILE ADMIN NAVIGATION */}
+      <nav
+        aria-label="Admin dashboard navigation"
+        className="grid grid-cols-2 gap-2 bg-slate-900 p-3 text-white lg:hidden"
+      >
+        {[
+          { id: 'myTasks', label: 'My Tasks', icon: '📋' },
+          { id: 'assignedTasks', label: 'Assign Tasks', icon: '📤' },
+          {
+            id: 'userRegistration',
+            label: 'User Registration',
+            icon: '👤',
+          },
+          { id: 'clients', label: 'Clients', icon: '👥' },
+          { id: 'allTasks', label: 'All Tasks', icon: '▤' },
+          { id: 'attendance', label: 'Attendance', icon: '▦' },
+          {
+            id: 'employeePerformance',
+            label: 'Employee Performance',
+            icon: '📊',
+          },
+        ].map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => handleTabChange(item.id)}
+            aria-current={activeTab === item.id ? 'page' : undefined}
+            className={`
+        flex min-h-12 min-w-0 items-center gap-2
+        rounded-lg px-3 py-3 text-left text-sm
+        font-medium transition-colors
+        ${
+          activeTab === item.id
+            ? 'bg-blue-500 shadow-sm ring-1 ring-white/20'
+            : 'hover:bg-blue-500/70'
+        }
+      `}
+          >
+            <span className="shrink-0 text-lg" aria-hidden="true">
+              {item.icon}
+            </span>
+
+            <span className="min-w-0 flex-1 wrap-break-word">{item.label}</span>
+
+            {item.id === 'notifications' && unreadNotificationCount > 0 && (
+              <span className="shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold">
+                {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
+
       {/* ======================================
           SIDEBAR
       ====================================== */}
 
       <aside
-        className="
-    fixed
-    left-0
-    top-0
-    bottom-0
-    z-40
-
-    w-16
-    sm:w-20
-    lg:w-64
-
-    min-h-screen
-
-    flex
-    flex-col
-
-    overflow-y-auto
-
-    bg-slate-900
-    text-white
-
-    border-r
-    border-slate-700
-    shadow-lg
-
-    transition-all
-    duration-300
-  "
+        className="fixed
+  left-0
+  top-19
+  bottom-0
+  z-40
+  hidden
+  w-64
+  flex-col
+  overflow-y-auto
+  border-r
+  border-slate-700
+  bg-slate-900
+  text-white
+  shadow-lg
+  lg:flex
+    "
       >
         {/* Admin Info */}
 
@@ -1938,84 +1980,7 @@ const AdminDashboard = () => {
 
             <span className="hidden lg:inline">Employee Performance</span>
           </button>
-
-          <button
-            type="button"
-            onClick={async () => {
-              handleTabChange('notifications');
-            }}
-            className={`
-    mt-2
-    flex
-    w-full
-    items-center
-    justify-between
-    gap-2
-    rounded-lg
-    px-2
-    py-3
-    text-left
-    transition
-    lg:px-4
-
-    ${
-      activeTab === 'notifications'
-        ? 'bg-blue-600 text-white'
-        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-    }
-  `}
-          >
-            {' '}
-            <div className="flex min-w-0 items-center justify-center gap-2 lg:justify-start lg:gap-3">
-              <span className="shrink-0 text-lg">🔔</span>
-
-              <span className="hidden lg:inline">Notifications</span>
-            </div>
-            {unreadNotificationCount > 0 && (
-              <span
-                className="
-        min-w-6
-        rounded-full
-        bg-red-500
-        px-2
-        py-0.5
-        text-center
-        text-xs
-        font-bold
-        text-white
-      "
-              >
-                {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
-              </span>
-            )}
-          </button>
         </nav>
-
-        {/* Logout */}
-
-        <div className="border-t border-slate-700 p-2 lg:p-4">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="
-              w-full
-              flex
-              items-center
-              justify-center
-              gap-2
-              px-4
-              py-3
-              rounded-lg
-              bg-red-500
-              hover:bg-red-600
-              transition
-              font-medium
-            "
-          >
-            <MdLogout size={20} />
-            <span className="hidden lg:inline">Logout</span>
-          </button>
-        </div>
       </aside>
 
       {/* ======================================

@@ -31,11 +31,12 @@ const AdminNavbar = ({
 
     document.addEventListener('mousedown', handleClickOutside);
 
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const fullName = admin?.name || 'Administrator';
-
   const email = admin?.email || 'No email available';
 
   const initials = fullName
@@ -51,22 +52,22 @@ const AdminNavbar = ({
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white">
-      <div className="flex min-h-18 items-center gap-3 px-4 sm:px-6">
-        {/* Logo */}
-        <div className="shrink-0">
+      <div className="flex min-h-19 w-full items-center gap-2 px-3 sm:gap-4 sm:px-5 lg:px-7">
+        {/* WebGetUp logo */}
+        <div className="w-28 shrink-0 min-[400px]:w-36.25 sm:w-45 lg:w-55">
           <img
-            src="/webgetup-logo.png"
+            src="/webgetup-logo.png.png"
             alt="WebGetUp"
-            className="h-auto w-40 object-contain sm:w-48"
+            className="block h-auto w-full object-contain"
           />
         </div>
 
-        {/* Search */}
-        <div className="flex flex-1 justify-center">
-          <div className="relative w-full max-w-xl">
+        {/* Search bar */}
+        <div className="flex min-w-0 flex-1 justify-center">
+          <div className="relative w-full max-w-3xl">
             <Search
-              size={18}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              size={19}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 sm:left-4"
             />
 
             <input
@@ -74,65 +75,49 @@ const AdminNavbar = ({
               aria-label="Search tasks"
               value={searchValue}
               onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Search tasks by title, employee, client, status..."
+              placeholder="Search tasks..."
               className="
-                h-11
-                w-full
-                rounded-full
-                border
-                border-slate-200
-                bg-slate-100
-                pl-11
-                pr-4
-                text-sm
-                outline-none
-                transition
-                focus:border-blue-300
-                focus:bg-white
-                focus:ring-4
-                focus:ring-blue-100
+                h-10 w-full min-w-0 rounded-full
+                border border-slate-200 bg-slate-100
+                pl-9 pr-2 text-xs text-slate-700
+                outline-none transition
+                placeholder:text-slate-400
+                focus:border-blue-300 focus:bg-white
+                focus:ring-2 focus:ring-blue-100
+                min-[400px]:text-sm
+                sm:h-12 sm:pl-12 sm:pr-4 sm:text-base
               "
             />
           </div>
         </div>
 
-        {/* Right Side */}
-        <div className="flex items-center gap-2">
+        {/* Notifications and profile */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
           {/* Notifications */}
           <div ref={notificationRef} className="relative">
             <button
               type="button"
-              onClick={() => setShowNotifications(!showNotifications)}
+              aria-label={`Notifications: ${unreadCount} unread`}
+              aria-expanded={showNotifications}
+              onClick={() => {
+                setShowNotifications((previous) => !previous);
+                setShowProfileMenu(false);
+              }}
               className="
-                relative
-                flex
-                h-11
-                w-11
-                items-center
-                justify-center
-                rounded-full
-                hover:bg-slate-100
+                relative flex h-9 w-9 items-center justify-center
+                rounded-full text-slate-600 hover:bg-slate-100
+                sm:h-11 sm:w-11
               "
             >
-              <Bell size={20} />
+              <Bell size={21} />
 
               {unreadCount > 0 && (
                 <span
                   className="
-                    absolute
-                    right-0
-                    top-0
-                    flex
-                    min-h-5
-                    min-w-5
-                    items-center
-                    justify-center
-                    rounded-full
-                    bg-red-500
-                    px-1
-                    text-[10px]
-                    font-bold
-                    text-white
+                    absolute -right-0.5 -top-0.5
+                    flex h-5 min-w-5 items-center justify-center
+                    rounded-full bg-red-500 px-1
+                    text-[10px] font-bold text-white
                   "
                 >
                   {unreadCount > 99 ? '99+' : unreadCount}
@@ -143,21 +128,17 @@ const AdminNavbar = ({
             {showNotifications && (
               <div
                 className="
-                  absolute
-                  right-0
-                  top-[calc(100%+10px)]
-                  z-50
-                  w-96
-                  overflow-hidden
-                  rounded-2xl
-                  border
-                  border-slate-200
-                  bg-white
-                  shadow-2xl
+                  fixed left-3 right-3 top-21 z-60
+                  overflow-hidden rounded-2xl border
+                  border-slate-200 bg-white shadow-2xl
+                  sm:absolute sm:left-auto sm:right-0
+                  sm:top-[calc(100%+10px)] sm:w-96
                 "
               >
                 <div className="flex items-center justify-between border-b px-4 py-4">
-                  <h3 className="font-semibold">Notifications</h3>
+                  <h3 className="font-semibold text-slate-800">
+                    Notifications
+                  </h3>
 
                   <button
                     type="button"
@@ -165,20 +146,22 @@ const AdminNavbar = ({
                       setShowNotifications(false);
                       onViewAllNotifications?.();
                     }}
-                    className="text-sm text-blue-600"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700"
                   >
                     View All
                   </button>
                 </div>
 
-                <div className="max-h-80 overflow-y-auto">
+                <div className="max-h-[60vh] overflow-y-auto">
                   {notifications.length > 0 ? (
                     notifications.slice(0, 5).map((notification) => (
                       <div
                         key={notification._id}
-                        className="border-b px-4 py-3"
+                        className={`border-b px-4 py-3 ${
+                          !notification.isRead ? 'bg-blue-50/70' : ''
+                        }`}
                       >
-                        <p className="font-medium text-slate-800">
+                        <p className="wrap-break-word text-sm font-medium text-slate-800">
                           {notification.message}
                         </p>
 
@@ -190,7 +173,7 @@ const AdminNavbar = ({
                       </div>
                     ))
                   ) : (
-                    <div className="p-6 text-center text-slate-500">
+                    <div className="p-6 text-center text-sm text-slate-500">
                       No notifications
                     </div>
                   )}
@@ -203,55 +186,47 @@ const AdminNavbar = ({
           <div ref={profileRef} className="relative">
             <button
               type="button"
-              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              aria-label="Open profile menu"
+              aria-expanded={showProfileMenu}
+              onClick={() => {
+                setShowProfileMenu((previous) => !previous);
+                setShowNotifications(false);
+              }}
               className="
-                flex
-                items-center
-                gap-2
-                rounded-full
-                p-1
-                hover:bg-slate-100
+                flex items-center gap-1 rounded-full p-0.5
+                hover:bg-slate-100 sm:gap-2 sm:p-1
               "
             >
               <div
                 className="
-                  flex
-                  h-11
-                  w-11
-                  items-center
-                  justify-center
-                  rounded-full
-                  bg-blue-600
-                  font-bold
-                  text-white
+                  flex h-9 w-9 items-center justify-center
+                  rounded-full bg-blue-600 text-xs font-bold text-white
+                  shadow-sm sm:h-11 sm:w-11 sm:text-sm
                 "
               >
                 {initials || <User size={18} />}
               </div>
 
-              <ChevronDown size={16} className="text-slate-500" />
+              <ChevronDown
+                size={15}
+                className="hidden text-slate-500 min-[400px]:block"
+              />
             </button>
 
             {showProfileMenu && (
               <div
                 className="
-                  absolute
-                  right-0
-                  top-[calc(100%+10px)]
-                  z-50
-                  w-64
-                  overflow-hidden
-                  rounded-2xl
-                  border
-                  border-slate-200
-                  bg-white
-                  shadow-2xl
+                  fixed right-3 top-21 z-60 w-64
+                  overflow-hidden rounded-2xl border
+                  border-slate-200 bg-white shadow-2xl
+                  sm:absolute sm:right-0 sm:top-[calc(100%+10px)]
                 "
               >
                 <div className="border-b px-4 py-4">
-                  <p className="font-semibold text-slate-800">{fullName}</p>
-
-                  <p className="text-sm text-slate-500">{email}</p>
+                  <p className="truncate font-semibold text-slate-800">
+                    {fullName}
+                  </p>
+                  <p className="break-all text-sm text-slate-500">{email}</p>
                 </div>
 
                 <div className="p-2">
@@ -259,15 +234,8 @@ const AdminNavbar = ({
                     type="button"
                     onClick={onLogout}
                     className="
-                      flex
-                      w-full
-                      items-center
-                      gap-3
-                      rounded-xl
-                      px-3
-                      py-3
-                      text-red-600
-                      hover:bg-red-50
+                      flex w-full items-center gap-3 rounded-xl
+                      px-3 py-3 text-red-600 hover:bg-red-50
                     "
                   >
                     <LogOut size={18} />
