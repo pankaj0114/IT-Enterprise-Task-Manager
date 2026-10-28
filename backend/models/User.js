@@ -107,9 +107,6 @@ const userSchema = new mongoose.Schema(
       default: true,
     },
 
-    // ==============================
-    // REFRESH TOKENS
-    // ==============================
     refreshTokens: [
       {
         token: {
