@@ -1,10 +1,10 @@
-import User from '../../../Task Management project/backend/models/User.js';
+import User from '../models/User.js';
 //import Notification from '../models/Notification.js';
 import bcrypt from 'bcryptjs'; // use bcryptjs
 import jwt from 'jsonwebtoken';
-import Notification from '../../../Task Management project/backend/models/Notification.js';
+import Notification from '../models/Notification.js'; // Ensure this path is correct
 import crypto from 'crypto';
-import transporter from '../../../Task Management project/backend/config/mailer.js';
+import transporter from '../models/transporter.js'; // Ensure this path is correct
 
 // Register new user
 
