@@ -264,20 +264,41 @@ export const deleteAdminTask = async (req, res) => {
 
 export const getEmployeePerformance = async (req, res) => {
   try {
+    const { month } = req.query;
+
+    // Expected format: YYYY-MM
+    const selectedMonth = month || new Date().toISOString().slice(0, 7);
+
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth)) {
+      return res.status(400).json({
+        message: 'Invalid month. Use YYYY-MM format.',
+      });
+    }
+
+    const [year, monthNumber] = selectedMonth.split('-').map(Number);
+
+    const startDate = new Date(year, monthNumber - 1, 1);
+    const endDate = new Date(year, monthNumber, 1);
+
     // Get all employees
     const employees = await User.find({
       role: 'employee',
     }).select('_id name email');
 
-    // Get completed-task totals grouped by employee
-    const performanceData = await Task.aggregate([
+    const employeeIds = employees.map((employee) => employee._id);
+
+    // Completed tasks during selected month
+    const completedData = await Task.aggregate([
       {
         $match: {
+          assignedTo: { $in: employeeIds },
           status: 'Completed',
-          assignedTo: { $ne: null },
+          updatedAt: {
+            $gte: startDate,
+            $lt: endDate,
+          },
         },
       },
-
       {
         $group: {
           _id: '$assignedTo',
@@ -290,16 +311,9 @@ export const getEmployeePerformance = async (req, res) => {
             $sum: {
               $add: [
                 {
-                  $multiply: [
-                    {
-                      $ifNull: ['$totalHours', 0],
-                    },
-                    60,
-                  ],
+                  $multiply: [{ $ifNull: ['$totalHours', 0] }, 60],
                 },
-                {
-                  $ifNull: ['$totalMinutes', 0],
-                },
+                { $ifNull: ['$totalMinutes', 0] },
               ],
             },
           },
@@ -307,63 +321,96 @@ export const getEmployeePerformance = async (req, res) => {
       },
     ]);
 
-    // Convert ObjectId -> performance object
-    const performanceMap = new Map();
+    // Pending tasks created during selected month
+    const pendingData = await Task.aggregate([
+      {
+        $match: {
+          assignedTo: { $in: employeeIds },
 
-    performanceData.forEach((item) => {
-      performanceMap.set(String(item._id), {
-        completedTasks: item.completedTasks || 0,
+          status: {
+            $in: ['Not Started', 'In Progress'],
+          },
 
-        totalMinutesSpent: item.totalMinutesSpent || 0,
-      });
-    });
+          createdAt: {
+            $gte: startDate,
+            $lt: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$assignedTo',
 
-    // Include employees with ZERO completed tasks too
+          pendingTasks: {
+            $sum: 1,
+          },
+        },
+      },
+    ]);
+
+    const completedMap = new Map(
+      completedData.map((item) => [String(item._id), item]),
+    );
+
+    const pendingMap = new Map(
+      pendingData.map((item) => [String(item._id), item]),
+    );
+
     const result = employees.map((employee) => {
-      const data = performanceMap.get(String(employee._id)) || {
-        completedTasks: 0,
-        totalMinutesSpent: 0,
-      };
+      const id = String(employee._id);
 
-      const totalMinutes = data.totalMinutesSpent;
+      const completed = completedMap.get(id) || {};
+      const pending = pendingMap.get(id) || {};
 
-      const totalHours = Math.floor(totalMinutes / 60);
+      const completedTasks = completed.completedTasks || 0;
 
-      const remainingMinutes = totalMinutes % 60;
+      const pendingTasks = pending.pendingTasks || 0;
 
+      const totalMinutesSpent = completed.totalMinutesSpent || 0;
+
+      // Average time per completed task
       const averageMinutes =
-        data.completedTasks > 0
-          ? Math.round(totalMinutes / data.completedTasks)
-          : 0;
+        completedTasks > 0 ? Math.round(totalMinutesSpent / completedTasks) : 0;
 
       const averageHours = Math.floor(averageMinutes / 60);
 
-      const averageRemainingMinutes = averageMinutes % 60;
+      const remainingMinutes = averageMinutes % 60;
+
+      // Monthly completion performance
+      const totalTasks = completedTasks + pendingTasks;
+
+      const performance =
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
       return {
         employeeId: employee._id,
         name: employee.name,
         email: employee.email,
 
-        completedTasks: data.completedTasks,
+        completedTasks,
+        pendingTasks,
+        totalTasks,
 
-        totalHours,
-
-        totalMinutes: remainingMinutes,
-
-        totalMinutesSpent: totalMinutes,
+        totalMinutesSpent,
+        averageMinutes,
 
         averageTime:
-          data.completedTasks > 0
-            ? `${averageHours}h ${averageRemainingMinutes}m`
-            : '—',
+          completedTasks > 0 ? `${averageHours}h ${remainingMinutes}m` : '—',
+
+        performance,
       };
     });
 
-    // Highest completed tasks first
-    result.sort((a, b) => b.completedTasks - a.completedTasks);
+    // Highest performance first
+    result.sort(
+      (a, b) =>
+        b.performance - a.performance || b.completedTasks - a.completedTasks,
+    );
 
-    return res.status(200).json(result);
+    return res.status(200).json({
+      month: selectedMonth,
+      employees: result,
+    });
   } catch (error) {
     console.error('Employee performance error:', error);
 

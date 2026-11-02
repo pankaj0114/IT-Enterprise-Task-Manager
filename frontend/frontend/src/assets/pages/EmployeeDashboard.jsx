@@ -861,9 +861,12 @@ export default function EmployeeDashboard() {
   }, [user?._id]);
 
   useEffect(() => {
-    if (activeTab === 'assignedTasks') {
-      fetchAssignedTasks();
-    }
+    if (activeTab !== 'assignedTasks') return;
+
+    fetchAssignedTasks();
+    const refreshInterval = window.setInterval(fetchAssignedTasks, 10000);
+
+    return () => window.clearInterval(refreshInterval);
   }, [activeTab]);
 
   // ✅ Fetch functions
@@ -2557,6 +2560,8 @@ export default function EmployeeDashboard() {
                               <option value="Not Started">Not Started</option>
 
                               <option value="In Progress">In Progress</option>
+
+                              <option value="Completed">Completed</option>
                             </select>
                           </td>
 

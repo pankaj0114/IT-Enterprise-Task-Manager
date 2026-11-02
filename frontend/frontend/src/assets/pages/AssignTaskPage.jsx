@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import '../css/AssignTaskPage.css';
 //import { useEffect, use } from 'react';
 
 const AssignTaskPage = ({
@@ -149,10 +148,18 @@ const AssignTaskPage = ({
 
       console.log('Task created:', response.data);
 
+      // Show success message
+      setErrorMessage('');
+      setShowSuccessPopup(true);
+
+      // Automatically hide after 3 seconds
+      setTimeout(() => {
+        setShowSuccessPopup(false);
+      }, 3000);
+
       if (onTaskCreated) {
         await onTaskCreated();
       }
-
       // Reset form
       setTask({
         title: '',
@@ -592,6 +599,26 @@ const AssignTaskPage = ({
           </button>
         </div>
       </div>
+
+      {/* SUCCESS MESSAGE */}
+      {showSuccessPopup && (
+        <div className="fixed top-5 right-5 z-100">
+          <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-white px-5 py-4 shadow-lg">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 text-green-600">
+              ✓
+            </div>
+
+            <div>
+              <p className="font-semibold text-green-700">
+                Task Assigned Successfully!
+              </p>
+              <p className="text-sm text-gray-500">
+                The task has been assigned to the employee.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* =========================
         ERROR POPUP
