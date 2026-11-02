@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs'; // use bcryptjs
 import jwt from 'jsonwebtoken';
 import Notification from '../models/Notification.js'; // Ensure this path is correct
 import crypto from 'crypto';
-import transporter from '../models/transporter.js'; // Ensure this path is correct
+import transporter from '../config/mailer.js'; // Ensure this path is correct
 
 // Register new user
 
