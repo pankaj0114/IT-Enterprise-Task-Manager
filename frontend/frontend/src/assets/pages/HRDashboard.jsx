@@ -6,7 +6,9 @@ import {
   UserRound,
   CalendarDays,
   ChartNoAxesCombined,
+  LogOut,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import HRMyTasks from '../components/hrmanager/HRMyTasks';
 import HRAssignedTasks from '../components/hrmanager/HRAssignedTasks';
 import HRAttendance from '../components/hrmanager/HRAttendance';
@@ -23,6 +25,15 @@ const sections = [
 
 export default function HRManagerDashboard() {
   const [active, setActive] = useState('my-tasks');
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    navigate('/', { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 md:flex">
       <aside className="w-full border-r bg-white p-4 md:min-h-screen md:w-64">
@@ -39,6 +50,15 @@ export default function HRManagerDashboard() {
             </button>
           ))}
         </nav>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 md:mt-8"
+        >
+          <LogOut size={18} />
+          Logout
+        </button>
       </aside>
       <main className="min-w-0 flex-1 p-4 md:p-7">
         <h2 className="mb-5 text-2xl font-bold">

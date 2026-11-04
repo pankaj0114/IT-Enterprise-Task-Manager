@@ -2557,6 +2557,7 @@ export default function EmployeeDashboard() {
                               <option value="Not Started">Not Started</option>
 
                               <option value="In Progress">In Progress</option>
+                              <option value="Completed">Completed</option>
                             </select>
                           </td>
 
@@ -2906,7 +2907,7 @@ export default function EmployeeDashboard() {
                         font-medium
                       "
                           >
-                            Uncomplete
+                            Reopen Task
                           </button>
                         </div>
                       </div>
