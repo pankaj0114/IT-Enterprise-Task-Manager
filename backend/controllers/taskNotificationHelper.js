@@ -1,4 +1,4 @@
-import Notification from '../../../Task Management project/backend/models/Notification.js';
+import Notification from '../models/Notification.js';
 
 export const createTaskChangeNotification = async ({
   req,
